@@ -1,0 +1,287 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard | Nudibranch Reef Tracker{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Welcome / Overview Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Tank Overview</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Live metrics and latest measurements</p>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <button onclick="openQuickLogModal()" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Quick Add Test
+      </button>
+    </div>
+  </div>
+
+  <!-- Key Parameter Quick-Look Grid (Mobile-First Cards) -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+    {% for pt in parameter_types %}
+      {% with latest=pt.latest_log %}
+        <div onclick="openQuickLogModal({{ pt.id }})" 
+             class="group relative bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-4 cursor-pointer transition-all hover:shadow-xl hover:shadow-cyan-500/5 active:scale-[0.98]">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-400 group-hover:text-cyan-400 transition-colors">
+              {{ pt.name }}
+            </span>
+            <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ pt.color }}"></div>
+          </div>
+
+          {% if latest %}
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-black tracking-tight text-white">{{ latest.value }}</span>
+              <span class="text-xs font-medium text-slate-400">{{ pt.unit }}</span>
+            </div>
+
+            <div class="mt-2 flex items-center justify-between">
+              <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border {{ latest.status_color_class }}">
+                {{ latest.status|upper }}
+              </span>
+              <span class="text-[10px] text-slate-500">
+                {{ latest.measured_at|timesince }} ago
+              </span>
+            </div>
+          {% else %}
+            <div class="py-2 text-slate-500 text-sm font-medium">No logs yet</div>
+            <div class="text-[10px] text-cyan-400 font-semibold group-hover:underline">+ Tap to log</div>
+          {% endif %}
+
+          <div class="mt-2 text-[10px] text-slate-500 border-t border-slate-800/80 pt-1.5">
+            Ideal: {{ pt.min_ideal }} – {{ pt.max_ideal }} {{ pt.unit }}
+          </div>
+        </div>
+      {% endwith %}
+    {% endfor %}
+  </div>
+
+  <!-- Dynamic Trend Chart Section -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <span>📈</span> Parameter Trends
+        </h2>
+        <p class="text-xs text-slate-400">Historical dynamics and target bands</p>
+      </div>
+
+      <!-- Parameter Selector Buttons (Scrollable on mobile) -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+        {% for pt in parameter_types %}
+          <button type="button" 
+                  onclick="loadChartData('{{ pt.code }}')"
+                  id="tab-{{ pt.code }}"
+                  class="chart-param-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+            {{ pt.name }}
+          </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Chart Canvas -->
+    <div class="relative h-64 sm:h-80 w-full mt-4">
+      <canvas id="parameterChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Two Column Layout: Recent Logs & Livestock/Cameras -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Recent Logs Feed -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>📋</span> Recent Test Logs
+        </h3>
+        <a href="{% url 'parameters' %}" class="text-xs font-semibold text-cyan-400 hover:underline">
+          View All →
+        </a>
+      </div>
+
+      <div id="recent-logs-list" class="space-y-2.5 max-h-[380px] overflow-y-auto no-scrollbar">
+        {% for log in recent_logs %}
+          {% include 'aquarium/partials/parameter_log_row.html' with log=log %}
+        {% empty %}
+          <div class="text-center py-10 text-slate-500 text-sm">
+            No measurements recorded yet.<br>
+            <button onclick="openQuickLogModal()" class="mt-2 text-cyan-400 font-semibold underline">Add your first test</button>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Tank Inhabitants & Webcam Snippets -->
+    <div class="space-y-6">
+
+      <!-- Livestock Snapshot -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-bold text-white">Livestock Roster</h3>
+            <span class="text-xs bg-slate-800 text-cyan-400 font-bold px-2 py-0.5 rounded-full border border-slate-700">
+              {{ total_animals }} Total
+            </span>
+          </div>
+          <a href="{% url 'livestock' %}" class="text-xs font-semibold text-cyan-400 hover:underline">
+            Manage →
+          </a>
+        </div>
+
+        <!-- Groups pill preview -->
+        <div class="flex flex-wrap gap-2">
+          {% for group in groups %}
+            <a href="{% url 'livestock' %}?group={{ group.id }}" 
+               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/60 hover:border-slate-600 text-xs font-medium text-slate-300 transition-colors">
+              <span>{{ group.icon }}</span>
+              <span>{{ group.name }}</span>
+              <span class="text-[10px] text-slate-500 font-bold ml-1">({{ group.animals.count }})</span>
+            </a>
+          {% empty %}
+            <p class="text-xs text-slate-500">No animal groups defined yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Live Webcam Quick-View -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Tank Webcam
+          </h3>
+          <a href="{% url 'webcams' %}" class="text-xs font-semibold text-cyan-400 hover:underline">
+            All Feeds →
+          </a>
+        </div>
+
+        {% if active_cameras %}
+          {% with cam=active_cameras.0 %}
+            <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-slate-800">
+              {% if cam.feed_type == 'mjpeg' %}
+                <img src="{{ cam.feed_url }}" alt="{{ cam.name }}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full text-xs text-slate-500\'>Camera feed unreachable</div>'">
+              {% elif cam.feed_type == 'iframe' %}
+                <iframe src="{{ cam.feed_url }}" class="w-full h-full border-0"></iframe>
+              {% else %}
+                <div class="flex flex-col items-center justify-center h-full text-slate-400 p-4 text-center">
+                  <p class="text-xs font-semibold">{{ cam.name }} ({{ cam.get_feed_type_display }})</p>
+                  <a href="{{ cam.feed_url }}" target="_blank" class="mt-2 text-xs text-cyan-400 underline">Open live stream</a>
+                </div>
+              {% endif %}
+              <div class="absolute bottom-2 left-2 px-2 py-1 bg-slate-950/70 backdrop-blur-sm rounded text-[10px] font-semibold text-white">
+                {{ cam.name }}
+              </div>
+            </div>
+          {% endwith %}
+        {% else %}
+          <div class="p-6 rounded-xl border border-dashed border-slate-800 text-center">
+            <p class="text-xs text-slate-500">No active cameras configured.</p>
+            <a href="/admin/aquarium/webcamfeed/add/" class="mt-2 inline-block text-xs font-semibold text-cyan-400 underline">
+              + Add a webcam feed
+            </a>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let chartInstance = null;
+
+  async function loadChartData(paramCode) {
+    // Highlight selected tab button
+    document.querySelectorAll('.chart-param-btn').forEach(btn => {
+      btn.classList.remove('bg-cyan-500', 'text-slate-950');
+      btn.classList.add('bg-slate-800', 'text-slate-300');
+    });
+    const activeBtn = document.getElementById(`tab-${paramCode}`);
+    if (activeBtn) {
+      activeBtn.classList.remove('bg-slate-800', 'text-slate-300');
+      activeBtn.classList.add('bg-cyan-500', 'text-slate-950');
+    }
+
+    try {
+      const res = await fetch(`/api/parameters/chart-data/?code=${paramCode}&days=30`);
+      const data = await res.json();
+      renderChart(data);
+    } catch (e) {
+      console.error('Failed to load chart data:', e);
+    }
+  }
+
+  function renderChart(data) {
+    const ctx = document.getElementById('parameterChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+
+    const param = data.parameter;
+    const color = param.color || '#06b6d4';
+
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: `${param.name} (${param.unit})`,
+          data: data.values,
+          borderColor: color,
+          backgroundColor: `${color}20`,
+          tension: 0.35,
+          fill: true,
+          pointBackgroundColor: color,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: { color: '#94a3b8', font: { size: 12, weight: 'bold' } }
+          },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            borderColor: '#334155',
+            borderWidth: 1,
+            titleColor: '#fff',
+            bodyColor: '#cbd5e1',
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#1e293b' },
+            ticks: { color: '#64748b', maxRotation: 45, font: { size: 10 } }
+          },
+          y: {
+            grid: { color: '#1e293b' },
+            ticks: { color: '#64748b', font: { size: 10 } }
+          }
+        }
+      }
+    });
+  }
+
+  // Load initial chart on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    {% if parameter_types %}
+      loadChartData('{{ parameter_types.0.code }}');
+    {% endif %}
+  });
+
+  // Re-fetch chart when HTMX adds a log
+  document.body.addEventListener('logAdded', () => {
+    {% if parameter_types %}
+      loadChartData('{{ parameter_types.0.code }}');
+    {% endif %}
+  });
+</script>
+{% endblock %}

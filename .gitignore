@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+env/
+venv/
+
+# Database & Media (Persistent data directory)
+data/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+
+# Static and media
+media/
+staticfiles/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+.docker/

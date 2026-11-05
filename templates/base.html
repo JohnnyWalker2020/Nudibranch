@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100 antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>{% block title %}Nudibranch Reef Tracker{% endblock %}</title>
+
+  <!-- PWA Metadata & iOS Support -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Nudibranch">
+  <link rel="apple-touch-icon" href="/static/icons/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+
+  <!-- Tailwind CSS & HTMX & Chart.js -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdfa',
+              500: '#14b8a6',
+              600: '#0d9488',
+              900: '#134e4a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Safe area padding for iPhone notch / home bar */
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
+    .pt-safe { padding-top: env(safe-area-inset-top, 0.5rem); }
+    /* Hide scrollbars for clean mobile feel */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="h-full flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500 selection:text-white" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+  <!-- Top Navigation (Desktop & Mobile Header) -->
+  <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 pt-safe">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <a href="{% url 'dashboard' %}" class="flex items-center gap-3 group">
+        <img src="/static/icons/icon.svg" alt="Nudibranch" class="w-9 h-9 rounded-xl shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+        <div>
+          <span class="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
+            NUDIBRANCH
+            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-semibold border border-cyan-500/30">REEF</span>
+          </span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav Links -->
+      <nav class="hidden md:flex items-center gap-1">
+        <a href="{% url 'dashboard' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'dashboard' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+          Dashboard
+        </a>
+        <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'parameters' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+          Parameters
+        </a>
+        <a href="{% url 'livestock' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'livestock' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+          Livestock
+        </a>
+        <a href="{% url 'webcams' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'webcams' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+          Webcams
+        </a>
+      </nav>
+
+      <!-- Quick Add Action Button & Admin Link -->
+      <div class="flex items-center gap-3">
+        <button onclick="openQuickLogModal()" class="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-sm px-4 py-2 rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+          <span class="hidden sm:inline">Log Test</span>
+        </button>
+        <a href="/admin/" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title="Django Admin">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="2"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 mb-16 md:mb-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Mobile Bottom Tab Navigation Bar (PWA Thumb-friendly) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 pb-safe">
+    <div class="grid grid-cols-4 h-16">
+      <a href="{% url 'dashboard' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'dashboard' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span class="text-[10px] font-semibold">Home</span>
+      </a>
+
+      <a href="{% url 'parameters' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'parameters' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="text-[10px] font-semibold">Params</span>
+      </a>
+
+      <a href="{% url 'livestock' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'livestock' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+        <span class="text-lg leading-none">🐠</span>
+        <span class="text-[10px] font-semibold">Livestock</span>
+      </a>
+
+      <a href="{% url 'webcams' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'webcams' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        <span class="text-[10px] font-semibold">Cams</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Quick Parameter Log Modal Include -->
+  {% include 'aquarium/partials/quick_log_modal.html' %}
+
+  <!-- Global Application Scripts -->
+  <script src="/static/js/app.js"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

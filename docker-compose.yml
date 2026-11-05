@@ -1,0 +1,31 @@
+services:
+  web:
+    build: .
+    container_name: nudibranch_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mounts the persistent directory for both SQLite DB and uploaded livestock photos
+      - ./data:/app/data
+    environment:
+      - DEBUG=0
+      - DJANGO_SECRET_KEY=change-me-to-a-secure-random-key-in-production
+      - ALLOWED_HOSTS=*
+      - CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+      - DATA_DIR=/app/data
+
+  # Optional Webcam Streaming Engine (go2rtc):
+  # Converts RTSP/USB cameras to low-latency WebRTC/MJPEG/HLS for browser viewing.
+  # Uncomment if you want to stream IP cameras into Nudibranch!
+  # go2rtc:
+  #   image: alexxit/go2rtc:latest
+  #   container_name: nudibranch_go2rtc
+  #   restart: unless-stopped
+  #   ports:
+  #     - "1984:1984" # API / Web UI
+  #     - "8554:8554" # RTSP
+  #     - "8555:8555/tcp" # WebRTC
+  #     - "8555:8555/udp"
+  #   volumes:
+  #     - ./go2rtc.yaml:/config/go2rtc.yaml

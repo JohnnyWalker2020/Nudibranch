@@ -1,0 +1,63 @@
+<!-- Quick Parameter Log Modal -->
+<div id="quick-log-modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+  
+  <!-- Backdrop Click Area -->
+  <div class="fixed inset-0" onclick="closeQuickLogModal()"></div>
+
+  <!-- Modal Dialog Window -->
+  <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+        </div>
+        <h3 class="text-lg font-bold text-white">Log Parameter Reading</h3>
+      </div>
+      <button type="button" onclick="closeQuickLogModal()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Form -->
+    <form hx-post="{% url 'quick_log_create' %}"
+          hx-target="#recent-logs-list"
+          hx-swap="afterbegin"
+          hx-on::after-request="if(event.detail.successful) { closeQuickLogModal(); this.reset(); }"
+          class="mt-4 space-y-4">
+      {% csrf_token %}
+
+      <!-- Parameter Selector -->
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Parameter</label>
+        {{ form.parameter_type }}
+      </div>
+
+      <!-- Measurement Value Input -->
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Measured Value</label>
+        {{ form.value }}
+      </div>
+
+      <!-- Notes -->
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Notes (Optional)</label>
+        {{ form.notes }}
+      </div>
+
+      <!-- Timestamp -->
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Date & Time</label>
+        {{ form.measured_at }}
+      </div>
+
+      <!-- Submit Button -->
+      <div class="pt-2">
+        <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-base rounded-xl shadow-lg shadow-cyan-500/25 active:scale-[0.98] transition-all">
+          Save Measurement
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
