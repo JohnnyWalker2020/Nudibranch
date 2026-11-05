@@ -32,16 +32,21 @@
     <div>
       <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Creature Photo</label>
       <div class="flex items-center gap-4">
-        <div class="w-24 h-24 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+        <div id="photo-preview-box" class="w-24 h-24 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0 shadow-inner relative group">
           {% if is_edit and animal.photo %}
-            <img src="{{ animal.photo.url }}" alt="{{ animal.name }}" class="w-full h-full object-cover">
+            <img id="photo-preview-img" src="{{ animal.photo.url }}" alt="{{ animal.name }}" class="w-full h-full object-cover">
           {% else %}
-            <span class="text-3xl text-slate-600">🐠</span>
+            <img id="photo-preview-img" src="" alt="Preview" class="w-full h-full object-cover hidden">
+            <span id="photo-preview-placeholder" class="text-3xl text-slate-600">🐠</span>
           {% endif %}
         </div>
-        <div class="flex-1 space-y-1">
-          {{ form.photo }}
-          <p class="text-[11px] text-slate-500">Supports PNG, JPG, or WEBP photos taken from your phone camera</p>
+        <div class="flex-1 space-y-1.5">
+          <label class="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors shadow-sm active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
+            <span>Snap Camera / Choose File</span>
+            <input type="file" name="photo" id="id_photo" accept="image/*" onchange="previewCreaturePhoto(this)" class="hidden">
+          </label>
+          <p id="photo-filename" class="text-[11px] text-slate-500">Supports photos taken from your phone camera, PNG, JPG, or WEBP</p>
         </div>
       </div>
       {% if form.photo.errors %}
@@ -87,6 +92,15 @@
     <div class="space-y-1.5">
       <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Species / Latin Name (Optional)</label>
       {{ form.species }}
+    </div>
+
+    <!-- Assigned Tank System -->
+    <div class="space-y-1.5">
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Assigned Tank System *</label>
+      {{ form.tank }}
+      {% if form.tank.errors %}
+        <p class="text-xs text-rose-400">{{ form.tank.errors.0 }}</p>
+      {% endif %}
     </div>
 
     <!-- Health Status & Acquired Date -->
@@ -213,6 +227,30 @@
           cb.checked = true;
         }
       });
+    }
+  }
+
+  function previewCreaturePhoto(input) {
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = document.getElementById('photo-preview-img');
+        const placeholder = document.getElementById('photo-preview-placeholder');
+        const filename = document.getElementById('photo-filename');
+        if (img) {
+          img.src = e.target.result;
+          img.classList.remove('hidden');
+        }
+        if (placeholder) {
+          placeholder.classList.add('hidden');
+        }
+        if (filename) {
+          filename.innerText = `Selected: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+          filename.classList.add('text-cyan-400');
+        }
+      };
+      reader.readAsDataURL(file);
     }
   }
 

@@ -12,47 +12,73 @@
       <p class="text-xs text-slate-400 mt-0.5">Interactive checklists, salt mixing calculator, and maintenance history</p>
     </div>
 
-    <button onclick="document.getElementById('log-wc-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-      Log Completed Water Change
-    </button>
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="document.getElementById('add-routine-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-bold text-xs rounded-xl border border-slate-700/80 shadow-sm active:scale-95 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        + Add Custom Routine
+      </button>
+
+      <button onclick="document.getElementById('log-wc-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Log Completed Water Change
+      </button>
+    </div>
   </div>
 
   <!-- Interactive Salt Mixing Prep Calculator -->
   <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-800">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
       <div>
         <h2 class="text-lg font-bold text-white flex items-center gap-2">
           <span>🧂</span> Salt Mixing Calculator
         </h2>
         <p class="text-xs text-slate-400">Calculate exact salt weight and cup measurements for your target salinity</p>
       </div>
-      <span class="text-xs px-3 py-1 bg-cyan-500/20 text-cyan-400 font-bold rounded-lg border border-cyan-500/30">
-        Prep Tool
-      </span>
-    </div>
 
-    <!-- Inputs Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <!-- Water Volume -->
-      <div class="space-y-1.5">
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Water Volume (Gallons)</label>
-        <div class="relative">
-          <input type="number" 
-                 id="calc-gallons" 
-                 value="10" 
-                 min="1" 
-                 max="500" 
-                 step="0.5" 
-                 oninput="recalculateSalt()" 
-                 class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold text-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
-          <span class="absolute right-3.5 top-3.5 text-xs text-slate-500 font-semibold">GAL</span>
+      <!-- Unit Selector Toggles -->
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Volume Unit Toggle -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <span class="text-[10px] uppercase font-bold text-slate-500 px-2">Volume:</span>
+          <button type="button" 
+                  id="btn-unit-gal"
+                  onclick="setVolumeUnit('gal')"
+                  class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all">
+            Gallons
+          </button>
+          <button type="button" 
+                  id="btn-unit-L"
+                  onclick="setVolumeUnit('L')"
+                  class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all">
+            Liters
+          </button>
+        </div>
+
+        <!-- Salinity Unit Toggle -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <span class="text-[10px] uppercase font-bold text-slate-500 px-2">Salinity:</span>
+          <button type="button" 
+                  id="btn-unit-sg"
+                  onclick="setSalinityUnit('sg')"
+                  class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all">
+            SG (1.026)
+          </button>
+          <button type="button" 
+                  id="btn-unit-ppt"
+                  onclick="setSalinityUnit('ppt')"
+                  class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all">
+            ppt (35)
+          </button>
         </div>
       </div>
+    </div>
 
-      <!-- Salt Brand -->
+    <!-- 3-Column Grid: Salt Brand (LEFT) | Water Volume (MIDDLE) | Target Salinity (RIGHT) -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      
+      <!-- 1. LEFT: Salt Brand Recipe -->
       <div class="space-y-1.5">
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Salt Brand Recipe</label>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">1. Salt Brand Recipe</label>
         <select id="calc-brand" onchange="recalculateSalt()" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-medium text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
           {% for b_key, b in salt_brands.items %}
             <option value="{{ b_key }}">{{ b.name }}</option>
@@ -60,39 +86,65 @@
         </select>
       </div>
 
-      <!-- Target Salinity -->
+      <!-- 2. MIDDLE: Water Volume (With clean separated badge, no arrow overlap) -->
       <div class="space-y-1.5">
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Target Salinity (SG)</label>
-        <div class="relative">
+        <label id="label-volume" class="block text-xs font-bold uppercase tracking-wider text-slate-400">2. Water Volume (Gallons)</label>
+        <div class="flex rounded-xl overflow-hidden border border-slate-800 bg-slate-950 focus-within:ring-2 focus-within:ring-cyan-500">
+          <input type="number" 
+                 id="calc-volume" 
+                 value="10" 
+                 min="0.5" 
+                 max="1000" 
+                 step="0.5" 
+                 oninput="recalculateSalt()" 
+                 class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+          <span id="badge-volume-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase tracking-wider select-none">
+            GAL
+          </span>
+        </div>
+      </div>
+
+      <!-- 3. RIGHT: Target Salinity (With clean separated badge, no arrow overlap) -->
+      <div class="space-y-1.5">
+        <label id="label-salinity" class="block text-xs font-bold uppercase tracking-wider text-slate-400">3. Target Salinity (SG)</label>
+        <div class="flex rounded-xl overflow-hidden border border-slate-800 bg-slate-950 focus-within:ring-2 focus-within:ring-cyan-500">
           <input type="number" 
                  id="calc-salinity" 
                  value="1.026" 
-                 min="1.020" 
-                 max="1.030" 
+                 min="1.015" 
+                 max="1.035" 
                  step="0.001" 
                  oninput="recalculateSalt()" 
-                 class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold text-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
-          <span class="absolute right-3.5 top-3.5 text-xs text-slate-500 font-semibold">SG</span>
+                 class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+          <span id="badge-salinity-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase tracking-wider select-none">
+            SG
+          </span>
         </div>
       </div>
+
     </div>
 
-    <!-- Calculated Output Banner -->
-    <div class="grid grid-cols-3 gap-3 p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-center">
+    <!-- Calculated Output Banner (4-Stat Grid: Grams, Ounces, Pounds, Cups) -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-center">
       <div>
         <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Grams)</span>
         <span id="output-grams" class="text-2xl sm:text-3xl font-black text-cyan-400 tracking-tight">{{ sample_mix.grams }}</span>
-        <span class="text-xs text-slate-500 block">grams</span>
+        <span class="text-xs text-slate-500 block">grams (g)</span>
+      </div>
+      <div>
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Ounces)</span>
+        <span id="output-ounces" class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ sample_mix.ounces }}</span>
+        <span class="text-xs text-slate-500 block">ounces (oz)</span>
       </div>
       <div>
         <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Pounds)</span>
         <span id="output-lbs" class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ sample_mix.lbs }}</span>
-        <span class="text-xs text-slate-500 block">lbs</span>
+        <span class="text-xs text-slate-500 block">pounds (lbs)</span>
       </div>
       <div>
         <span class="text-[10px] uppercase font-bold text-slate-400 block">Volume (Approx)</span>
         <span id="output-cups" class="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">{{ sample_mix.cups }}</span>
-        <span class="text-xs text-slate-500 block">standard cups</span>
+        <span class="text-xs text-slate-500 block">standard measuring cups</span>
       </div>
     </div>
   </div>
@@ -104,7 +156,9 @@
         <span class="text-lg">📋</span>
         <h2 class="text-base font-bold text-white">Active Routines & Checklists</h2>
       </div>
-      <span class="text-xs text-slate-500">Click items as you complete them</span>
+      <button onclick="document.getElementById('add-routine-modal').classList.remove('hidden')" class="text-xs font-semibold text-cyan-400 hover:underline">
+        + Add Routine
+      </button>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -114,20 +168,40 @@
             <!-- Header -->
             <div class="flex items-start justify-between gap-2">
               <div>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ routine.get_category_display }}</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ routine.get_category_display }}</span>
+                  {% if routine.tank %}
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{{ routine.tank.name }}</span>
+                  {% endif %}
+                </div>
                 <h3 class="text-base font-bold text-white tracking-tight mt-0.5">{{ routine.title }}</h3>
               </div>
 
-              {% if routine.is_due %}
-                <span class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse">
-                  DUE TODAY
-                </span>
-              {% else %}
-                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
-                  Every {{ routine.frequency_days }} days
-                </span>
-              {% endif %}
+              <div class="flex items-center gap-2">
+                {% if routine.is_due %}
+                  <span class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse">
+                    DUE TODAY
+                  </span>
+                {% else %}
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+                    Every {{ routine.frequency_days }} days
+                  </span>
+                {% endif %}
+
+                <!-- Delete Routine Button -->
+                <form method="POST" action="{% url 'routine_delete' routine.id %}" onsubmit="return confirm('Delete this routine checklist?');">
+                  {% csrf_token %}
+                  <button type="submit" class="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors" title="Delete Routine">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </form>
+              </div>
             </div>
+
+            <!-- Notes if present -->
+            {% if routine.notes %}
+              <p class="text-xs text-slate-400 mt-2 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ routine.notes }}</p>
+            {% endif %}
 
             <!-- Interactive Checklist Items -->
             <div class="mt-4 space-y-2">
@@ -160,6 +234,9 @@
         <div class="col-span-full p-12 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
           <span class="text-3xl">📋</span>
           <p class="text-xs text-slate-400 mt-2">No routines configured yet.</p>
+          <button onclick="document.getElementById('add-routine-modal').classList.remove('hidden')" class="mt-3 text-cyan-400 underline font-semibold text-xs">
+            + Create your first custom routine
+          </button>
         </div>
       {% endfor %}
     </div>
@@ -202,9 +279,64 @@
     </div>
   </div>
 
-  <!-- Log Water Change Modal -->
-  <div id="log-wc-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
+  <!-- Modal: Add Custom Routine & Checklist -->
+  <div id="add-routine-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+    <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div>
+          <h3 class="text-lg font-bold text-white">Create Custom Routine & Checklist</h3>
+          <p class="text-xs text-slate-400">Save recurring aquarium maintenance procedures</p>
+        </div>
+        <button onclick="document.getElementById('add-routine-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <form method="POST" action="{% url 'routine_create' %}" class="mt-4 space-y-4">
+        {% csrf_token %}
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Routine Title *</label>
+          {{ routine_form.title }}
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>
+            {{ routine_form.category }}
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>
+            {{ routine_form.tank }}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Repeat Every (Days) *</label>
+          {{ routine_form.frequency_days }}
+          <span class="text-[11px] text-slate-500 mt-1 block">e.g. 7 for weekly, 14 for bi-weekly, 30 for monthly</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Interactive Checklist Steps</label>
+          {{ routine_form.checklist_raw }}
+          <span class="text-[11px] text-cyan-400/90 mt-1 block">💡 Tip: Enter each task on a new line (e.g. step 1, step 2...)</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes / Instructions</label>
+          {{ routine_form.notes }}
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="document.getElementById('add-routine-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Routine</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Log Water Change -->
+  <div id="log-wc-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
       <div class="flex items-center justify-between pb-4 border-b border-slate-800">
         <h3 class="text-lg font-bold text-white">Log Water Change</h3>
         <button onclick="document.getElementById('log-wc-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
@@ -239,7 +371,7 @@
           {{ wc_form.performed_at }}
         </div>
 
-        <div class="pt-3 flex justify-end gap-2">
+        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
           <button type="button" onclick="document.getElementById('log-wc-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
           <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Water Change</button>
         </div>
@@ -252,6 +384,9 @@
 
 {% block extra_js %}
 <script>
+  let currentVolumeUnit = 'gal';
+  let currentSalinityUnit = 'sg';
+
   function toggleItemStrike(checkbox) {
     const textSpan = checkbox.closest('label').querySelector('.item-text');
     if (checkbox.checked) {
@@ -261,17 +396,79 @@
     }
   }
 
+  function setVolumeUnit(unit) {
+    if (currentVolumeUnit === unit) return;
+    const input = document.getElementById('calc-volume');
+    let currentVal = parseFloat(input.value) || 10;
+
+    if (unit === 'L') {
+      // Gallons to Liters
+      input.value = (currentVal * 3.78541).toFixed(1);
+      input.step = "1";
+      document.getElementById('label-volume').innerText = "2. Water Volume (Liters)";
+      document.getElementById('badge-volume-unit').innerText = "L";
+      document.getElementById('btn-unit-L').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
+      document.getElementById('btn-unit-gal').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+    } else {
+      // Liters to Gallons
+      input.value = (currentVal / 3.78541).toFixed(1);
+      input.step = "0.5";
+      document.getElementById('label-volume').innerText = "2. Water Volume (Gallons)";
+      document.getElementById('badge-volume-unit').innerText = "GAL";
+      document.getElementById('btn-unit-gal').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
+      document.getElementById('btn-unit-L').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+    }
+    currentVolumeUnit = unit;
+    recalculateSalt();
+  }
+
+  function setSalinityUnit(unit) {
+    if (currentSalinityUnit === unit) return;
+    const input = document.getElementById('calc-salinity');
+    let currentVal = parseFloat(input.value) || 1.026;
+
+    if (unit === 'ppt') {
+      // SG to ppt (1.026 -> 35.0)
+      const ppt = ((currentVal - 1.0) / 0.026 * 35.0).toFixed(1);
+      input.value = ppt;
+      input.min = "20";
+      input.max = "45";
+      input.step = "0.5";
+      document.getElementById('label-salinity').innerText = "3. Target Salinity (ppt)";
+      document.getElementById('badge-salinity-unit').innerText = "PPT";
+      document.getElementById('btn-unit-ppt').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
+      document.getElementById('btn-unit-sg').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+    } else {
+      // ppt to SG (35.0 -> 1.026)
+      const sg = (1.0 + (currentVal / 35.0) * 0.026).toFixed(3);
+      input.value = sg;
+      input.min = "1.015";
+      input.max = "1.035";
+      input.step = "0.001";
+      document.getElementById('label-salinity').innerText = "3. Target Salinity (SG)";
+      document.getElementById('badge-salinity-unit').innerText = "SG";
+      document.getElementById('btn-unit-sg').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
+      document.getElementById('btn-unit-ppt').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+    }
+    currentSalinityUnit = unit;
+    recalculateSalt();
+  }
+
   async function recalculateSalt() {
-    const gallons = document.getElementById('calc-gallons').value;
+    const volume = document.getElementById('calc-volume').value;
     const brand = document.getElementById('calc-brand').value;
     const salinity = document.getElementById('calc-salinity').value;
 
     try {
-      const res = await fetch(`/api/calculators/salt-mix/?gallons=${gallons}&brand=${brand}&salinity=${salinity}`);
+      const url = `/api/calculators/salt-mix/?volume=${volume}&volume_unit=${currentVolumeUnit}&brand=${brand}&salinity=${salinity}&salinity_unit=${currentSalinityUnit}`;
+      const res = await fetch(url);
       const data = await res.json();
-      document.getElementById('output-grams').innerText = data.grams;
-      document.getElementById('output-lbs').innerText = data.lbs;
-      document.getElementById('output-cups').innerText = data.cups;
+      if (data.grams !== undefined) {
+        document.getElementById('output-grams').innerText = data.grams;
+        document.getElementById('output-ounces').innerText = data.ounces;
+        document.getElementById('output-lbs').innerText = data.lbs;
+        document.getElementById('output-cups').innerText = data.cups;
+      }
     } catch(err) {
       console.warn(err);
     }

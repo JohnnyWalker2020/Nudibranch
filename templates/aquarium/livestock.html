@@ -13,29 +13,53 @@
     </div>
     
     <!-- In-App Action Buttons -->
-    <div class="flex items-center gap-2">
-      <a href="{% url 'species_catalog' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{% url 'species_catalog' %}" class="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">
         <span>📖</span> Browse Common Species
       </a>
-      <a href="{% url 'animal_create' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
+      <button onclick="document.getElementById('add-group-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 border border-slate-800 rounded-xl font-semibold text-xs transition-colors">
+        <span>🏷️</span> + New Group
+      </button>
+      <a href="{% url 'animal_create' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-        Add Custom
+        + Add Unlisted Specimen
       </a>
     </div>
   </div>
 
-  <!-- Group Filter Bar -->
-  <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-    <a href="{% url 'livestock' %}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_group %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors">
-      All Livestock
-    </a>
-    {% for g in groups %}
-      <a href="{% url 'livestock' %}?group={{ g.id }}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_group == g.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors flex items-center gap-1.5">
-        <span>{{ g.icon }}</span>
-        <span>{{ g.name }}</span>
-        <span class="text-[10px] opacity-70">({{ g.animals.count }})</span>
+  <!-- Filter Controls: Tanks & Groups -->
+  <div class="space-y-2.5 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3">
+    <!-- Tank Filter Bar -->
+    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+      <span class="text-[10px] uppercase font-bold text-slate-500 px-2 shrink-0">Tank:</span>
+      <a href="{% url 'livestock' %}{% if selected_group %}?group={{ selected_group }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
+        All Tanks
       </a>
-    {% endfor %}
+      {% for t in tanks %}
+        <a href="{% url 'livestock' %}?tank={{ t.id }}{% if selected_group %}&group={{ selected_group }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_tank == t.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors flex items-center gap-1.5">
+          <span>🏛️</span>
+          <span>{{ t.name }}</span>
+        </a>
+      {% endfor %}
+    </div>
+
+    <!-- Group Filter Bar -->
+    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 border-t border-slate-800/60 pt-2">
+      <span class="text-[10px] uppercase font-bold text-slate-500 px-2 shrink-0">Group:</span>
+      <a href="{% url 'livestock' %}{% if selected_tank %}?tank={{ selected_tank }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_group %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
+        All Groups
+      </a>
+      {% for g in groups %}
+        <a href="{% url 'livestock' %}?group={{ g.id }}{% if selected_tank %}&tank={{ selected_tank }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_group == g.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors flex items-center gap-1.5">
+          <span>{{ g.icon }}</span>
+          <span>{{ g.name }}</span>
+          <span class="text-[10px] opacity-70">({{ g.animals.count }})</span>
+        </a>
+      {% endfor %}
+      <button onclick="document.getElementById('add-group-modal').classList.remove('hidden')" class="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap bg-slate-800/60 text-cyan-400 hover:bg-slate-800 border border-slate-700/60 transition-colors">
+        + Add Group
+      </button>
+    </div>
   </div>
 
   <!-- Livestock Cards Grid -->
@@ -43,14 +67,35 @@
     {% for animal in animals %}
       <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between shadow-sm">
         <div>
-          <!-- Photo or Graphic Banner -->
-          <div class="relative w-full h-48 bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-800">
+          <!-- Hidden auto-submitting quick-photo form -->
+          <form id="photo-form-{{ animal.id }}" method="POST" action="{% url 'animal_upload_photo' animal.id %}" enctype="multipart/form-data" class="hidden">
+            {% csrf_token %}
+            <input type="file" id="photo-input-{{ animal.id }}" name="photo" accept="image/*" onchange="document.getElementById('photo-form-{{ animal.id }}').submit()">
+          </form>
+
+          <!-- Photo or Direct Camera Upload Banner -->
+          <div class="relative w-full h-48 bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-800 group">
             {% if animal.photo %}
               <img src="{{ animal.photo.url }}" alt="{{ animal.name }}" class="w-full h-full object-cover">
+              
+              <!-- Change Photo Overlay Button -->
+              <button type="button" 
+                      onclick="document.getElementById('photo-input-{{ animal.id }}').click()" 
+                      class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-950/85 hover:bg-slate-900 backdrop-blur-md border border-slate-700 rounded-xl text-xs font-semibold text-white shadow-lg transition-all active:scale-95">
+                <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
+                <span>Change Photo</span>
+              </button>
             {% else %}
-              <div class="flex flex-col items-center justify-center text-slate-600">
-                <span class="text-5xl">🐠</span>
-                <span class="text-[10px] mt-2 font-medium">No photo uploaded</span>
+              <!-- 1-Click Tap/Click to Add Photo -->
+              <div onclick="document.getElementById('photo-input-{{ animal.id }}').click()" 
+                   class="w-full h-full flex flex-col items-center justify-center p-6 text-center cursor-pointer hover:bg-slate-900/60 transition-colors">
+                <div class="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 group-hover:border-cyan-500/50 group-hover:bg-slate-800/80 flex items-center justify-center transition-all shadow-sm">
+                  <svg class="w-6 h-6 text-slate-500 group-hover:text-cyan-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
+                </div>
+                <span class="text-xs font-bold text-slate-400 group-hover:text-cyan-300 mt-2 transition-colors">
+                  + Add Tank Photo
+                </span>
+                <span class="text-[10px] text-slate-600">Snap from camera or upload</span>
               </div>
             {% endif %}
 
@@ -80,15 +125,24 @@
               {% endif %}
             </div>
 
-            <!-- Group Tags -->
+            <!-- Tags: Tank & Groups -->
             <div class="flex flex-wrap gap-1.5">
+              {% if animal.tank %}
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                  <span>🏛️</span>
+                  <span>{{ animal.tank.name }}</span>
+                </span>
+              {% endif %}
+
               {% for g in animal.groups.all %}
                 <span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 flex items-center gap-1">
                   <span>{{ g.icon }}</span>
                   <span>{{ g.name }}</span>
                 </span>
               {% empty %}
-                <span class="text-[10px] text-slate-500">No group assigned</span>
+                {% if not animal.tank %}
+                  <span class="text-[10px] text-slate-500">No group assigned</span>
+                {% endif %}
               {% endfor %}
             </div>
 
@@ -97,15 +151,41 @@
                 {{ animal.notes }}
               </p>
             {% endif %}
+
+            <!-- Community & Knowledge Research Links: Wikipedia + Reef2Reef -->
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <a href="{{ animal.wikipedia_url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 hover:text-white border border-slate-800 transition-colors" title="Read Wikipedia article for {{ animal.name }}">
+                <span class="font-serif font-black text-xs text-slate-400">W</span>
+                <span>Wikipedia</span>
+              </a>
+
+              <a href="{{ animal.reef2reef_search_url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 border border-slate-800 transition-colors" title="Search Reef2Reef community threads for {{ animal.name }}">
+                <span>🌊</span>
+                <span>Reef2Reef</span>
+              </a>
+
+              {% if animal.status == 'quarantine' or animal.status == 'monitoring' %}
+                <a href="{{ animal.reef2reef_disease_url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-[11px] font-bold text-rose-300 border border-rose-500/40 transition-colors" title="Search Reef2Reef fish disease and diagnosis threads">
+                  <span>🩺</span>
+                  <span>R2R Disease Help</span>
+                </a>
+              {% endif %}
+            </div>
           </div>
         </div>
 
-        <!-- Card Footer with In-App Edit Link -->
+        <!-- Card Footer with In-App Edit & Photo Links -->
         <div class="px-4 py-3 bg-slate-950/40 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
           <span>
             {% if animal.acquired_date %}Acquired {{ animal.acquired_date|date:"M Y" }}{% else %}Date not set{% endif %}
           </span>
           <div class="flex items-center gap-2">
+            <button type="button" 
+                    onclick="document.getElementById('photo-input-{{ animal.id }}').click()" 
+                    class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 rounded-lg transition-colors" 
+                    title="Snap or change photo">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
+            </button>
             <a href="{% url 'animal_edit' animal.id %}" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold rounded-lg transition-colors">
               Edit
             </a>
@@ -115,18 +195,61 @@
     {% empty %}
       <div class="col-span-full py-16 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6">
         <span class="text-4xl">🪸</span>
-        <h3 class="mt-3 text-base font-bold text-white">No livestock entries yet</h3>
+        <h3 class="mt-3 text-base font-bold text-white">No livestock entries match this filter</h3>
         <p class="mt-1 text-xs text-slate-400 max-w-sm mx-auto">Add your clownfish, corals, snails, and crabs to track them here directly in the app.</p>
-        <div class="mt-4 flex items-center justify-center gap-3">
+        <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
           <a href="{% url 'species_catalog' %}" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20">
             📖 Browse Common Species
           </a>
           <a href="{% url 'animal_create' %}" class="px-4 py-2.5 bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs rounded-xl border border-slate-700">
-            + Add Custom Creature
+            + Add Unlisted Specimen
           </a>
         </div>
       </div>
     {% endfor %}
+  </div>
+
+  <!-- Modal: Add New Group -->
+  <div id="add-group-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div>
+          <h3 class="text-lg font-bold text-white">Create Livestock Group</h3>
+          <p class="text-xs text-slate-400">Tag and organize your tank's animals</p>
+        </div>
+        <button onclick="document.getElementById('add-group-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <form method="POST" action="{% url 'group_create' %}" class="mt-4 space-y-4">
+        {% csrf_token %}
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Group Name *</label>
+          {{ group_form.name }}
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Icon / Emoji</label>
+            {{ group_form.icon }}
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Badge Color</label>
+            {{ group_form.color }}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Description (Optional)</label>
+          {{ group_form.description }}
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="document.getElementById('add-group-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Group</button>
+        </div>
+      </form>
+    </div>
   </div>
 
 </div>

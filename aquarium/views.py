@@ -15,7 +15,8 @@ from .models import (
 )
 from .forms import (
     QuickParameterLogForm, AnimalForm, ParameterSettingsForm,
-    TankForm, EquipmentForm, DosingReservoirForm, WaterChangeLogForm
+    TankForm, EquipmentForm, DosingReservoirForm, WaterChangeLogForm, MaintenanceRoutineForm,
+    AnimalGroupForm
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, suggest_decimals
 from .calculators import calculate_salt_mix, SALT_MIX_RECIPES
@@ -27,6 +28,7 @@ def dashboard_view(request):
     recent_logs = ParameterLog.objects.select_related('parameter_type')[:8]
     total_animals = Animal.objects.filter(status='healthy').aggregate(total=Sum('count'))['total'] or 0
     groups = AnimalGroup.objects.all()
+    featured_animals = Animal.objects.all()[:6]
     active_cameras = WebcamFeed.objects.filter(is_active=True)[:2]
     form = QuickParameterLogForm()
 
@@ -47,6 +49,7 @@ def dashboard_view(request):
         'recent_logs': recent_logs,
         'total_animals': total_animals,
         'groups': groups,
+        'featured_animals': featured_animals,
         'active_cameras': active_cameras,
         'form': form,
         'low_reservoirs': low_reservoirs,
@@ -353,26 +356,44 @@ def api_parameter_log(request):
 # ==========================================
 
 def livestock_view(request):
-    """Livestock listing with group filtering and built-in Add Modal."""
+    """Livestock listing with group filtering, tank filtering, and built-in Add Modals."""
     group_id = request.GET.get('group')
     status_filter = request.GET.get('status')
+    tank_id = request.GET.get('tank')
 
-    animals = Animal.objects.prefetch_related('groups').all()
+    animals = Animal.objects.select_related('tank').prefetch_related('groups').all()
     if group_id:
         animals = animals.filter(groups__id=group_id)
     if status_filter:
         animals = animals.filter(status=status_filter)
+    if tank_id:
+        animals = animals.filter(tank_id=tank_id)
 
     groups = AnimalGroup.objects.all()
+    tanks = Tank.objects.all()
     form = AnimalForm()
+    group_form = AnimalGroupForm()
 
     return render(request, 'aquarium/livestock.html', {
         'animals': animals,
         'groups': groups,
+        'tanks': tanks,
         'selected_group': int(group_id) if group_id else None,
         'selected_status': status_filter,
+        'selected_tank': int(tank_id) if tank_id else None,
         'form': form,
+        'group_form': group_form,
     })
+
+
+def group_create_view(request):
+    """Quick-add a custom animal group in GUI."""
+    if request.method == 'POST':
+        form = AnimalGroupForm(request.POST)
+        if form.is_valid():
+            group = form.save()
+            return redirect(f"/livestock/?group={group.id}")
+    return redirect('livestock')
 
 
 def animal_create_view(request):
@@ -383,11 +404,22 @@ def animal_create_view(request):
             form.save()
             return redirect('livestock')
     else:
-        form = AnimalForm()
+        initial = {}
+        species_id = request.GET.get('species_id')
+        if species_id:
+            sp = SpeciesCatalog.objects.filter(id=species_id).first()
+            if sp:
+                initial = {
+                    'name': sp.name,
+                    'species': sp.species,
+                    'notes': f"Care: {sp.care_level}. Diet: {sp.diet}. {sp.notes}".strip(),
+                    'new_group_name': sp.suggested_group,
+                }
+        form = AnimalForm(initial=initial)
 
     return render(request, 'aquarium/animal_form.html', {
         'form': form,
-        'title': 'Add Livestock / Coral',
+        'title': 'Add Unlisted Specimen',
         'is_edit': False
     })
 
@@ -409,6 +441,15 @@ def animal_edit_view(request, animal_id):
         'title': f'Edit {animal.name}',
         'is_edit': True
     })
+
+
+def animal_upload_photo_view(request, animal_id):
+    """Fast 1-click photo upload or replacement directly from the livestock card."""
+    animal = get_object_or_404(Animal, id=animal_id)
+    if request.method == 'POST' and request.FILES.get('photo'):
+        animal.photo = request.FILES['photo']
+        animal.save(update_fields=['photo'])
+    return redirect('livestock')
 
 
 def animal_delete_view(request, animal_id):
@@ -440,8 +481,10 @@ def species_catalog_view(request):
             Q(diet__icontains=search_query)
         )
 
+    tanks = Tank.objects.all()
     return render(request, 'aquarium/species_catalog.html', {
         'species_list': species_list,
+        'tanks': tanks,
         'selected_category': category or 'all',
         'search_query': search_query,
     })
@@ -455,6 +498,14 @@ def species_add_to_tank(request, species_id):
         count = int(request.POST.get('count', 1))
         if count < 1:
             count = 1
+
+        # Resolve assigned tank (or default to primary)
+        tank_id = request.POST.get('tank')
+        target_tank = None
+        if tank_id:
+            target_tank = Tank.objects.filter(id=tank_id).first()
+        if not target_tank:
+            target_tank = Tank.objects.filter(is_primary=True).first()
 
         # Find or create corresponding AnimalGroup
         group_name = species.suggested_group or 'Fish'
@@ -470,6 +521,7 @@ def species_add_to_tank(request, species_id):
         animal = Animal.objects.create(
             name=species.name,
             species=species.species,
+            tank=target_tank,
             count=count,
             status='healthy',
             notes=care_notes,
@@ -636,15 +688,17 @@ def routines_view(request):
     water_changes = WaterChangeLog.objects.select_related('tank')[:10]
     tanks = Tank.objects.all()
     wc_form = WaterChangeLogForm()
+    routine_form = MaintenanceRoutineForm()
 
     # Pre-calculated 10 gal Tropic Marin recipe for quick display
-    sample_mix = calculate_salt_mix(gallons=10.0, brand_key='tropic_marin_pro', target_salinity=1.026)
+    sample_mix = calculate_salt_mix(volume=10.0, volume_unit='gal', brand_key='tropic_marin_pro', target_salinity=1.026, salinity_unit='sg')
 
     return render(request, 'aquarium/routines.html', {
         'routines': routines,
         'water_changes': water_changes,
         'tanks': tanks,
         'wc_form': wc_form,
+        'routine_form': routine_form,
         'sample_mix': sample_mix,
         'salt_brands': SALT_MIX_RECIPES,
     })
@@ -660,13 +714,41 @@ def complete_routine_view(request, routine_id):
     return redirect('routines')
 
 
+def routine_create_view(request):
+    """Creates a new custom maintenance routine / checklist directly in GUI."""
+    if request.method == 'POST':
+        form = MaintenanceRoutineForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('routines')
+    return redirect('routines')
+
+
+def routine_delete_view(request, routine_id):
+    """Deletes a custom routine."""
+    routine = get_object_or_404(MaintenanceRoutine, id=routine_id)
+    if request.method == 'POST':
+        routine.delete()
+        return redirect('routines')
+    return redirect('routines')
+
+
 def water_change_calc_api(request):
-    """API endpoint returning exact salt weight and cups needed for specified volume."""
+    """API endpoint returning exact salt weight (g, oz, lbs) and cups needed for specified volume."""
     try:
-        gallons = float(request.GET.get('gallons', 10.0))
+        volume = float(request.GET.get('volume', request.GET.get('gallons', 10.0)))
+        volume_unit = request.GET.get('volume_unit', 'gal').lower()
         brand = request.GET.get('brand', 'tropic_marin_pro')
         salinity = float(request.GET.get('salinity', 1.026))
-        result = calculate_salt_mix(gallons=gallons, brand_key=brand, target_salinity=salinity)
+        salinity_unit = request.GET.get('salinity_unit', 'sg').lower()
+
+        result = calculate_salt_mix(
+            volume=volume,
+            volume_unit=volume_unit,
+            brand_key=brand,
+            target_salinity=salinity,
+            salinity_unit=salinity_unit
+        )
         return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -679,4 +761,95 @@ def water_change_log_create(request):
             form.save()
             return redirect('routines')
     return redirect('routines')
+
+
+# ==========================================
+# Alerts & Notifications Center
+# ==========================================
+
+def notifications_view(request):
+    """Dedicated Alerts & Notifications Center with health scoring and community resources."""
+    parameter_types = ParameterType.objects.all()
+
+    # Out of range params
+    out_of_range_params = []
+    for pt in parameter_types:
+        latest = pt.latest_log()
+        if latest and latest.status in ['low', 'high']:
+            out_of_range_params.append({'param': pt, 'log': latest})
+
+    # Reservoirs
+    low_reservoirs = [r for r in DosingReservoir.objects.select_related('tank').all() if r.is_low]
+
+    # Routines
+    due_routines = [r for r in MaintenanceRoutine.objects.select_related('tank').all() if r.is_due]
+
+    # Equipment
+    due_equipment = [e for e in Equipment.objects.select_related('tank').all() if e.is_service_due]
+
+    # Sick / Quarantined Animals
+    sick_animals = Animal.objects.filter(status__in=['quarantine', 'monitoring']).select_related('tank')
+
+    # Tank Stability / Health Score calculation (100 base)
+    score_penalty = (
+        len(out_of_range_params) * 12 +
+        len(low_reservoirs) * 8 +
+        len(due_routines) * 6 +
+        len(due_equipment) * 6 +
+        sick_animals.count() * 15
+    )
+    health_score = max(25, 100 - score_penalty)
+
+    total_alerts = (
+        len(out_of_range_params) +
+        len(low_reservoirs) +
+        len(due_routines) +
+        len(due_equipment) +
+        sick_animals.count()
+    )
+
+    # Curated Reef2Reef Forums Directory
+    r2r_forums = [
+        {
+            'name': 'Reef Chemistry Forum',
+            'desc': 'Alkalinity, Calcium, Magnesium, Nitrate, Phosphate advice by Randy Holmes-Farley',
+            'icon': '🧪',
+            'url': 'https://www.reef2reef.com/forums/reef-chemistry-forum.73/'
+        },
+        {
+            'name': 'Fish Disease & Treatment',
+            'desc': 'Ich, Velvet, Flukes, Bacterial infections diagnosis & medication guides by Humblefish & team',
+            'icon': '🩺',
+            'url': 'https://www.reef2reef.com/forums/fish-disease-treatment-and-diagnosis.77/'
+        },
+        {
+            'name': 'General Coral Discussion',
+            'desc': 'SPS, LPS, and Soft Coral care, polyp extension, PAR requirements & placement',
+            'icon': '🪸',
+            'url': 'https://www.reef2reef.com/forums/general-coral-discussion.75/'
+        },
+        {
+            'name': 'Equipment & Hardware',
+            'desc': 'Wavemakers, skimmers, return pumps, and lighting reviews & troubleshooting',
+            'icon': '⚙️',
+            'url': 'https://www.reef2reef.com/forums/equipment-lighting-hardware.212/'
+        },
+        {
+            'name': 'Reef2Reef Main Community',
+            'desc': 'World-class saltwater community, tank build threads, and discussions',
+            'icon': '🌊',
+            'url': 'https://www.reef2reef.com/'
+        },
+    ]
+
+    return render(request, 'aquarium/notifications.html', {
+        'out_of_range_params': out_of_range_params,
+        'low_reservoirs': low_reservoirs,
+        'due_routines': due_routines,
+        'due_equipment': due_equipment,
+        'sick_animals': sick_animals,
+        'total_alerts': total_alerts,
+        'health_score': health_score,
+        'r2r_forums': r2r_forums,
+    })
 

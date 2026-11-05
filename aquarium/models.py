@@ -113,6 +113,7 @@ class Animal(models.Model):
 
     name = models.CharField(max_length=120, help_text="Common name or pet name (e.g. 'Ocellaris Clown Pair')")
     species = models.CharField(max_length=150, blank=True, help_text="Scientific or species name (optional)")
+    tank = models.ForeignKey('Tank', on_delete=models.SET_NULL, null=True, blank=True, related_name='animals', help_text="Assigned tank system")
     groups = models.ManyToManyField(AnimalGroup, blank=True, related_name="animals")
     count = models.PositiveIntegerField(default=1, help_text="Quantity (e.g. 10 snails or 5 chromis)")
     acquired_date = models.DateField(null=True, blank=True)
@@ -127,6 +128,30 @@ class Animal(models.Model):
     def __str__(self):
         qty_str = f" ({self.count}x)" if self.count > 1 else ""
         return f"{self.name}{qty_str}"
+
+    @property
+    def wikipedia_url(self):
+        """Returns direct Wikipedia article URL for scientific species name or search URL for common name."""
+        import urllib.parse
+        if self.species:
+            clean_species = self.species.strip().replace(' ', '_')
+            return f"https://en.wikipedia.org/wiki/{urllib.parse.quote(clean_species)}"
+        clean_name = self.name.split('(')[0].strip()
+        return f"https://en.wikipedia.org/wiki/Special:Search?search={urllib.parse.quote(clean_name)}"
+
+    @property
+    def reef2reef_search_url(self):
+        """Returns Reef2Reef community search URL for real hobbyist discussions, care, and tips."""
+        import urllib.parse
+        search_term = self.species if self.species else self.name.split('(')[0].strip()
+        return f"https://www.reef2reef.com/search/1/?q={urllib.parse.quote(search_term)}&o=relevance"
+
+    @property
+    def reef2reef_disease_url(self):
+        """Returns Reef2Reef fish disease and diagnosis subforum search."""
+        import urllib.parse
+        search_term = self.name.split('(')[0].strip()
+        return f"https://www.reef2reef.com/search/1/?q={urllib.parse.quote(search_term)}&c[nodes][]=77&o=relevance"
 
 
 class WebcamFeed(models.Model):
@@ -175,6 +200,23 @@ class SpeciesCatalog(models.Model):
 
     def __str__(self):
         return f"{self.icon} {self.name} ({self.species})" if self.species else f"{self.icon} {self.name}"
+
+    @property
+    def wikipedia_url(self):
+        """Returns direct Wikipedia article URL for scientific species name or search URL for common name."""
+        import urllib.parse
+        if self.species:
+            clean_species = self.species.strip().replace(' ', '_')
+            return f"https://en.wikipedia.org/wiki/{urllib.parse.quote(clean_species)}"
+        clean_name = self.name.split('(')[0].strip()
+        return f"https://en.wikipedia.org/wiki/Special:Search?search={urllib.parse.quote(clean_name)}"
+
+    @property
+    def reef2reef_search_url(self):
+        """Returns Reef2Reef community search URL for real hobbyist discussions, care, and tips."""
+        import urllib.parse
+        search_term = self.species if self.species else self.name.split('(')[0].strip()
+        return f"https://www.reef2reef.com/search/1/?q={urllib.parse.quote(search_term)}&o=relevance"
 
 
 class Tank(models.Model):

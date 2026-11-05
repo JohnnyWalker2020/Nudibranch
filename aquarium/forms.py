@@ -64,6 +64,31 @@ class ParameterSettingsForm(forms.ModelForm):
         }
 
 
+class AnimalGroupForm(forms.ModelForm):
+    """Modal form to create custom livestock groups/tags in GUI."""
+    class Meta:
+        model = AnimalGroup
+        fields = ['name', 'icon', 'color', 'description']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'placeholder': 'e.g. SPS Corals, School, Mated Pairs, Nano Fish'
+            }),
+            'icon': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'placeholder': 'Emoji or icon e.g. 🐠, 🪸, 🦀, 🐌, 🦐, 🐡'
+            }),
+            'color': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'type': 'color'
+            }),
+            'description': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'placeholder': 'Optional brief notes about this group'
+            }),
+        }
+
+
 class AnimalForm(forms.ModelForm):
     """Rich in-app form for adding/editing aquarium livestock."""
     new_group_name = forms.CharField(
@@ -77,7 +102,7 @@ class AnimalForm(forms.ModelForm):
 
     class Meta:
         model = Animal
-        fields = ['name', 'species', 'groups', 'count', 'acquired_date', 'status', 'photo', 'notes']
+        fields = ['name', 'species', 'tank', 'groups', 'count', 'acquired_date', 'status', 'photo', 'notes']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-base focus:outline-none focus:ring-2 focus:ring-cyan-500',
@@ -87,6 +112,9 @@ class AnimalForm(forms.ModelForm):
             'species': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'placeholder': 'e.g. Amphiprion ocellaris (optional)'
+            }),
+            'tank': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
             }),
             'groups': forms.CheckboxSelectMultiple(attrs={
                 'class': 'rounded border-slate-700 text-cyan-500 focus:ring-cyan-500 bg-slate-800'
@@ -184,9 +212,62 @@ class WaterChangeLogForm(forms.ModelForm):
         fields = ['tank', 'gallons', 'salt_brand', 'target_salinity', 'notes', 'performed_at']
         widgets = {
             'tank': forms.Select(attrs={'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm'}),
-            'gallons': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm', 'step': '0.5'}),
+            'gallons': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none', 'step': '0.5'}),
             'salt_brand': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm', 'placeholder': 'e.g. Tropic Marin Pro'}),
-            'target_salinity': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm', 'step': '0.001'}),
+            'target_salinity': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none', 'step': '0.001'}),
             'notes': forms.TextInput(attrs={'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 text-sm', 'placeholder': 'Temperature matched, cleaned glass'}),
             'performed_at': forms.DateTimeInput(attrs={'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm', 'type': 'datetime-local'}),
         }
+
+
+class MaintenanceRoutineForm(forms.ModelForm):
+    """Form to create and edit custom maintenance routines and interactive checklists."""
+    checklist_raw = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono',
+            'rows': 5,
+            'placeholder': "Mix 10 gal fresh saltwater\nTurn off return pump and skimmer\nScrape glass and siphon detritus\nEmpty & clean skimmer collection cup\nRefill with new saltwater and verify salinity"
+        }),
+        help_text="Enter each checklist step on a new line (one task per line)",
+        required=False
+    )
+
+    class Meta:
+        model = MaintenanceRoutine
+        fields = ['title', 'category', 'tank', 'frequency_days', 'notes']
+        widgets = {
+            'title': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'placeholder': 'e.g. Weekly Water Change & Sump Siphon'
+            }),
+            'category': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
+            }),
+            'tank': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
+            }),
+            'frequency_days': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'min': '1',
+                'placeholder': 'e.g. 7 for weekly, 14 for bi-weekly, 30 for monthly'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'rows': 2,
+                'placeholder': 'Optional tips or special reminders for this routine'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.checklist_items:
+            self.fields['checklist_raw'].initial = "\n".join(self.instance.checklist_items)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        raw_text = cleaned_data.get('checklist_raw', '')
+        # Split lines, strip whitespace, and discard blank lines
+        items = [line.strip() for line in raw_text.splitlines() if line.strip()]
+        self.instance.checklist_items = items
+        return cleaned_data
+

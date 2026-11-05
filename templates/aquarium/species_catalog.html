@@ -20,7 +20,7 @@
     <!-- Add Custom Animal Manually -->
     <a href="{% url 'animal_create' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl font-semibold text-xs transition-colors">
       <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      Add Custom / Unlisted Creature
+      + Add Unlisted Specimen
     </a>
   </div>
 
@@ -123,25 +123,57 @@
               {{ s.notes }}
             </p>
           {% endif %}
+
+          <!-- Knowledge & Forum Links -->
+          <div class="flex items-center gap-2 pt-2">
+            <a href="{{ s.wikipedia_url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 hover:text-white border border-slate-800 transition-colors" title="Wikipedia article for {{ s.name }}">
+              <span class="font-serif font-black text-xs text-slate-400">W</span>
+              <span>Wikipedia</span>
+            </a>
+            <a href="{{ s.reef2reef_search_url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 border border-slate-800 transition-colors" title="Reef2Reef community discussions for {{ s.name }}">
+              <span>🌊</span>
+              <span>Reef2Reef</span>
+            </a>
+          </div>
         </div>
 
         <!-- Add to Tank Action Form -->
-        <form method="POST" action="{% url 'species_add_to_tank' s.id %}" class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-3">
-          {% csrf_token %}
-          <div class="flex items-center gap-1.5">
-            <label class="text-[11px] text-slate-400 font-medium">Qty:</label>
-            <input type="number" 
-                   name="count" 
-                   value="{% if s.category == 'cleanup_crew' %}5{% else %}1{% endif %}" 
-                   min="1" 
-                   max="100" 
-                   class="w-14 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-center font-bold text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500">
-          </div>
+        <div class="pt-3 border-t border-slate-800/80 space-y-2">
+          <form method="POST" action="{% url 'species_add_to_tank' s.id %}" class="flex items-center justify-between gap-2">
+            {% csrf_token %}
+            <div class="flex items-center gap-1.5">
+              <label class="text-[11px] text-slate-400 font-medium">Qty:</label>
+              <input type="number" 
+                     name="count" 
+                     value="{% if s.category == 'cleanup_crew' %}5{% else %}1{% endif %}" 
+                     min="1" 
+                     max="100" 
+                     class="w-12 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-center font-bold text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500">
+            </div>
 
-          <button type="submit" class="flex-1 py-2 px-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-md shadow-cyan-500/20 active:scale-95 transition-all text-center">
-            + Add to Tank
-          </button>
-        </form>
+            {% if tanks|length > 1 %}
+              <select name="tank" class="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-300 text-xs focus:ring-1 focus:ring-cyan-500 max-w-[110px] truncate" title="Select tank">
+                {% for t in tanks %}
+                  <option value="{{ t.id }}" {% if t.is_primary %}selected{% endif %}>{{ t.name }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              {% if tanks %}
+                <input type="hidden" name="tank" value="{{ tanks.0.id }}">
+              {% endif %}
+            {% endif %}
+
+            <div class="flex items-center gap-1.5 flex-1">
+              <button type="submit" class="flex-1 py-1.5 px-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-md shadow-cyan-500/20 active:scale-95 transition-all text-center">
+                + Quick Add
+              </button>
+              <a href="{% url 'animal_create' %}?species_id={{ s.id }}" class="py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 text-xs font-semibold rounded-xl border border-slate-700 transition-colors flex items-center gap-1" title="Customize and take a photo">
+                <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
+                <span>With Photo</span>
+              </a>
+            </div>
+          </form>
+        </div>
 
       </div>
     {% empty %}

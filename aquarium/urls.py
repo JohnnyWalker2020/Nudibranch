@@ -17,7 +17,9 @@ urlpatterns = [
     # Livestock GUI
     path('livestock/', views.livestock_view, name='livestock'),
     path('livestock/add/', views.animal_create_view, name='animal_create'),
+    path('livestock/groups/add/', views.group_create_view, name='group_create'),
     path('livestock/<int:animal_id>/edit/', views.animal_edit_view, name='animal_edit'),
+    path('livestock/<int:animal_id>/photo/', views.animal_upload_photo_view, name='animal_upload_photo'),
     path('livestock/<int:animal_id>/delete/', views.animal_delete_view, name='animal_delete'),
 
     # Common Species Catalog
@@ -38,10 +40,15 @@ urlpatterns = [
 
     # Maintenance Routines & Water Changes
     path('routines/', views.routines_view, name='routines'),
+    path('routines/add/', views.routine_create_view, name='routine_create'),
     path('routines/<int:routine_id>/complete/', views.complete_routine_view, name='complete_routine'),
+    path('routines/<int:routine_id>/delete/', views.routine_delete_view, name='routine_delete'),
     path('routines/water-change/add/', views.water_change_log_create, name='water_change_log_create'),
     path('api/calculators/salt-mix/', views.water_change_calc_api, name='water_change_calc_api'),
 
     # Webcams
     path('webcams/', views.webcams_view, name='webcams'),
+
+    # Notifications & Alerts Center
+    path('notifications/', views.notifications_view, name='notifications'),
 ]

@@ -42,25 +42,65 @@ SALT_MIX_RECIPES = {
 }
 
 
-def calculate_salt_mix(gallons: float, brand_key: str = 'tropic_marin_pro', target_salinity: float = 1.026):
+def calculate_salt_mix(
+    volume: float = 10.0,
+    volume_unit: str = 'gal',
+    brand_key: str = 'tropic_marin_pro',
+    target_salinity: float = 1.026,
+    salinity_unit: str = 'sg',
+    gallons: float = None
+):
     """
-    Calculates salt mix amount (grams, lbs, and cups) needed for a water change.
+    Calculates salt mix amount (grams, ounces, lbs, and cups) needed for a water change.
+    Supports volume in Gallons or Liters, and Salinity in Specific Gravity (SG) or ppt.
     Base target is 1.026 SG (35 ppt).
     """
+    # Backward compatibility if gallons passed as positional/keyword
+    if gallons is not None:
+        volume = gallons
+        volume_unit = 'gal'
+
     recipe = SALT_MIX_RECIPES.get(brand_key, SALT_MIX_RECIPES['tropic_marin_pro'])
-    
-    # Scale proportionally if user targets e.g. 1.024 or 1.025
-    scale_factor = (target_salinity - 1.0) / 0.026 if target_salinity > 1.0 else 1.0
-    
-    grams_total = gallons * recipe['grams_per_gallon'] * scale_factor
+
+    # Normalize volume to gallons for recipe calculation
+    v_unit = volume_unit.lower()
+    if v_unit in ['l', 'liter', 'liters']:
+        gal_equiv = volume / 3.78541
+        liters_equiv = volume
+    else:
+        gal_equiv = volume
+        liters_equiv = volume * 3.78541
+
+    # Normalize salinity to SG
+    s_unit = salinity_unit.lower()
+    if s_unit == 'ppt':
+        ppt_val = target_salinity
+        # 35 ppt corresponds to 1.026 SG
+        sg_val = 1.0 + (ppt_val / 35.0) * 0.026
+    else:
+        sg_val = target_salinity
+        ppt_val = round((target_salinity - 1.0) / 0.026 * 35.0, 1) if target_salinity > 1.0 else 35.0
+
+    # Scale factor against standard 1.026 SG
+    scale_factor = (sg_val - 1.0) / 0.026 if sg_val > 1.0 else 1.0
+
+    grams_total = gal_equiv * recipe['grams_per_gallon'] * scale_factor
+    ounces_total = grams_total / 28.3495
     lbs_total = grams_total / 453.592
-    cups_total = gallons * recipe['cups_per_gallon'] * scale_factor
+    cups_total = gal_equiv * recipe['cups_per_gallon'] * scale_factor
 
     return {
         'brand_name': recipe['name'],
-        'gallons': gallons,
+        'volume': round(volume, 2),
+        'volume_unit': volume_unit,
+        'gallons': round(gal_equiv, 2),
+        'liters': round(liters_equiv, 2),
         'target_salinity': target_salinity,
+        'salinity_unit': salinity_unit,
+        'sg': round(sg_val, 3),
+        'ppt': round(ppt_val, 1),
         'grams': round(grams_total, 1),
+        'ounces': round(ounces_total, 1),
         'lbs': round(lbs_total, 2),
         'cups': round(cups_total, 1),
     }

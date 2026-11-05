@@ -66,8 +66,8 @@ class AnimalGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Animal)
 class AnimalAdmin(admin.ModelAdmin):
-    list_display = ('name', 'species', 'count', 'get_groups', 'status', 'acquired_date')
-    list_filter = ('status', 'groups', 'acquired_date')
+    list_display = ('name', 'species', 'tank', 'count', 'get_groups', 'status', 'acquired_date')
+    list_filter = ('tank', 'status', 'groups', 'acquired_date')
     search_fields = ('name', 'species', 'notes')
     filter_horizontal = ('groups',)
 
