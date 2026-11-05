@@ -160,6 +160,152 @@ def api_chart_data(request):
     })
 
 
+def api_all_chart_data(request):
+    """JSON API endpoint returning all parameter datasets for multi-line Chart.js rendering."""
+    days = int(request.GET.get('days', 30))
+    start_date = timezone.now() - timedelta(days=days)
+    parameter_types = ParameterType.objects.all()
+
+    datasets = []
+    all_labels = set()
+
+    for ptype in parameter_types:
+        logs = ParameterLog.objects.filter(
+            parameter_type=ptype,
+            measured_at__gte=start_date
+        ).order_by('measured_at')
+
+        if not logs.exists():
+            continue
+
+        labels = [log.measured_at.strftime('%m/%d %H:%M') for log in logs]
+        values = [
+            round(float(log.value), ptype.decimal_places) if ptype.decimal_places > 0
+            else round(float(log.value))
+            for log in logs
+        ]
+        all_labels.update(labels)
+
+        datasets.append({
+            'code': ptype.code,
+            'name': ptype.name,
+            'unit': ptype.unit,
+            'color': ptype.color,
+            'min_ideal': float(ptype.min_ideal),
+            'max_ideal': float(ptype.max_ideal),
+            'labels': labels,
+            'values': values,
+        })
+
+    return JsonResponse({'datasets': datasets, 'days': days})
+
+
+def alerts_view(request):
+    """Priority-sorted alerts list with colour-coded urgency tiers (red/orange/yellow/green)."""
+    from datetime import date as date_cls
+    today = date_cls.today()
+    alerts = []
+
+    # --- Water Chemistry: out-of-range parameters ---
+    for pt in ParameterType.objects.all():
+        latest = pt.latest_log()
+        if latest and latest.status in ['low', 'high']:
+            alerts.append({
+                'priority': 1,  # Red — immediate action
+                'color': 'red',
+                'icon': '🧪',
+                'title': f'{pt.name} out of range',
+                'detail': f'Measured {latest.formatted_value} {pt.unit} '
+                          f'(ideal {pt.formatted_min_ideal}–{pt.formatted_max_ideal} {pt.unit})',
+                'action_label': 'View Parameters',
+                'action_url': f'/parameters/?param={pt.code}',
+                'category': 'Chemistry',
+            })
+
+    # --- Sick / Quarantined Livestock ---
+    for animal in Animal.objects.filter(status__in=['quarantine', 'monitoring']).select_related('tank'):
+        alerts.append({
+            'priority': 1,
+            'color': 'red',
+            'icon': '🐠',
+            'title': f'{animal.name} needs attention',
+            'detail': f'Status: {animal.get_status_display()}' + (f' — Tank: {animal.tank}' if animal.tank else ''),
+            'action_label': 'View Livestock',
+            'action_url': '/livestock/',
+            'category': 'Livestock',
+        })
+
+    # --- Equipment overdue for service ---
+    for eq in Equipment.objects.select_related('tank').all():
+        if eq.is_service_due:
+            alerts.append({
+                'priority': 2,  # Orange — overdue
+                'color': 'orange',
+                'icon': '⚙️',
+                'title': f'{eq.name} service overdue',
+                'detail': (f'Last serviced: {eq.last_serviced.strftime("%b %d, %Y")} '
+                           f'(every {eq.service_interval_days}d)')
+                          if eq.last_serviced else 'Never serviced',
+                'action_label': 'View Equipment',
+                'action_url': '/equipment/',
+                'category': 'Equipment',
+            })
+
+    # --- Reservoirs critically low (<15%) or <3 days ---
+    for res in DosingReservoir.objects.select_related('tank').all():
+        if not res.is_low:
+            continue
+        pct = res.percent_remaining
+        days_left = res.days_remaining
+        if pct < 15 or (days_left is not None and days_left < 3):
+            priority, color = 2, 'orange'
+        else:
+            priority, color = 3, 'yellow'
+        alerts.append({
+            'priority': priority,
+            'color': color,
+            'icon': '🧴',
+            'title': f'{res.name} reservoir low',
+            'detail': f'{pct}% remaining' + (f' (~{days_left} days)' if days_left is not None else ''),
+            'action_label': 'View Dosing',
+            'action_url': '/dosing/',
+            'category': 'Dosing',
+        })
+
+    # --- Maintenance routines due ---
+    for rt in MaintenanceRoutine.objects.select_related('tank').all():
+        if not rt.is_due:
+            continue
+        alerts.append({
+            'priority': 3,  # Yellow — due soon / overdue routine
+            'color': 'yellow',
+            'icon': '📋',
+            'title': f'Routine due: {rt.title}',
+            'detail': f'Repeats every {rt.frequency_days} day(s)' + (f' — {rt.tank}' if rt.tank else ''),
+            'action_label': 'View Routines',
+            'action_url': '/routines/',
+            'category': 'Routine',
+        })
+
+    # Sort: priority ascending (1=red first), then category
+    alerts.sort(key=lambda a: (a['priority'], a['category']))
+
+    # Count by colour tier
+    counts = {
+        'red': sum(1 for a in alerts if a['color'] == 'red'),
+        'orange': sum(1 for a in alerts if a['color'] == 'orange'),
+        'yellow': sum(1 for a in alerts if a['color'] == 'yellow'),
+    }
+    all_clear = len(alerts) == 0
+
+    return render(request, 'aquarium/alerts.html', {
+        'alerts': alerts,
+        'counts': counts,
+        'all_clear': all_clear,
+        'total': len(alerts),
+    })
+
+
 def quick_log_create(request):
     """Handles quick-add parameter submissions via HTMX or standard form POST."""
     if request.method == 'POST':

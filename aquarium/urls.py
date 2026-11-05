@@ -11,6 +11,7 @@ urlpatterns = [
     
     # REST API Endpoints
     path('api/parameters/chart-data/', views.api_chart_data, name='api_chart_data'),
+    path('api/parameters/chart-data/all/', views.api_all_chart_data, name='api_all_chart_data'),
     path('api/parameters/types/', views.api_parameter_types, name='api_parameter_types'),
     path('api/parameters/log/', views.api_parameter_log, name='api_parameter_log'),
 
