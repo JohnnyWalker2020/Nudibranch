@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | Nudibranch Reef Tracker{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+  <!-- Breadcrumb & Header -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <a href="{% url 'livestock' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-tight">{{ title }}</h1>
+        <p class="text-xs text-slate-400">Manage tank inhabitant details and status</p>
+      </div>
+    </div>
+
+    {% if is_edit %}
+      <a href="{% url 'animal_delete' animal.id %}" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 transition-colors">
+        Delete
+      </a>
+    {% endif %}
+  </div>
+
+  <!-- Form Container -->
+  <form method="POST" enctype="multipart/form-data" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+    {% csrf_token %}
+
+    <!-- Photo Preview / Upload Header -->
+    <div>
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Creature Photo</label>
+      <div class="flex items-center gap-4">
+        <div class="w-24 h-24 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+          {% if is_edit and animal.photo %}
+            <img src="{{ animal.photo.url }}" alt="{{ animal.name }}" class="w-full h-full object-cover">
+          {% else %}
+            <span class="text-3xl text-slate-600">🐠</span>
+          {% endif %}
+        </div>
+        <div class="flex-1 space-y-1">
+          {{ form.photo }}
+          <p class="text-[11px] text-slate-500">Supports PNG, JPG, or WEBP photos taken from your phone camera</p>
+        </div>
+      </div>
+      {% if form.photo.errors %}
+        <p class="text-xs text-rose-400 mt-1">{{ form.photo.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Optional Species Catalog Quick-Pick (if adding new) -->
+    {% if not is_edit %}
+      <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span>💡</span> Quick Autofill From Common Species
+          </label>
+          <a href="{% url 'species_catalog' %}" class="text-[11px] text-slate-400 hover:text-white underline">Browse full catalog →</a>
+        </div>
+        <select id="species-preset-select" onchange="applySpeciesPreset(this.value)" class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-cyan-500">
+          <option value="">Select a common reef species to autofill...</option>
+        </select>
+      </div>
+    {% endif %}
+
+    <!-- Basic Information -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="sm:col-span-2 space-y-1.5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Name / Specimen *</label>
+        {{ form.name }}
+        {% if form.name.errors %}
+          <p class="text-xs text-rose-400">{{ form.name.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Quantity</label>
+        {{ form.count }}
+        {% if form.count.errors %}
+          <p class="text-xs text-rose-400">{{ form.count.errors.0 }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Species & Scientific Name -->
+    <div class="space-y-1.5">
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Species / Latin Name (Optional)</label>
+      {{ form.species }}
+    </div>
+
+    <!-- Health Status & Acquired Date -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Health Status</label>
+        {{ form.status }}
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Acquired Date</label>
+        {{ form.acquired_date }}
+      </div>
+    </div>
+
+    <!-- Groups Tagging -->
+    <div class="space-y-3 pt-2 border-t border-slate-800">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Animal Groups / Categories</label>
+        <p class="text-xs text-slate-500 mb-3">Tag into groups for quick filtering (e.g. Cleanup Crew, School, Corals):</p>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {% for checkbox in form.groups %}
+            <label class="flex items-center gap-2 p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-slate-700 cursor-pointer transition-colors text-xs text-slate-300">
+              {{ checkbox.tag }}
+              <span>{{ checkbox.choice_label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Add New Group Inline -->
+      <div class="pt-2">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{{ form.new_group_name.label }}</label>
+        {{ form.new_group_name }}
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="space-y-1.5 pt-2 border-t border-slate-800">
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Notes & Care History</label>
+      {{ form.notes }}
+    </div>
+
+    <!-- Submit Buttons -->
+    <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+      <a href="{% url 'livestock' %}" class="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors">
+        Cancel
+      </a>
+      <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">
+        Save Creature
+      </button>
+    </div>
+  </form>
+
+</div>
+
+{% block extra_js %}
+<script>
+  let cachedSpecies = [];
+
+  async function loadSpeciesPresets() {
+    const select = document.getElementById('species-preset-select');
+    if (!select) return;
+
+    try {
+      const res = await fetch('/api/species/');
+      const data = await res.json();
+      cachedSpecies = data.species || [];
+
+      // Group options by category
+      const categories = {
+        'fish': '🐠 Fish',
+        'cleanup_crew': '🐌 Cleanup Crew',
+        'invert': '🦐 Invertebrates & Shrimp',
+        'coral': '🪸 Corals & Anemones'
+      };
+
+      for (const [catKey, catLabel] of Object.entries(categories)) {
+        const groupSpecies = cachedSpecies.filter(s => s.category === catKey);
+        if (groupSpecies.length > 0) {
+          const optgroup = document.createElement('optgroup');
+          optgroup.label = catLabel;
+          groupSpecies.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = `${s.name} (${s.species || s.care_level})`;
+            optgroup.appendChild(opt);
+          });
+          select.appendChild(optgroup);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load species presets:', err);
+    }
+  }
+
+  function applySpeciesPreset(speciesId) {
+    if (!speciesId) return;
+    const s = cachedSpecies.find(item => item.id == speciesId);
+    if (!s) return;
+
+    // Autofill form inputs
+    const nameInput = document.getElementById('id_name');
+    const speciesInput = document.getElementById('id_species');
+    const notesInput = document.getElementById('id_notes');
+    const countInput = document.getElementById('id_count');
+
+    if (nameInput) nameInput.value = s.name;
+    if (speciesInput) speciesInput.value = s.species;
+    if (notesInput) {
+      notesInput.value = `Care: ${s.care_level}. Diet: ${s.diet}. ${s.notes}`.trim();
+    }
+    if (countInput) {
+      countInput.value = s.category === 'cleanup_crew' ? 5 : 1;
+    }
+
+    // Auto-check suggested group checkbox if matching label exists
+    if (s.suggested_group) {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][name="groups"]');
+      checkboxes.forEach(cb => {
+        const label = cb.closest('label');
+        if (label && label.textContent.toLowerCase().includes(s.suggested_group.toLowerCase())) {
+          cb.checked = true;
+        }
+      });
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadSpeciesPresets);
+</script>
+{% endblock %}
+{% endblock %}

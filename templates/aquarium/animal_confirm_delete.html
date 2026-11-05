@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete {{ animal.name }} | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto pt-8">
+  <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 text-center shadow-2xl">
+    <div class="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center text-2xl">
+      ⚠️
+    </div>
+
+    <div class="space-y-1.5">
+      <h2 class="text-xl font-bold text-white">Remove Creature?</h2>
+      <p class="text-sm text-slate-400">
+        Are you sure you want to remove <span class="font-bold text-white">{{ animal.name }}</span> from your tank roster?
+      </p>
+    </div>
+
+    <form method="POST" class="flex items-center justify-center gap-3 pt-2">
+      {% csrf_token %}
+      <a href="{% url 'livestock' %}" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm rounded-xl transition-colors">
+        Cancel
+      </a>
+      <button type="submit" class="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-600/30 active:scale-95 transition-all">
+        Confirm Delete
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

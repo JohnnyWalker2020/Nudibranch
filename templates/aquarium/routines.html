@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+
+{% block title %}Routines & Water Changes | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Routines & Water Changes</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Interactive checklists, salt mixing calculator, and maintenance history</p>
+    </div>
+
+    <button onclick="document.getElementById('log-wc-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+      Log Completed Water Change
+    </button>
+  </div>
+
+  <!-- Interactive Salt Mixing Prep Calculator -->
+  <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-800">
+      <div>
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>🧂</span> Salt Mixing Calculator
+        </h2>
+        <p class="text-xs text-slate-400">Calculate exact salt weight and cup measurements for your target salinity</p>
+      </div>
+      <span class="text-xs px-3 py-1 bg-cyan-500/20 text-cyan-400 font-bold rounded-lg border border-cyan-500/30">
+        Prep Tool
+      </span>
+    </div>
+
+    <!-- Inputs Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <!-- Water Volume -->
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Water Volume (Gallons)</label>
+        <div class="relative">
+          <input type="number" 
+                 id="calc-gallons" 
+                 value="10" 
+                 min="1" 
+                 max="500" 
+                 step="0.5" 
+                 oninput="recalculateSalt()" 
+                 class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold text-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
+          <span class="absolute right-3.5 top-3.5 text-xs text-slate-500 font-semibold">GAL</span>
+        </div>
+      </div>
+
+      <!-- Salt Brand -->
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Salt Brand Recipe</label>
+        <select id="calc-brand" onchange="recalculateSalt()" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-medium text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
+          {% for b_key, b in salt_brands.items %}
+            <option value="{{ b_key }}">{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Target Salinity -->
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Target Salinity (SG)</label>
+        <div class="relative">
+          <input type="number" 
+                 id="calc-salinity" 
+                 value="1.026" 
+                 min="1.020" 
+                 max="1.030" 
+                 step="0.001" 
+                 oninput="recalculateSalt()" 
+                 class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-bold text-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
+          <span class="absolute right-3.5 top-3.5 text-xs text-slate-500 font-semibold">SG</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calculated Output Banner -->
+    <div class="grid grid-cols-3 gap-3 p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-center">
+      <div>
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Grams)</span>
+        <span id="output-grams" class="text-2xl sm:text-3xl font-black text-cyan-400 tracking-tight">{{ sample_mix.grams }}</span>
+        <span class="text-xs text-slate-500 block">grams</span>
+      </div>
+      <div>
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Pounds)</span>
+        <span id="output-lbs" class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ sample_mix.lbs }}</span>
+        <span class="text-xs text-slate-500 block">lbs</span>
+      </div>
+      <div>
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Volume (Approx)</span>
+        <span id="output-cups" class="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">{{ sample_mix.cups }}</span>
+        <span class="text-xs text-slate-500 block">standard cups</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recurring Maintenance Routines & Checklists -->
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-lg">📋</span>
+        <h2 class="text-base font-bold text-white">Active Routines & Checklists</h2>
+      </div>
+      <span class="text-xs text-slate-500">Click items as you complete them</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {% for routine in routines %}
+        <div class="bg-slate-900 border {% if routine.is_due %}border-amber-500/50 shadow-lg shadow-amber-500/5{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm">
+          <div>
+            <!-- Header -->
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ routine.get_category_display }}</span>
+                <h3 class="text-base font-bold text-white tracking-tight mt-0.5">{{ routine.title }}</h3>
+              </div>
+
+              {% if routine.is_due %}
+                <span class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse">
+                  DUE TODAY
+                </span>
+              {% else %}
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+                  Every {{ routine.frequency_days }} days
+                </span>
+              {% endif %}
+            </div>
+
+            <!-- Interactive Checklist Items -->
+            <div class="mt-4 space-y-2">
+              {% for item in routine.checklist_items %}
+                <label class="flex items-center gap-3 p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl hover:border-slate-700 cursor-pointer transition-colors group">
+                  <input type="checkbox" onchange="toggleItemStrike(this)" class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500 cursor-pointer">
+                  <span class="text-xs text-slate-300 group-hover:text-white transition-colors item-text">{{ item }}</span>
+                </label>
+              {% empty %}
+                <p class="text-xs text-slate-500 italic">No specific steps defined.</p>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Completion Action Footer -->
+          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+            <span class="text-[11px] text-slate-500">
+              Last done: {% if routine.last_completed %}{{ routine.last_completed|timesince }} ago{% else %}Never completed{% endif %}
+            </span>
+
+            <form method="POST" action="{% url 'complete_routine' routine.id %}">
+              {% csrf_token %}
+              <button type="submit" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all">
+                ✓ Mark Routine Completed
+              </button>
+            </form>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-span-full p-12 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
+          <span class="text-3xl">📋</span>
+          <p class="text-xs text-slate-400 mt-2">No routines configured yet.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Water Change History Table -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+    <div class="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
+      <h3 class="text-base font-bold text-white flex items-center gap-2">
+        <span>🌊</span> Recent Water Change History
+      </h3>
+      <span class="text-xs text-slate-500">{{ water_changes|length }} logs recorded</span>
+    </div>
+
+    <div class="divide-y divide-slate-800/80">
+      {% for wc in water_changes %}
+        <div class="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold text-white">{{ wc.gallons }} Gallon Change</span>
+              {% if wc.target_salinity %}
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700">
+                  {{ wc.target_salinity }} SG
+                </span>
+              {% endif %}
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">
+              {{ wc.performed_at|date:"M d, Y · g:i A" }}
+              {% if wc.salt_brand %} · <span class="text-slate-300 font-medium">{{ wc.salt_brand }}</span>{% endif %}
+              {% if wc.notes %} — <span class="italic text-slate-400">{{ wc.notes }}</span>{% endif %}
+            </p>
+          </div>
+          <span class="text-xs text-slate-500">{{ wc.performed_at|timesince }} ago</span>
+        </div>
+      {% empty %}
+        <div class="p-8 text-center text-slate-500 text-xs">
+          No water changes logged yet.
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Log Water Change Modal -->
+  <div id="log-wc-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white">Log Water Change</h3>
+        <button onclick="document.getElementById('log-wc-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <form method="POST" action="{% url 'water_change_log_create' %}" class="mt-4 space-y-4">
+        {% csrf_token %}
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Target Tank</label>
+          {{ wc_form.tank }}
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Gallons Changed *</label>
+            {{ wc_form.gallons }}
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Salinity (SG)</label>
+            {{ wc_form.target_salinity }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Salt Brand Used</label>
+          {{ wc_form.salt_brand }}
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>
+          {{ wc_form.notes }}
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Date & Time</label>
+          {{ wc_form.performed_at }}
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('log-wc-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Water Change</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function toggleItemStrike(checkbox) {
+    const textSpan = checkbox.closest('label').querySelector('.item-text');
+    if (checkbox.checked) {
+      textSpan.classList.add('line-through', 'text-slate-500');
+    } else {
+      textSpan.classList.remove('line-through', 'text-slate-500');
+    }
+  }
+
+  async function recalculateSalt() {
+    const gallons = document.getElementById('calc-gallons').value;
+    const brand = document.getElementById('calc-brand').value;
+    const salinity = document.getElementById('calc-salinity').value;
+
+    try {
+      const res = await fetch(`/api/calculators/salt-mix/?gallons=${gallons}&brand=${brand}&salinity=${salinity}`);
+      const data = await res.json();
+      document.getElementById('output-grams').innerText = data.grams;
+      document.getElementById('output-lbs').innerText = data.lbs;
+      document.getElementById('output-cups').innerText = data.cups;
+    } catch(err) {
+      console.warn(err);
+    }
+  }
+</script>
+{% endblock %}

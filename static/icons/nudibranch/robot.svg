@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="rb-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="rb-metal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="50%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+    <linearGradient id="rb-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#rb-bg)"/>
+
+  <!-- Mechanical Exhaust Thruster Glow -->
+  <ellipse cx="380" cy="300" rx="30" ry="18" fill="#38bdf8" opacity="0.4"/>
+  <ellipse cx="380" cy="300" rx="16" ry="10" fill="#ffffff" opacity="0.8"/>
+
+  <!-- Segmented Armored Body -->
+  <path d="M 140 280 C 140 200, 240 180, 360 230 C 400 250, 420 280, 390 310 C 350 350, 210 380, 150 330 C 135 315, 140 295, 140 280 Z" fill="url(#rb-metal)" stroke="#334155" stroke-width="4"/>
+  
+  <!-- Armor Panel Seams & Rivets -->
+  <line x1="210" y1="215" x2="210" y2="345" stroke="#334155" stroke-width="3"/>
+  <line x1="280" y1="225" x2="280" y2="335" stroke="#334155" stroke-width="3"/>
+  <circle cx="210" cy="235" r="3" fill="#64748b"/>
+  <circle cx="210" cy="325" r="3" fill="#64748b"/>
+  <circle cx="280" cy="245" r="3" fill="#64748b"/>
+  <circle cx="280" cy="315" r="3" fill="#64748b"/>
+
+  <!-- Heat Sink / Exhaust Cerata Fins -->
+  <polygon points="230,210 245,130 260,130 250,210" fill="#64748b" stroke="#38bdf8" stroke-width="2"/>
+  <polygon points="265,215 280,120 295,120 285,215" fill="#64748b" stroke="#38bdf8" stroke-width="2"/>
+  <polygon points="300,225 315,135 330,135 320,225" fill="#64748b" stroke="#38bdf8" stroke-width="2"/>
+
+  <!-- Glowing Blue Robot Optic Eye -->
+  <rect x="150" y="248" width="45" height="14" rx="4" fill="url(#rb-glow)"/>
+  <line x1="152" y1="255" x2="193" y2="255" stroke="#ffffff" stroke-width="2"/>
+
+  <!-- Antenna Rhinophores -->
+  <line x1="165" y1="240" x2="145" y2="155" stroke="#64748b" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="145" cy="155" r="8" fill="#38bdf8"/>
+  <line x1="190" y1="245" x2="180" y2="165" stroke="#64748b" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="180" cy="165" r="8" fill="#38bdf8"/>
+</svg>

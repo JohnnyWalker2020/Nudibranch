@@ -18,7 +18,7 @@
 
   <div class="flex items-center gap-3">
     <div class="text-right">
-      <span class="text-base font-bold text-white">{{ log.value }}</span>
+      <span class="text-base font-bold text-white">{{ log.formatted_value }}</span>
       <span class="text-xs text-slate-400 ml-0.5">{{ log.parameter_type.unit }}</span>
     </div>
     <button hx-delete="{% url 'delete_log' log.id %}"

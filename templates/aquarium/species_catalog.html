@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block title %}Species Catalog | Nudibranch Reef Tracker{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-2">
+        <a href="{% url 'livestock' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <h1 class="text-2xl font-black text-white tracking-tight">Common Species Catalog</h1>
+      </div>
+      <p class="text-xs text-slate-400 mt-1">Browse popular saltwater fish, cleanup crew, and corals to add to your tank with 1 click</p>
+    </div>
+
+    <!-- Add Custom Animal Manually -->
+    <a href="{% url 'animal_create' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl font-semibold text-xs transition-colors">
+      <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Add Custom / Unlisted Creature
+    </a>
+  </div>
+
+  <!-- Search & Category Filters -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <!-- Search Bar -->
+    <form method="GET" class="relative">
+      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+      <input type="text" 
+             name="q" 
+             value="{{ search_query }}"
+             placeholder="Search species (e.g. clownfish, snail, hermit, tang, torch)..." 
+             class="w-full pl-10 pr-20 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
+      {% if selected_category and selected_category != 'all' %}
+        <input type="hidden" name="category" value="{{ selected_category }}">
+      {% endif %}
+      {% if search_query %}
+        <a href="{% url 'species_catalog' %}{% if selected_category != 'all' %}?category={{ selected_category }}{% endif %}" class="absolute inset-y-0 right-3 flex items-center text-xs text-slate-400 hover:text-white">
+          Clear
+        </a>
+      {% endif %}
+    </form>
+
+    <!-- Category Pills -->
+    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+      <a href="{% url 'species_catalog' %}{% if search_query %}?q={{ search_query }}{% endif %}" 
+         class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_category == 'all' %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
+        All Species
+      </a>
+      <a href="{% url 'species_catalog' %}?category=fish{% if search_query %}&q={{ search_query }}{% endif %}" 
+         class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 {% if selected_category == 'fish' %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
+        <span>🐠</span> Fish
+      </a>
+      <a href="{% url 'species_catalog' %}?category=cleanup_crew{% if search_query %}&q={{ search_query }}{% endif %}" 
+         class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 {% if selected_category == 'cleanup_crew' %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
+        <span>🐌</span> Cleanup Crew
+      </a>
+      <a href="{% url 'species_catalog' %}?category=invert{% if search_query %}&q={{ search_query }}{% endif %}" 
+         class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 {% if selected_category == 'invert' %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
+        <span>🦐</span> Inverts & Shrimp
+      </a>
+      <a href="{% url 'species_catalog' %}?category=coral{% if search_query %}&q={{ search_query }}{% endif %}" 
+         class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 {% if selected_category == 'coral' %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
+        <span>🪸</span> Corals & Anemones
+      </a>
+    </div>
+  </div>
+
+  <!-- Species Grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for s in species_list %}
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all flex flex-col justify-between shadow-sm space-y-4">
+        
+        <div>
+          <!-- Top Row: Icon, Name, and Category Badge -->
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center">{{ s.icon }}</span>
+              <div>
+                <h3 class="text-base font-bold text-white tracking-tight">{{ s.name }}</h3>
+                {% if s.species %}
+                  <p class="text-xs text-slate-400 italic">{{ s.species }}</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Badges: Care Level, Reef Safe, Group -->
+          <div class="flex flex-wrap gap-1.5 mt-3">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border 
+              {% if s.care_level == 'Beginner' %}bg-emerald-500/10 text-emerald-400 border-emerald-500/30
+              {% elif s.care_level == 'Moderate' %}bg-amber-500/10 text-amber-400 border-amber-500/30
+              {% else %}bg-rose-500/10 text-rose-400 border-rose-500/30{% endif %}">
+              {{ s.care_level }}
+            </span>
+
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border 
+              {% if s.reef_safe == 'Yes' %}bg-cyan-500/10 text-cyan-400 border-cyan-500/30
+              {% elif s.reef_safe == 'With Caution' %}bg-amber-500/10 text-amber-400 border-amber-500/30
+              {% else %}bg-rose-500/10 text-rose-400 border-rose-500/30{% endif %}">
+              Reef Safe: {{ s.reef_safe }}
+            </span>
+
+            <span class="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">
+              🏷️ {{ s.suggested_group }}
+            </span>
+          </div>
+
+          <!-- Diet & Care Notes -->
+          {% if s.diet %}
+            <p class="text-xs text-slate-300 mt-2.5">
+              <span class="text-slate-500 font-semibold">Diet:</span> {{ s.diet }}
+            </p>
+          {% endif %}
+
+          {% if s.notes %}
+            <p class="text-xs text-slate-400 mt-1 line-clamp-3 leading-relaxed">
+              {{ s.notes }}
+            </p>
+          {% endif %}
+        </div>
+
+        <!-- Add to Tank Action Form -->
+        <form method="POST" action="{% url 'species_add_to_tank' s.id %}" class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-3">
+          {% csrf_token %}
+          <div class="flex items-center gap-1.5">
+            <label class="text-[11px] text-slate-400 font-medium">Qty:</label>
+            <input type="number" 
+                   name="count" 
+                   value="{% if s.category == 'cleanup_crew' %}5{% else %}1{% endif %}" 
+                   min="1" 
+                   max="100" 
+                   class="w-14 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-center font-bold text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500">
+          </div>
+
+          <button type="submit" class="flex-1 py-2 px-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-md shadow-cyan-500/20 active:scale-95 transition-all text-center">
+            + Add to Tank
+          </button>
+        </form>
+
+      </div>
+    {% empty %}
+      <div class="col-span-full py-16 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6">
+        <span class="text-4xl">🔍</span>
+        <h3 class="mt-3 text-base font-bold text-white">No matching species found</h3>
+        <p class="mt-1 text-xs text-slate-400">Try searching a different keyword or view all species.</p>
+        <a href="{% url 'species_catalog' %}" class="mt-4 inline-block px-4 py-2 bg-slate-800 text-slate-300 font-semibold text-xs rounded-xl">
+          Reset Filter
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

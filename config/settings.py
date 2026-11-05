@@ -25,6 +25,9 @@ if csrf_origins:
 else:
     CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
 
+# Optional API Secret Key for automated external callers (ESP32, Raspberry Pi, Home Assistant)
+API_SECRET_KEY = os.getenv('API_SECRET_KEY', '')
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',

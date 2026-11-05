@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>{% block title %}Nudibranch Reef Tracker{% endblock %}</title>
 
-  <!-- PWA Metadata & iOS Support -->
+  <!-- PWA Metadata & iOS Support (Stable Canonical Icon) -->
   <link rel="manifest" href="/static/manifest.json">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
@@ -52,9 +52,9 @@
   <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 pt-safe">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       
-      <!-- Brand Logo -->
+      <!-- Brand Logo (random nudibranch style chosen on page load by JS below) -->
       <a href="{% url 'dashboard' %}" class="flex items-center gap-3 group">
-        <img src="/static/icons/icon.svg" alt="Nudibranch" class="w-9 h-9 rounded-xl shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+        <img id="nudibranch-logo" src="/static/icons/nudibranch/cyberpunk.svg" alt="Nudibranch" class="w-9 h-9 rounded-xl shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
         <div>
           <span class="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
             NUDIBRANCH
@@ -71,8 +71,17 @@
         <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'parameters' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
           Parameters
         </a>
-        <a href="{% url 'livestock' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'livestock' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+        <a href="{% url 'livestock' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'livestock' or request.resolver_match.url_name == 'species_catalog' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
           Livestock
+        </a>
+        <a href="{% url 'equipment' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'equipment' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+          Equipment
+        </a>
+        <a href="{% url 'dosing' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'dosing' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+          Dosing
+        </a>
+        <a href="{% url 'routines' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'routines' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
+          Routines
         </a>
         <a href="{% url 'webcams' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if request.resolver_match.url_name == 'webcams' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">
           Webcams
@@ -92,6 +101,36 @@
     </div>
   </header>
 
+  <!-- System Alert Banner: low reservoirs, overdue routines, or equipment needing service -->
+  {% if low_reservoirs or due_routines or due_equipment or out_of_range_params %}
+  <div id="alert-banner" class="sticky top-16 z-30 bg-amber-500/10 border-b border-amber-500/30 px-4 py-2">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-amber-400">
+      <span class="flex items-center gap-1">⚠️ Alerts:</span>
+      {% if out_of_range_params %}
+        <a href="{% url 'parameters' %}" class="hover:text-amber-300 underline underline-offset-2">
+          {{ out_of_range_params|length }} param{{ out_of_range_params|length|pluralize }} out of range
+        </a>
+      {% endif %}
+      {% if low_reservoirs %}
+        <a href="{% url 'dosing' %}" class="hover:text-amber-300 underline underline-offset-2">
+          {{ low_reservoirs|length }} reservoir{{ low_reservoirs|length|pluralize }} low
+        </a>
+      {% endif %}
+      {% if due_routines %}
+        <a href="{% url 'routines' %}" class="hover:text-amber-300 underline underline-offset-2">
+          {{ due_routines|length }} routine{{ due_routines|length|pluralize }} due
+        </a>
+      {% endif %}
+      {% if due_equipment %}
+        <a href="{% url 'equipment' %}" class="hover:text-amber-300 underline underline-offset-2">
+          {{ due_equipment|length }} equipment service{{ due_equipment|length|pluralize }} overdue
+        </a>
+      {% endif %}
+      <button onclick="document.getElementById('alert-banner').remove()" class="ml-auto text-amber-500 hover:text-amber-300 font-bold" title="Dismiss">✕</button>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Main Content Area -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 mb-16 md:mb-6">
     {% block content %}{% endblock %}
@@ -99,20 +138,26 @@
 
   <!-- Mobile Bottom Tab Navigation Bar (PWA Thumb-friendly) -->
   <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 pb-safe">
-    <div class="grid grid-cols-4 h-16">
+    <div class="grid grid-cols-5 h-16">
       <a href="{% url 'dashboard' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'dashboard' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         <span class="text-[10px] font-semibold">Home</span>
       </a>
 
-      <a href="{% url 'parameters' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'parameters' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+      <a href="{% url 'parameters' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'parameters' or request.resolver_match.url_name == 'parameter_settings' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
         <span class="text-[10px] font-semibold">Params</span>
       </a>
 
-      <a href="{% url 'livestock' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'livestock' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+      <a href="{% url 'livestock' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'livestock' or request.resolver_match.url_name == 'species_catalog' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <span class="text-lg leading-none">🐠</span>
         <span class="text-[10px] font-semibold">Livestock</span>
+      </a>
+
+      <!-- Maintenance hub: Equipment + Dosing + Routines -->
+      <a href="{% url 'equipment' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name in 'equipment,dosing,routines,equipment_create,dosing_create,routines' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="2"/></svg>
+        <span class="text-[10px] font-semibold">Maint.</span>
       </a>
 
       <a href="{% url 'webcams' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'webcams' %}text-cyan-400{% else %}text-slate-400{% endif %}">
@@ -127,6 +172,30 @@
 
   <!-- Global Application Scripts -->
   <script src="/static/js/app.js"></script>
+
+  <!-- In-App Random Nudibranch Character Logo (retains stable PWA/favicon while rotating in-app mascot) -->
+  <script>
+    (function () {
+      const logos = [
+        { path: '/static/icons/nudibranch/cyberpunk.svg', style: 'Cyberpunk' },
+        { path: '/static/icons/nudibranch/dragon.svg', style: 'Dragon' },
+        { path: '/static/icons/nudibranch/kpop_hunter.svg', style: 'K-Pop Demon Hunter' },
+        { path: '/static/icons/nudibranch/medieval_knight.svg', style: 'Medieval Knight' },
+        { path: '/static/icons/nudibranch/ninja_turtle.svg', style: 'Ninja Turtle' },
+        { path: '/static/icons/nudibranch/robot.svg', style: 'Mecha Robot' },
+        { path: '/static/icons/nudibranch/superhero.svg', style: 'Superhero' },
+        { path: '/static/icons/nudibranch/unicorn.svg', style: 'Unicorn' },
+        { path: '/static/icons/nudibranch/witch.svg', style: 'Sorcerer Witch' },
+      ];
+      const chosen = logos[Math.floor(Math.random() * logos.length)];
+      const logoImg = document.getElementById('nudibranch-logo');
+      if (logoImg) {
+        logoImg.src = chosen.path;
+        logoImg.title = `Nudibranch Mascot: ${chosen.style} Edition`;
+      }
+    })();
+  </script>
+
   {% block extra_js %}{% endblock %}
 </body>
 </html>

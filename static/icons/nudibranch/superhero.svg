@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="sh-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#082f49"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="sh-cape" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+    <linearGradient id="sh-body" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#075985"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#sh-bg)"/>
+
+  <!-- Fluttering Red Superhero Cape behind body -->
+  <path d="M 210 230 C 260 170, 320 160, 420 180 C 440 250, 410 320, 360 330 C 310 310, 270 270, 210 230 Z" fill="url(#sh-cape)" stroke="#b91c1c" stroke-width="3"/>
+  <path d="M 220 235 C 270 190, 340 180, 410 210" stroke="#fca5a5" stroke-width="3" fill="none" opacity="0.6"/>
+
+  <!-- Nudibranch Hero Blue Body -->
+  <path d="M 140 280 C 140 200, 240 180, 360 230 C 400 250, 420 280, 390 310 C 350 350, 210 380, 150 330 C 135 315, 140 295, 140 280 Z" fill="url(#sh-body)"/>
+
+  <!-- Gold Superhero Chest Diamond / Crest -->
+  <polygon points="175,270 195,255 215,270 205,290 185,290" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
+  <text x="195" y="280" font-family="Arial, sans-serif" font-weight="900" font-size="14" fill="#b91c1c" text-anchor="middle" dominant-baseline="middle">N</text>
+
+  <!-- Golden Rhinophores & Mask -->
+  <path d="M 165 240 Q 140 160 160 150 Q 175 180 180 240 Z" fill="#eab308"/>
+  <path d="M 190 245 Q 175 170 195 165 Q 205 195 200 245 Z" fill="#facc15"/>
+  <circle cx="160" cy="150" r="4" fill="#ffffff"/>
+  <circle cx="195" cy="165" r="4" fill="#ffffff"/>
+
+  <!-- Heroic Speed Lines -->
+  <line x1="80" y1="230" x2="120" y2="230" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+  <line x1="60" y1="260" x2="110" y2="260" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  <line x1="90" y1="290" x2="130" y2="290" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+</svg>

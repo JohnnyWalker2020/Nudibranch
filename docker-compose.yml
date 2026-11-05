@@ -6,6 +6,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # Live-mount project code so templates & Python edits update immediately
+      - .:/app
       # Mounts the persistent directory for both SQLite DB and uploaded livestock photos
       - ./data:/app/data
     environment:

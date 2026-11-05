@@ -11,10 +11,18 @@
       <h1 class="text-2xl font-black text-white tracking-tight">Water Chemistry</h1>
       <p class="text-xs text-slate-400 mt-0.5">Historical measurements, stability analytics, and log table</p>
     </div>
-    <button onclick="openQuickLogModal()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-      Log Measurement
-    </button>
+    <div class="flex items-center gap-2">
+      {% if selected_param %}
+        <a href="{% url 'parameter_settings' selected_param.id %}" class="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors" title="Change units and decimals">
+          <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="2"/></svg>
+          <span>Unit Settings</span>
+        </a>
+      {% endif %}
+      <button onclick="openQuickLogModal()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Log Measurement
+      </button>
+    </div>
   </div>
 
   <!-- Parameter Filter Bar (Mobile Scrollable) -->
@@ -80,7 +88,7 @@
 
           <div class="flex items-center gap-4">
             <div class="text-right">
-              <span class="text-lg font-bold text-white">{{ log.value }}</span>
+              <span class="text-lg font-bold text-white">{{ log.formatted_value }}</span>
               <span class="text-xs text-slate-400 ml-1">{{ log.parameter_type.unit }}</span>
             </div>
             <button hx-delete="{% url 'delete_log' log.id %}"
@@ -130,7 +138,7 @@
       
       const param = data.parameter;
       document.getElementById('chart-title').innerText = `${param.name} (${param.unit})`;
-      document.getElementById('chart-subtitle').innerText = `Target Range: ${param.min_ideal} - ${param.max_ideal} ${param.unit}`;
+      document.getElementById('chart-subtitle').innerText = `Target Range: ${param.formatted_min} - ${param.formatted_max} ${param.unit}`;
 
       const ctx = document.getElementById('detailedChart').getContext('2d');
       if (chartInstance) chartInstance.destroy();

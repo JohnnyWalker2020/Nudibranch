@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+
+{% block title %}Dosing & ATO Reservoirs | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Dosing & ATO Reservoirs</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Liquid additive levels, consumption rates, and runout date forecasts</p>
+    </div>
+    
+    <button onclick="document.getElementById('add-reservoir-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+      Add Reservoir / Container
+    </button>
+  </div>
+
+  <!-- Auto Top-Off (ATO) Fresh Water Section -->
+  <div class="space-y-3">
+    <div class="flex items-center gap-2">
+      <span class="text-lg">💧</span>
+      <h2 class="text-base font-bold text-white">Fresh RO/DI Water (Auto Top-Off)</h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for res in ato_containers %}
+        <div class="bg-slate-900 border {% if res.is_low %}border-rose-500/50 shadow-lg shadow-rose-500/10{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full" style="background-color: {{ res.color }}"></div>
+                <h3 class="text-base font-bold text-white">{{ res.name }}</h3>
+              </div>
+              {% if res.is_low %}
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
+                  REFILL SOON
+                </span>
+              {% else %}
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                  {{ res.percent_remaining }}% FULL
+                </span>
+              {% endif %}
+            </div>
+
+            <!-- Visual Water Tank Level Gauge -->
+            <div class="relative w-full h-5 bg-slate-950 rounded-full overflow-hidden border border-slate-800 my-3">
+              <div class="h-full rounded-full transition-all duration-500 {% if res.is_low %}bg-gradient-to-r from-amber-500 to-rose-500{% else %}bg-gradient-to-r from-cyan-500 to-blue-500{% endif %}"
+                   style="width: {{ res.percent_remaining }}%;"></div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-3 gap-2 text-center pt-2">
+              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Remaining</span>
+                <span class="text-sm font-bold text-white">{{ res.current_level }}</span>
+                <span class="text-[10px] text-slate-400">/ {{ res.capacity }} {{ res.unit }}</span>
+              </div>
+              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Evaporation</span>
+                <span class="text-sm font-bold text-white">{{ res.daily_consumption }}</span>
+                <span class="text-[10px] text-slate-400">{{ res.unit }}/day</span>
+              </div>
+              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Days Left</span>
+                <span class="text-sm font-bold {% if res.is_low %}text-rose-400{% else %}text-emerald-400{% endif %}">
+                  {% if res.days_remaining is not None %}~{{ res.days_remaining }}d{% else %}—{% endif %}
+                </span>
+                <span class="text-[10px] text-slate-500 block">
+                  {% if res.estimated_empty_date %}{{ res.estimated_empty_date|date:"M d" }}{% else %}N/A{% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Refill Action -->
+          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+            <span class="text-[11px] text-slate-500">Refilled: {{ res.last_refilled_date|date:"M d" }}</span>
+            <form method="POST" action="{% url 'refill_reservoir' res.id %}" class="flex items-center gap-1.5">
+              {% csrf_token %}
+              <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">
+                Fill to 100%
+              </button>
+            </form>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-span-full p-8 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
+          <p class="text-xs text-slate-400">No ATO fresh water reservoir configured.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Chemical Additives & Dosing Pumps Section -->
+  <div class="space-y-3 pt-4 border-t border-slate-800">
+    <div class="flex items-center gap-2">
+      <span class="text-lg">🧪</span>
+      <h2 class="text-base font-bold text-white">Dosing Containers & Additives</h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for res in dosing_containers %}
+        <div class="bg-slate-900 border {% if res.is_low %}border-rose-500/50 shadow-lg shadow-rose-500/10{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full" style="background-color: {{ res.color }}"></div>
+                <h3 class="text-base font-bold text-white">{{ res.name }}</h3>
+              </div>
+              {% if res.is_low %}
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
+                  LOW ({{ res.percent_remaining }}%)
+                </span>
+              {% else %}
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+                  {{ res.percent_remaining }}%
+                </span>
+              {% endif %}
+            </div>
+
+            <!-- Progress Meter -->
+            <div class="relative w-full h-4 bg-slate-950 rounded-full overflow-hidden border border-slate-800 my-3">
+              <div class="h-full rounded-full transition-all duration-500"
+                   style="width: {{ res.percent_remaining }}%; background-color: {{ res.color }};"></div>
+            </div>
+
+            <!-- Metrics -->
+            <div class="grid grid-cols-3 gap-2 text-center pt-2">
+              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Remaining</span>
+                <span class="text-sm font-bold text-white">{{ res.current_level|floatformat:0 }}</span>
+                <span class="text-[10px] text-slate-400">/ {{ res.capacity|floatformat:0 }} ml</span>
+              </div>
+              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Daily Dose</span>
+                <span class="text-sm font-bold text-white">{{ res.daily_consumption }}</span>
+                <span class="text-[10px] text-slate-400">ml/day</span>
+              </div>
+              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
+                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Estimated Runout</span>
+                <span class="text-sm font-bold {% if res.is_low %}text-rose-400{% else %}text-emerald-400{% endif %}">
+                  {% if res.days_remaining is not None %}~{{ res.days_remaining|floatformat:0 }}d{% else %}—{% endif %}
+                </span>
+                <span class="text-[10px] text-slate-500 block">
+                  {% if res.estimated_empty_date %}{{ res.estimated_empty_date|date:"M d" }}{% else %}N/A{% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Refill Bar -->
+          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+            <span class="text-[11px] text-slate-500">Refilled: {{ res.last_refilled_date|date:"M d" }}</span>
+            <form method="POST" action="{% url 'refill_reservoir' res.id %}">
+              {% csrf_token %}
+              <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">
+                Fill to 100%
+              </button>
+            </form>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-span-full p-8 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
+          <p class="text-xs text-slate-400">No dosing additive containers configured.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Add Reservoir Modal -->
+  <div id="add-reservoir-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white">Add Reservoir / Container</h3>
+        <button onclick="document.getElementById('add-reservoir-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <form method="POST" action="{% url 'dosing_create' %}" class="mt-4 space-y-4">
+        {% csrf_token %}
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Assigned Tank</label>
+          {{ form.tank }}
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Container Name</label>
+          {{ form.name }}
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Type</label>
+            {{ form.reservoir_type }}
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Color</label>
+            {{ form.color }}
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Total Size</label>
+            {{ form.capacity }}
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Current Level</label>
+            {{ form.current_level }}
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Unit</label>
+            {{ form.unit }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Daily Burn Rate (ml/day or gal/day)</label>
+          {{ form.daily_consumption }}
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('add-reservoir-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Reservoir</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -20,6 +20,64 @@
     </div>
   </div>
 
+  <!-- System Alerts & Maintenance Reminders -->
+  {% if low_reservoirs or due_routines or due_equipment or out_of_range_params %}
+  <div class="bg-gradient-to-r from-amber-950/40 to-slate-900 border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-500/5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-bold text-amber-300 flex items-center gap-2">
+        <span class="flex h-2.5 w-2.5 relative">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+        </span>
+        System Alerts & Action Items
+      </h2>
+      <span class="text-[11px] font-semibold text-slate-400">Needs Attention</span>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {% for item in out_of_range_params %}
+      <a href="{% url 'parameters' %}?param={{ item.param.code }}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+        <span class="text-xl">⚠️</span>
+        <div>
+          <p class="text-xs font-bold text-white">{{ item.param.name }} is {{ item.log.status|upper }}</p>
+          <p class="text-[11px] text-amber-400/90">{{ item.log.formatted_value }} {{ item.param.unit }} (Ideal: {{ item.param.formatted_min_ideal }}-{{ item.param.formatted_max_ideal }})</p>
+        </div>
+      </a>
+      {% endfor %}
+
+      {% for res in low_reservoirs %}
+      <a href="{% url 'dosing' %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+        <span class="text-xl">🧪</span>
+        <div>
+          <p class="text-xs font-bold text-white">{{ res.name }}</p>
+          <p class="text-[11px] text-rose-400 font-semibold">{{ res.percent_remaining }}% remaining (~{{ res.days_remaining }} days)</p>
+        </div>
+      </a>
+      {% endfor %}
+
+      {% for rt in due_routines %}
+      <a href="{% url 'routines' %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+        <span class="text-xl">📋</span>
+        <div>
+          <p class="text-xs font-bold text-white">{{ rt.title }}</p>
+          <p class="text-[11px] text-amber-400/90">Routine is due (Every {{ rt.frequency_days }}d)</p>
+        </div>
+      </a>
+      {% endfor %}
+
+      {% for eq in due_equipment %}
+      <a href="{% url 'equipment' %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+        <span class="text-xl">⚙️</span>
+        <div>
+          <p class="text-xs font-bold text-white">{{ eq.name }}</p>
+          <p class="text-[11px] text-amber-400/90">Maintenance service overdue</p>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Key Parameter Quick-Look Grid (Mobile-First Cards) -->
   <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
     {% for pt in parameter_types %}
@@ -30,12 +88,20 @@
             <span class="text-xs font-semibold text-slate-400 group-hover:text-cyan-400 transition-colors">
               {{ pt.name }}
             </span>
-            <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ pt.color }}"></div>
+            <div class="flex items-center gap-1.5">
+              <a href="{% url 'parameter_settings' pt.id %}" 
+                 onclick="event.stopPropagation()" 
+                 title="Configure {{ pt.name }} unit & decimals"
+                 class="opacity-40 hover:opacity-100 p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="2"/></svg>
+              </a>
+              <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ pt.color }}"></div>
+            </div>
           </div>
 
           {% if latest %}
             <div class="flex items-baseline gap-1">
-              <span class="text-2xl font-black tracking-tight text-white">{{ latest.value }}</span>
+              <span class="text-2xl font-black tracking-tight text-white">{{ latest.formatted_value }}</span>
               <span class="text-xs font-medium text-slate-400">{{ pt.unit }}</span>
             </div>
 
@@ -52,8 +118,8 @@
             <div class="text-[10px] text-cyan-400 font-semibold group-hover:underline">+ Tap to log</div>
           {% endif %}
 
-          <div class="mt-2 text-[10px] text-slate-500 border-t border-slate-800/80 pt-1.5">
-            Ideal: {{ pt.min_ideal }} – {{ pt.max_ideal }} {{ pt.unit }}
+          <div class="mt-2 text-[10px] text-slate-500 border-t border-slate-800/80 pt-1.5 flex items-center justify-between">
+            <span>Ideal: {{ pt.formatted_min_ideal }} – {{ pt.formatted_max_ideal }} {{ pt.unit }}</span>
           </div>
         </div>
       {% endwith %}

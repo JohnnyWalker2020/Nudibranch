@@ -1,12 +1,15 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import ParameterType, ParameterLog, AnimalGroup, Animal, WebcamFeed
+from .models import (
+    ParameterType, ParameterLog, AnimalGroup, Animal, WebcamFeed, SpeciesCatalog,
+    Tank, Equipment, DosingReservoir, MaintenanceRoutine, WaterChangeLog
+)
 
 
 @admin.register(ParameterType)
 class ParameterTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'unit', 'min_ideal', 'max_ideal', 'color_badge', 'display_order')
-    list_editable = ('display_order',)
+    list_display = ('name', 'code', 'unit', 'decimal_places', 'min_ideal', 'max_ideal', 'color_badge', 'display_order')
+    list_editable = ('decimal_places', 'display_order')
     search_fields = ('name', 'code')
 
     def color_badge(self, obj):
@@ -19,10 +22,14 @@ class ParameterTypeAdmin(admin.ModelAdmin):
 
 @admin.register(ParameterLog)
 class ParameterLogAdmin(admin.ModelAdmin):
-    list_display = ('parameter_type', 'value', 'unit', 'status_badge', 'measured_at', 'notes')
+    list_display = ('parameter_type', 'formatted_value_display', 'unit', 'status_badge', 'measured_at', 'notes')
     list_filter = ('parameter_type', 'measured_at')
     date_hierarchy = 'measured_at'
     search_fields = ('notes', 'parameter_type__name')
+
+    def formatted_value_display(self, obj):
+        return obj.formatted_value
+    formatted_value_display.short_description = "Value"
 
     def unit(self, obj):
         return obj.parameter_type.unit
@@ -74,3 +81,51 @@ class WebcamFeedAdmin(admin.ModelAdmin):
     list_display = ('name', 'feed_type', 'is_active', 'order', 'feed_url')
     list_editable = ('is_active', 'order')
     list_filter = ('feed_type', 'is_active')
+
+
+@admin.register(SpeciesCatalog)
+class SpeciesCatalogAdmin(admin.ModelAdmin):
+    list_display = ('icon_name', 'species', 'category', 'suggested_group', 'care_level', 'reef_safe', 'diet')
+    list_filter = ('category', 'care_level', 'reef_safe')
+    search_fields = ('name', 'species', 'notes', 'diet')
+
+    def icon_name(self, obj):
+        return f"{obj.icon} {obj.name}"
+    icon_name.short_description = "Species"
+
+
+@admin.register(Tank)
+class TankAdmin(admin.ModelAdmin):
+    list_display = ('name', 'volume_gallons', 'is_primary', 'created_at')
+    list_filter = ('is_primary',)
+    search_fields = ('name', 'notes')
+
+
+@admin.register(Equipment)
+class EquipmentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'tank', 'category', 'brand', 'wattage', 'status', 'last_serviced_date', 'is_service_due')
+    list_filter = ('category', 'status', 'tank')
+    search_fields = ('name', 'brand', 'notes')
+
+
+@admin.register(DosingReservoir)
+class DosingReservoirAdmin(admin.ModelAdmin):
+    list_display = ('name', 'tank', 'reservoir_type', 'current_level', 'capacity', 'unit', 'daily_consumption', 'percent_remaining', 'days_remaining', 'is_low')
+    list_filter = ('reservoir_type', 'tank')
+    search_fields = ('name', 'tank__name')
+
+
+@admin.register(MaintenanceRoutine)
+class MaintenanceRoutineAdmin(admin.ModelAdmin):
+    list_display = ('title', 'tank', 'category', 'frequency_days', 'last_completed', 'is_due')
+    list_filter = ('category', 'frequency_days', 'tank')
+    search_fields = ('title', 'notes')
+
+
+@admin.register(WaterChangeLog)
+class WaterChangeLogAdmin(admin.ModelAdmin):
+    list_display = ('tank', 'performed_at', 'gallons', 'salt_brand', 'target_salinity')
+    list_filter = ('salt_brand', 'tank', 'performed_at')
+    date_hierarchy = 'performed_at'
+    search_fields = ('notes', 'salt_brand')
+
