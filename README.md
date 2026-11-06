@@ -4,82 +4,32 @@ A self-hosted, mobile-friendly app for saltwater aquarium keepers. Track water c
 
 Built with **Python**, **Django 5**, **SQLite**, **Tailwind CSS**, **HTMX** and **Chart.js**, and installable on your phone as a **Progressive Web App**.
 
-> **Keep it private.** Everything requires a sign-in, but this app isn't hardened for the public internet. Don't forward port 8000 on your router or use Tailscale Funnel. Use [Tailscale](#-reaching-it-from-your-phone) to reach it from elsewhere.
-
-![The dashboard](docs/screenshots/dashboard.png)
-
----
-
-## 📸 Screenshots
-
-| Water chemistry | Compare planned systems |
-|---|---|
-| ![Parameter chart with target ranges](docs/screenshots/parameters.png) | ![A project comparing three planned systems side by side](docs/screenshots/planner-project.png) |
-
-| Species catalog | Wishlist |
-|---|---|
-| ![Species catalog with care details](docs/screenshots/species-catalog.png) | ![Wishlist with tank fit checks](docs/screenshots/wishlist.png) |
-
-| Colours and characters | Fill timers | On your phone |
-|---|---|---|
-| ![Colour schemes and character icons](docs/screenshots/system-look.png) | ![Fill timer and RO calculator](docs/screenshots/fill-timers.png) | ![Dashboard on a phone, using Match my icon](docs/screenshots/mobile-dashboard.png) |
-
-*Screenshots use sample data.*
+> **Keep it on your home network.** The app has no login, so anyone who can reach it can see and change everything, including downloading backups. Don't expose port 8000 to the internet.
 
 ---
 
 ## 🚀 Getting started
 
-You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose.
+You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose. From the project folder, run:
 
-1. Copy `.env.example` to `.env`, then fill in `DJANGO_SECRET_KEY` and `API_SECRET_KEY` with long random values. The file explains how. Git ignores `.env`, so it stays private.
-2. From the project folder, run:
+```bash
+docker compose up -d --build
+```
 
-   ```bash
-   docker compose up -d --build
-   ```
-
-3. Open **[http://localhost:8000](http://localhost:8000)** on the same computer. If there are no accounts yet, you'll be asked to create one.
+Then open **[http://localhost:8000](http://localhost:8000)**, or `http://YOUR-PC-IP:8000` from your phone.
 
 Run the same command to apply updates. Database changes are applied on startup, and your data stays in the `data` folder.
 
-Keep a private copy of your `.env` file, such as in a password manager. It isn't included in the app's backups.
-
-### Accounts
-
-Every page, photo and backup needs a sign-in. You stay signed in for 30 days on each device, and **Sign out** is on the **Tools** page.
-
-Forgot your password? Reset it from the project folder, replacing `YOUR-USERNAME`:
-
-```bash
-docker compose exec web python manage.py changepassword YOUR-USERNAME
-```
-
 ### Settings
 
-Set these in your `.env` file. `TIME_ZONE` is in `docker-compose.yml`.
+Set these in `docker-compose.yml`, or put `API_SECRET_KEY` in a `.env` file beside it.
 
 | Setting | What it does |
 |---|---|
-| `DJANGO_SECRET_KEY` | Required. The app won't start without it. |
-| `API_SECRET_KEY` | The key devices must send to log readings. |
-| `CSRF_TRUSTED_ORIGINS` | The addresses you open the app from. Without yours, forms are rejected. |
-| `BIND_ADDRESS` | `127.0.0.1` allows only this computer, which is the default. `0.0.0.0` allows your whole local network. |
 | `TIME_ZONE` | Your time zone, used for schedules and log times. This repo's default is `America/Regina`, so change it to yours. |
-
-### 📱 Reaching it from your phone
-
-The safest setup is [Tailscale](https://tailscale.com) with its Serve feature, which gives you a private HTTPS address that only your own devices can reach. Install Tailscale on both devices, turn on **HTTPS** in the Tailscale admin console, and leave **Funnel** off. Then, on the computer running Nudibranch:
-
-```bash
-tailscale serve --bg 8000
-```
-
-Tailscale may ask you to approve Serve the first time. Add the `https://` address it shows to `CSRF_TRUSTED_ORIGINS` in `.env`, then run `docker compose up -d` again.
-
-- **Install it on your phone:** open that address and use your browser's install or add to home screen option. Installing needs HTTPS, which this provides.
-- **Keep Tailscale connected:** with the default `BIND_ADDRESS`, your phone needs Tailscale on even at home.
-- **Webcams:** cameras with local network addresses won't load away from home unless they're also reachable through Tailscale.
+| `DJANGO_SECRET_KEY` | Change this to your own long random value. |
+| `CSRF_TRUSTED_ORIGINS` | Add the address you use from other devices, such as `http://192.168.1.50:8000`. Otherwise forms will be rejected from those devices. |
+| `API_SECRET_KEY` | Optional key required by the parameter logging API. Without it, anyone on your network can post readings. |
 
 ---
 
@@ -90,15 +40,13 @@ Pick a system from the **System** menu at the top of any page. The dashboard, pa
 
 - **Shared across systems:** the wishlist, plans, species catalog, parameter names and units, webhooks, backups and the quarantine list.
 - **All systems views:** Equipment and Power can show every system at once.
-- **System look:** use **Icon & colours** on a tank's page to give each system its own colour scheme and icon, from 26 nudibranch characters or your own image. **Match my icon** builds the colour scheme from the icon itself.
-- **Retiring a system:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and its character ages into the old version. You can bring it back at any time. Your own uploaded icon never changes.
-- **Icon settings:** under **Tools > Settings**, **Disable icon aging** keeps retired systems young, **Enable old version icons** lets any system use an old version, and **Enable random icons** gives systems with no chosen icon a different character on every page.
+- **System look:** tap 🎨 to give each system its own colour scheme and icon, from a stock set or your own image.
+- **Retiring a system:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and gives it a retiree icon. You can bring it back at any time.
 
 ### Water parameters
 - Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges.
 - Each system can have its own target ranges, or use the shared defaults.
 - Change units and decimals, with automatic conversion of past readings.
-- Want to see the charts and alerts in action first? Add 90 days of made-up tests with `docker compose exec web python manage.py seed_demo_readings`, and take them out again by adding `--remove`. Your own readings are left alone. Limit it to one system with `--tank NAME`.
 
 ### Livestock and species catalog
 - Track animals with photos, groups, health status and notes.
@@ -107,24 +55,18 @@ Pick a system from the **System** menu at the top of any page. The dashboard, pa
 - **Quarantine tracker:** day counter, medication and observation log, and an alert when the period ends.
 - **Growth timeline:** dated photos of each animal with a before and after slider.
 
-The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spreadsheet (save as CSV UTF-8). Starting the app adds new rows and fills empty fields, but never overwrites your edits. To apply edited values to existing species, run `docker compose exec web python manage.py seed_reef_data --update-species`. Care details are hobby rules of thumb, not checked against a reference, so please verify them before buying.
+The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spreadsheet (save as CSV UTF-8). Starting the app adds new rows and fills empty fields, but never overwrites your edits. To apply edited values to existing species, run `python manage.py seed_reef_data --update-species`. Care details are hobby rules of thumb, not checked against a reference, so please verify them before buying.
 
 ### Planning
 - **System Planner:** design a new system or plan stocking for an existing tank, with checks for stocking, flow, heating and power. **Start tracking this system** then creates the real tank, sump, equipment and livestock.
-- **Projects:** group several planned systems to compare them side by side and see combined cost, water and power. Copy a plan to try a variation. Nothing becomes real until you track that one plan.
-- **Wishlist:** save animals and gear with a priority, price, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
+- **Wishlist:** save animals and gear with a priority, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
 
 ### Equipment, dosing and maintenance
-- **Tank profile:** dimensions, sumps and plumbing, plus substrate type and amount, its linked product, and live rock, in lb or kg.
 - **Equipment:** service intervals, placement in the display or sump, and pump flow and turnover estimates.
 - **Dosing and top-off:** reservoir levels and run-out forecasts.
-- **Calculators:** the Dose Estimator, Salt Mixing Calculator and Fill Timer calculator use the selected system's volume, or a custom one. Open the salt calculator or Dose Estimator from the page tabs or from **Tools**. It can start from water that already has salt in it. Results are estimates, so confirm them independently before using them.
+- **Calculators:** the Dose Estimator, Salt Mixing Calculator and Fill Timer calculator use the selected system's volume, or a custom one.
 - **Routines:** manual checklists and automated schedules with flexible repeats, plus water change history.
 - **Power cost:** estimated electricity use and cost from equipment wattage. Set your price under **Tools > Settings**.
-
-### Alerts
-- The **Alerts** page lists active problems, plus a **Resolved** section and metrics such as average time to resolve. Filter by severity and status.
-- Resolved alerts are kept for 7 days. Change that, up to 30, under **Tools > Settings**. The history starts when you install this version.
 
 ### Fill timers
 Enter your RO/DI specs to estimate fill time and waste water, then start a timer that beeps on the page and can alert your phone.
@@ -137,7 +79,7 @@ Under **Tools > Phone Alerts & Webhooks**, send events to your phone through [nt
 ### Backups
 Under **Tools > Backups**, make a zip of your database and photos, download it, or restore one. Your current data is saved first when you restore. Automatic backups run weekly by default.
 
-Backups are stored in `data/backups` on the same drive as your data, so copy one somewhere else now and then. They don't include your `.env` file.
+Backups are stored in `data/backups` on the same drive as your data, so copy one somewhere else now and then.
 
 ### Webcams
 Add MJPEG, snapshot or embedded camera feeds, and assign each to a system or show it on all of them. **Time-lapse** captures frames on a schedule and plays them back in the browser. RTSP cameras need a converter such as [go2rtc](https://github.com/AlexxIT/go2rtc), and an example is commented out in `docker-compose.yml`.
@@ -149,14 +91,10 @@ Add MJPEG, snapshot or embedded camera feeds, and assign each to a system or sho
 
 <br>
 
-Touch the nudibranch (the app icon) three times quickly, and it stings you with **The Damage**, a fire-themed spending ledger. It's off until you **Light the match** inside it. After that:
+Touch the nudibranch (the app icon) three times quickly, and it stings you with **The Damage**, a fire-themed spending ledger. Prices are hidden across the app until you **Light the match** inside it. After that:
 
-- Livestock and equipment get a "what you paid" field, which lands in the ledger automatically and stays in sync with it. A purchase logged in the ledger can also be tied to a piece of equipment, which sets that field.
-- Choose your currency in the ledger or under **Tools > Settings**. It only changes the symbol, and amounts aren't converted.
-- **All systems** leaves out retired systems unless you tick **Include retired systems**.
-- Planner and Wishlist prices are always visible, and only reach the ledger when an item moves into an active tank.
-- Filter by system and dates.
-- **Put out the fire** to hide your spending again. Your $ values aren't erased.
+- Wishlist and plan items can have prices, and livestock and equipment get a "what you paid" field.
+- It all lands in the ledger automatically, and stays in sync with it.
 
 </details>
 
@@ -196,8 +134,7 @@ Example JSON payload:
 Requests include `X-Nudibranch-Event` and `X-Nudibranch-Delivery` headers, plus `X-Nudibranch-Signature: sha256=...` (HMAC-SHA256 of the body) when you set a secret. Parameter events also include `tank` and `tank_id` in `data`, and timer events include `timer_id` and `reservoir_id`.
 
 **How sending works:**
-- Most events notify once, when the condition first happens, and each send is tried up to 5 times.
-- Retired systems don't send events, except a fill timer that's already running.
+- Most events notify once, when the condition first happens, and failed sends retry up to 5 times.
 - `routine.scheduled` is sent once and never retried, and a missed one is dropped after 5 minutes, so a retry can't double-feed.
 - The first time the worker runs, it records existing problems without sending them.
 
@@ -212,20 +149,19 @@ Requests include `X-Nudibranch-Event` and `X-Nudibranch-Delivery` headers, plus 
 ## 🧪 Parameter Units & Decimal Precision
 
 You can change measurement units and customize decimal places for any parameter:
-- Click the **gear icon** ⚙️ on any dashboard parameter card, or select a parameter on the **Parameters** page and open its settings.
+- Click the **gear icon** ⚙️ on any parameter card (or **"Unit Settings"** on the Parameters page).
 - **Customizable Decimals**: Choose from `0` to `4` decimal places:
   - `0` decimals for whole-number metrics (e.g. `Calcium 420 ppm`, `Magnesium 1350 ppm`).
   - `1` decimal for tenths (e.g. `Alkalinity 8.4 dKH`, `Temperature 78.2 °F`).
   - `2` decimals for hundredths (e.g. `Phosphate 0.03 ppm`, `pH 8.25`).
   - `3` decimals for thousandths (e.g. `Salinity 1.026 SG`).
 - **Automatic Historical Conversion**:
-  - Checking **"Convert previous entries automatically"** recalculates all existing logs and target ranges, across every system, using standard reef conversion formulas:
-    - **Temperature**: `°F` ↔ `°C`
-    - **Salinity**: `SG` (Specific Gravity) ↔ `ppt` (Parts per Thousand) ↔ `mS/cm` (Conductivity)
-    - **Alkalinity**: `dKH` ↔ `meq/L` ↔ `ppm CaCO3`
-    - **Phosphate**: `ppm PO4` ↔ `ppb Phosphorus P` (for Hanna HI736 Checkers)
-    - **Nitrate**: `ppm` ↔ `ppb`
-- **Target ranges** apply to the selected system, and can differ per system. Units and decimals are shared by all of them.
+  - Checking **"Convert previous entries automatically"** recalculates all existing logs and ideal ranges using standard reef conversion formulas:
+    - **Temperature**: `°F` $\leftrightarrow$ `°C`
+    - **Salinity**: `SG` (Specific Gravity) $\leftrightarrow$ `ppt` (Parts per Thousand) $\leftrightarrow$ `mS/cm` (Conductivity)
+    - **Alkalinity**: `dKH` $\leftrightarrow$ `meq/L` $\leftrightarrow$ `ppm CaCO3`
+    - **Phosphate**: `ppm PO4` $\leftrightarrow$ `ppb Phosphorus P` (for Hanna HI736 Checkers)
+    - **Nutrients**: `ppm` $\leftrightarrow$ `ppb`
 
 ---
 
@@ -233,14 +169,9 @@ You can change measurement units and customize decimal places for any parameter:
 
 You can log parameter readings programmatically via HTTP POST requests from automated test kits, Raspberry Pi/ESP32 probes, Python scripts, or Home Assistant.
 
-**Every request needs your API key.** Devices use the `API_SECRET_KEY` from your `.env` file in place of signing in. In the examples below, replace `YOUR-API-KEY` with it.
-
-**Reaching the app from a device:** a script on the same computer can use `http://localhost:8000`, and a device running Tailscale can use your `https://` Tailscale address. A device that can't run Tailscale, such as an ESP32, needs `BIND_ADDRESS=0.0.0.0` in `.env`, which opens port 8000 to your whole local network.
-
 ### 1. View Available Parameter Types
 ```http
 GET /api/parameters/types/
-X-API-Key: YOUR-API-KEY
 ```
 Add `?tank=<ID or name>` to get that system's target ranges.
 
@@ -262,11 +193,12 @@ Add `?tank=<ID or name>` to get that system's target ranges.
 
 ---
 
+Readings can name a system with `"tank"` (ID or name), on each reading or once for a whole batch. Without it, they go to your primary tank.
+
 ### 2. Log a Single Parameter
 ```http
 POST /api/parameters/log/
 Content-Type: application/json
-X-API-Key: YOUR-API-KEY
 ```
 **Payload:**
 ```json
@@ -277,14 +209,11 @@ X-API-Key: YOUR-API-KEY
   "measured_at": "2026-11-04T22:30:00Z"
 }
 ```
-*(Note: `parameter` matches case-insensitively by code, name, or ID. `measured_at` and `notes` are optional; the time defaults to now).*
-
-To log to a specific system, add `"tank"` (ID or name), on each reading or once for a whole batch. Without it, readings go to your primary tank. Retired systems don't accept new readings.
+*(Note: `parameter` matches case-insensitively by code, name, or ID. `measured_at` and `notes` are optional; defaults to current time).*
 
 **cURL Example:**
 ```bash
 curl -X POST http://localhost:8000/api/parameters/log/ \
-  -H "X-API-Key: YOUR-API-KEY" \
   -H "Content-Type: application/json" \
   -d '{"parameter": "alkalinity", "value": 8.4, "notes": "Automated log"}'
 ```
@@ -299,7 +228,6 @@ curl -X POST http://localhost:8000/api/parameters/log/ \
       "id": 14,
       "parameter": "Alkalinity",
       "code": "alkalinity",
-      "tank": "Main Display Tank",
       "value": 8.4,
       "unit": "dKH",
       "status": "optimal",
@@ -327,7 +255,6 @@ You can log multiple readings in a single API call:
 **cURL Example:**
 ```bash
 curl -X POST http://localhost:8000/api/parameters/log/ \
-  -H "X-API-Key: YOUR-API-KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "readings": [
@@ -343,30 +270,33 @@ curl -X POST http://localhost:8000/api/parameters/log/ \
 ```python
 import requests
 
-SERVER_URL = "http://localhost:8000"  # or your https:// Tailscale address
-API_KEY = "YOUR-API-KEY"  # from your .env file
+SERVER_URL = "http://192.168.1.150:8000"  # or http://localhost:8000
 
 data = {
     "readings": [
-        {"parameter": "temperature", "value": 78.1, "notes": "DS18B20 probe"},
+        {"parameter": "temp", "value": 78.1, "notes": "DS18B20 probe"},
         {"parameter": "ph", "value": 8.18, "notes": "Atlas probe"}
     ]
 }
 
-response = requests.post(f"{SERVER_URL}/api/parameters/log/", json=data, headers={"X-API-Key": API_KEY})
+response = requests.post(f"{SERVER_URL}/api/parameters/log/", json=data)
 print(response.status_code, response.json())
 ```
 
 ---
 
-### 5. Sending the API Key
-Either of these headers works:
+### Optional API Security Key
+To protect the API from unauthorized callers, create a `.env` file beside `docker-compose.yml`, then restart the app:
 ```bash
-curl -H "X-API-Key: YOUR-API-KEY" ...
-# or
-curl -H "Authorization: Bearer YOUR-API-KEY" ...
+API_SECRET_KEY=my-super-secret-reef-token
 ```
-*(If `API_SECRET_KEY` is empty, the logging endpoint accepts readings from anyone who can reach it, so keep it set).*
+Then pass the key in your requests:
+```bash
+curl -H "X-API-Key: my-super-secret-reef-token" ...
+# or
+curl -H "Authorization: Bearer my-super-secret-reef-token" ...
+```
+*(Without `API_SECRET_KEY`, the API accepts readings from anyone who can reach it).*
 
 ---
 
@@ -378,8 +308,7 @@ Run the tests against a temporary data folder, so your real data isn't touched:
 docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python web manage.py test aquarium
 ```
 
-- `aquarium/`: the Django app. Views for the newer tools are in `views_tools.py`, sign-in is in `middleware.py`, and background jobs are in `management/commands/run_worker.py`.
+- `aquarium/`: the Django app. Views for the newer tools are in `views_tools.py`, and background jobs are in `management/commands/run_worker.py`.
 - `aquarium/species_catalog.csv`: the built-in species list.
-- `static/icons/nudibranch/`: character icons, as `NN-name-young.png` and `NN-name-old.png` pairs. Add a pair and restart to add a character. Small copies are generated at startup in `thumbs/`.
-- `.env.example`: the settings to copy into your private `.env`.
+- `static/icons/nudibranch/retired_*.svg`: **placeholder** retiree icons. Replace these files with final art, keeping the same names.
 - [CHANGES.md](CHANGES.md): what changed in each round.
