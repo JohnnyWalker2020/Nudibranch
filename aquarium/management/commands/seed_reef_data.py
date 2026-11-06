@@ -1,3 +1,6 @@
+import csv
+from pathlib import Path
+
 from django.core.management.base import BaseCommand
 from aquarium.models import (
     ParameterType, AnimalGroup, SpeciesCatalog,
@@ -5,8 +8,53 @@ from aquarium.models import (
 )
 
 
+# Editable in a spreadsheet: save as "CSV UTF-8" so the emoji icons survive.
+SPECIES_CSV = Path(__file__).resolve().parents[2] / "species_catalog.csv"
+SPECIES_FIELDS = ("name", "species", "category", "suggested_group", "care_level", "reef_safe", "diet", "notes", "icon")
+SPECIES_EXTRAS = ("min_tank_gallons", "max_size_inches", "temperament")
+
+
 class Command(BaseCommand):
     help = "Seeds common reef aquarium parameters, animal groups, and species catalog"
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--update-species", action="store_true",
+            help="Also overwrite existing catalog entries with the values in species_catalog.csv",
+        )
+
+    def _seed_species(self, update_existing=False):
+        """Add species from the CSV. A bad row is skipped so it can't stop the rest of the seed."""
+        valid_categories = {key for key, _ in SpeciesCatalog.CATEGORY_CHOICES}
+        added = updated = skipped = 0
+        try:
+            with open(SPECIES_CSV, encoding="utf-8-sig", newline="") as fh:
+                for line, row in enumerate(csv.DictReader(fh), start=2):
+                    values = {field: (row.get(field) or "").strip() for field in SPECIES_FIELDS}
+                    if not values["name"] or values["category"] not in valid_categories:
+                        self.stderr.write(f"  ! Skipped {SPECIES_CSV.name} line {line}: missing name or bad category")
+                        skipped += 1
+                        continue
+                    extras = {field: (row.get(field) or "").strip() or None for field in SPECIES_EXTRAS}
+                    extras["temperament"] = extras["temperament"] or ""
+                    name = values.pop("name")
+                    obj, created = SpeciesCatalog.objects.get_or_create(name=name, defaults={**values, **extras})
+                    if created:
+                        added += 1
+                    elif update_existing:
+                        SpeciesCatalog.objects.filter(pk=obj.pk).update(**values, **extras)
+                        updated += 1
+                    else:
+                        # Older entries predate these columns: fill the gaps, never overwrite.
+                        gaps = {field: value for field, value in extras.items()
+                                if value not in (None, "") and getattr(obj, field) in (None, "")}
+                        if gaps:
+                            SpeciesCatalog.objects.filter(pk=obj.pk).update(**gaps)
+        except (OSError, UnicodeDecodeError, csv.Error) as exc:
+            self.stderr.write(f"  ! Could not read {SPECIES_CSV.name}: {exc}")
+            return
+        total = SpeciesCatalog.objects.count()
+        self.stdout.write(f"  Species catalog: {added} added, {updated} updated, {skipped} skipped, {total} total")
 
     def handle(self, *args, **options):
         self.stdout.write("Seeding default reef parameters...")
@@ -56,197 +104,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  - Group already exists: {obj.name}")
 
         self.stdout.write("Seeding popular species catalog...")
-        default_species = [
-            # Fish
-            {
-                "name": "Ocellaris Clownfish", "species": "Amphiprion ocellaris", "category": "fish",
-                "suggested_group": "Clownfish Pair", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Omnivore (pellets, flakes, mysis)", "notes": "Hardy and iconic. Pairs easily with another clown; can host anemones.", "icon": "🐠"
-            },
-            {
-                "name": "Percula Clownfish", "species": "Amphiprion percula", "category": "fish",
-                "suggested_group": "Clownfish Pair", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Omnivore", "notes": "True Percula clownfish with prominent black outlines. Peaceful reef inhabitant.", "icon": "🐠"
-            },
-            {
-                "name": "Blue Green Chromis", "species": "Chromis viridis", "category": "fish",
-                "suggested_group": "School", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Planktivore / Omnivore", "notes": "Active schooling damselfish. Shimmers bright metallic aqua. Keep in odd-numbered groups.", "icon": "🐟"
-            },
-            {
-                "name": "Yellow Tang", "species": "Zebrasoma flavescens", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Herbivore (nori seaweed, algae pellets)", "notes": "Classic reef centerpiece. Voracious grazer on filamentous algae.", "icon": "🐠"
-            },
-            {
-                "name": "Blue / Hippo Tang", "species": "Paracanthurus hepatus", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Omnivore / Herbivore", "notes": "Active swimmer, needs ample horizontal swimming space. Prone to ich if stressed.", "icon": "🐠"
-            },
-            {
-                "name": "Royal Gramma", "species": "Gramma loreto", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Carnivore (mysis, brine, pods)", "notes": "Stunning violet-and-yellow coloration. Caves and rock crevices are essential.", "icon": "🐠"
-            },
-            {
-                "name": "Firefish Goby", "species": "Nemateleotris magnifica", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Planktivore / Carnivore", "notes": "Peaceful dartfish with high dorsal fin. Known jumper—requires a tight tank lid.", "icon": "🐟"
-            },
-            {
-                "name": "Yellow Watchman Goby", "species": "Cryptocentrus cinctus", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Carnivore", "notes": "Bottom dweller with charismatic grumpy face. Forms a famous symbiotic bond with pistol shrimp.", "icon": "🐠"
-            },
-            {
-                "name": "Diamond Watchman Goby", "species": "Valenciennea puellaris", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Carnivore / Sand Sifter", "notes": "Master sand-sifter. Continuously filters sand bed through gills, keeping sand spotless.", "icon": "🐟"
-            },
-            {
-                "name": "Lawnmower Blenny", "species": "Salarias fasciatus", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Herbivore", "notes": "Excellent natural grazer for nuisance hair algae and microalgae films.", "icon": "🐟"
-            },
-            {
-                "name": "Tailspot Blenny", "species": "Ecsenius stigmatura", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Herbivore / Omnivore", "notes": "Small, comical nano fish. Perches on rocks and pecks at microalgae.", "icon": "🐟"
-            },
-            {
-                "name": "Six Line Wrasse", "species": "Pseudocheilinus hexataenia", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Carnivore / Pest Eater", "notes": "Active hunter that eats nuisance flatworms, bristleworms, and pyramid snails.", "icon": "🐠"
-            },
-            {
-                "name": "Banggai Cardinalfish", "species": "Pterapogon kauderni", "category": "fish",
-                "suggested_group": "Fish", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Carnivore", "notes": "Gentle, slow-moving fish with striking black and silver stripes. Mouthbrooder.", "icon": "🐠"
-            },
-            # Cleanup Crew
-            {
-                "name": "Trochus Snail", "species": "Trochus sp.", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Herbivore (film & hair algae)", "notes": "Top-tier algae snail. Can upright itself if flipped upside down.", "icon": "🐌"
-            },
-            {
-                "name": "Nassarius Snail", "species": "Nassarius vibex", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Carnivore / Detritivore", "notes": "Burrows under the sand bed, emerges like a zombie when fish are fed to clean leftover food.", "icon": "🐌"
-            },
-            {
-                "name": "Astraea Snail", "species": "Astraea tecta", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Herbivore (diatoms, green film)", "notes": "Classic glass and live-rock grazer with pyramid shell. Cannot flip itself if overturned.", "icon": "🐌"
-            },
-            {
-                "name": "Cerith Snail", "species": "Cerithium sp.", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Detritivore / Herbivore", "notes": "Cleans glass, rock crevices, and burrows into sand bed eating detritus and diatoms.", "icon": "🐌"
-            },
-            {
-                "name": "Mexican Turbo Snail", "species": "Turbo fluctuosa", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Voracious Herbivore", "notes": "Bulldozer snail that demolishes thick green hair algae.", "icon": "🐌"
-            },
-            {
-                "name": "Blue Leg Hermit Crab", "species": "Clibanarius tricolor", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Omnivore / Scavenger", "notes": "Miniature scavenger. Scours rock holes for detritus and nuisance algae. Provide empty shells.", "icon": "🦀"
-            },
-            {
-                "name": "Scarlet Reef Hermit Crab", "species": "Paguristes cadenati", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Herbivore / Scavenger", "notes": "The most peaceful hermit crab. Bright red legs with yellow eye stalks.", "icon": "🦀"
-            },
-            {
-                "name": "Emerald Crab", "species": "Mithraculus sculptus", "category": "cleanup_crew",
-                "suggested_group": "Cleanup Crew", "care_level": "Beginner", "reef_safe": "With Caution",
-                "diet": "Herbivore (bubble algae)", "notes": "Famous for controlling nuisance Valonia (bubble algae).", "icon": "🦀"
-            },
-            # Invertebrates & Shrimp
-            {
-                "name": "Skunk Cleaner Shrimp", "species": "Lysmata amboinensis", "category": "invert",
-                "suggested_group": "Invertebrates", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Omnivore / Cleaner", "notes": "Bold and friendly. Sets up cleaning stations where fish queue to have parasites removed.", "icon": "🦐"
-            },
-            {
-                "name": "Blood Red Fire Shrimp", "species": "Lysmata debelius", "category": "invert",
-                "suggested_group": "Invertebrates", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Omnivore", "notes": "Deep crimson red with striking white antennae and legs. Shy scavenger.", "icon": "🦐"
-            },
-            {
-                "name": "Tiger Pistol Shrimp", "species": "Alpheus bellulus", "category": "invert",
-                "suggested_group": "Invertebrates", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Carnivore", "notes": "Excavates elaborate underground burrows shared with watchman gobies.", "icon": "🦐"
-            },
-            {
-                "name": "Bubble Tip Anemone (BTA)", "species": "Entacmaea quadricolor", "category": "invert",
-                "suggested_group": "Invertebrates", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Photosynthetic / Meaty foods", "notes": "Natural host for clownfish. Requires stable mature water parameters and good lighting.", "icon": "🪸"
-            },
-            {
-                "name": "Tuxedo Urchin", "species": "Mespilia globulus", "category": "invert",
-                "suggested_group": "Invertebrates", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Herbivore", "notes": "Voracious algae grazer that covers itself with small debris and shells for camouflage.", "icon": "🦔"
-            },
-            # Corals
-            {
-                "name": "Green Star Polyps (GSP)", "species": "Pachyclavularia violacea", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "Extremely hardy neon green mat. Keep on an isolated rock island to prevent spreading over rockwork.", "icon": "🪸"
-            },
-            {
-                "name": "Zoanthids & Palys", "species": "Zoanthus sp.", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "Vibrant button polyps in endless color morphs. Note: Handle with care due to palytoxin.", "icon": "🪸"
-            },
-            {
-                "name": "Duncan Coral", "species": "Duncanopsammia axifuga", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Photosynthetic / Target feeder", "notes": "Hardy LPS coral with large green fleshy polyps. Spawns new heads rapidly.", "icon": "🪸"
-            },
-            {
-                "name": "Hammer Coral", "species": "Euphyllia ancora", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "Waving tentacles with hammer-shaped tips. Moderate light and gentle oscillating flow.", "icon": "🪸"
-            },
-            {
-                "name": "Torch Coral", "species": "Euphyllia glabrescens", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "Prized long waving tentacles with glowing tips. Keep space between it and other non-Euphyllia.", "icon": "🪸"
-            },
-            {
-                "name": "Frogspawn Coral", "species": "Euphyllia divisa", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "Multilobed tentacles resembling frog eggs. Hardy and stunning under blue actinics.", "icon": "🪸"
-            },
-            {
-                "name": "Candy Cane Coral", "species": "Caulastraea furcata", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "Hardy trumpet-shaped LPS coral. Extends feeder tentacles at night.", "icon": "🪸"
-            },
-            {
-                "name": "Montipora Cap", "species": "Montipora capricornis", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Moderate", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "The best beginner SPS coral. Forms stunning swirling plates under good lighting.", "icon": "🪸"
-            },
-            {
-                "name": "Toadstool Leather Coral", "species": "Sarcophyton sp.", "category": "coral",
-                "suggested_group": "Corals", "care_level": "Beginner", "reef_safe": "Yes",
-                "diet": "Photosynthetic", "notes": "Hardy mushroom-shaped soft coral with long flowing polyp tentacles.", "icon": "🪸"
-            },
-        ]
-
-        for s in default_species:
-            obj, created = SpeciesCatalog.objects.get_or_create(
-                name=s["name"],
-                defaults=s
-            )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f"  + Added species to catalog: {obj.name}"))
-            else:
-                self.stdout.write(f"  - Species already in catalog: {obj.name}")
+        self._seed_species(update_existing=options["update_species"])
 
         self.stdout.write("Seeding default display tank...")
         default_tank, created = Tank.objects.get_or_create(

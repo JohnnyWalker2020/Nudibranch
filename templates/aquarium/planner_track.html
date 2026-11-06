@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Track {{ plan.name }} | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-6">
+  <div class="flex items-center gap-3">
+    <a href="{{ back_url }}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" aria-label="Back">←</a>
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">{% if target %}Add to {{ target.name }}{% else %}Start tracking this system{% endif %}</h1>
+      <p class="text-xs text-slate-400">Here's what will be added to your tracked records</p>
+    </div>
+  </div>
+
+  {% if a.danger_count %}
+  <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+    This plan still has {{ a.danger_count }} serious stocking issue{{ a.danger_count|pluralize }}. You can continue, but it's worth another look first.
+  </div>
+  {% endif %}
+
+  <form method="POST" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ back_url }}">
+    {% if not target %}
+    <div>
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">New tank</h2>
+      <p class="text-sm text-white mt-1">{{ plan.name }}, {{ a.display_gallons }} gal{% if plan.sump_gallons %}, with a {{ plan.sump_gallons|floatformat }} gal sump{% endif %}</p>
+    </div>
+    {% endif %}
+    <div>
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Equipment</h2>
+      <ul class="mt-1 text-sm text-slate-300 space-y-0.5">{% for item in pending_gear %}<li>{{ item.quantity }}x {{ item.name }}</li>{% empty %}<li class="text-slate-500">None</li>{% endfor %}</ul>
+    </div>
+    <div>
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Livestock</h2>
+      <ul class="mt-1 text-sm text-slate-300 space-y-0.5">{% for item in pending_livestock %}<li>{{ item.quantity }}x {{ item.name }}</li>{% empty %}<li class="text-slate-500">None</li>{% endfor %}</ul>
+    </div>
+    {% if pending_livestock %}
+    <label class="flex items-start gap-3 cursor-pointer pt-3 border-t border-slate-800">
+      <input type="checkbox" name="quarantine_fish" class="mt-0.5 w-4 h-4 rounded">
+      <span><span class="text-sm font-semibold text-white block">Start new fish in quarantine</span><span class="text-[11px] text-slate-500">Starts their quarantine counter today. Corals and inverts are added as healthy.</span></span>
+    </label>
+    {% endif %}
+    <p class="text-[11px] text-slate-500">The plan stays here, and you can add more to it and track those later.</p>
+    <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+      <a href="{{ back_url }}" class="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white">Cancel</a>
+      <button class="px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-bold text-sm rounded-xl">{% if target %}Add to tracking{% else %}Start tracking{% endif %}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

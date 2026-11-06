@@ -17,6 +17,8 @@ services:
       - CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
       - DATA_DIR=/app/data
       - TIME_ZONE=America/Regina
+      # Optional: require a key for the parameter logging API. Set API_SECRET_KEY in a .env file beside this one.
+      - API_SECRET_KEY=${API_SECRET_KEY:-}
 
   # Optional Webcam Streaming Engine (go2rtc):
   # Converts RTSP/USB cameras to low-latency WebRTC/MJPEG/HLS for browser viewing.

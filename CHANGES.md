@@ -1,5 +1,38 @@
 # Nudibranch: change summary
 
+## Round 5 (2026-11-05)
+
+Apply with `docker compose down && docker compose up -d --build`; migration 0009 runs on start.
+Run the tests with `docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python web manage.py test aquarium`.
+
+- **Species library**: 241 species, now in `aquarium/species_catalog.csv` so it can be edited in a spreadsheet (save as CSV UTF-8).
+  New columns for minimum tank, adult size and temperament. Starting the app adds new rows and fills empty fields, but never
+  overwrites your edits. To push edited CSV values over existing entries: `python manage.py seed_reef_data --update-species`.
+  Care details are hobby rules of thumb written from general knowledge, not checked against a reference.
+- **Background worker** (`python manage.py run_worker`): started by `entrypoint.sh` beside gunicorn. Runs alerts, webhooks, timers,
+  time-lapse and automatic backups. Its status is shown on the Tools and Phone Alerts pages.
+- **Webhooks and phone alerts** (Tools > Phone Alerts & Webhooks): JSON webhooks (optionally HMAC signed) and ntfy phone alerts for
+  chosen events. Conditions notify once when they first happen. Failed sends retry up to 5 times, except automated schedule events,
+  which are sent once and never late, so a retry can't double-feed.
+- **System Planner** (Planner tab): plan a new system or stocking for an existing tank, with stocking, flow, heating, power and budget
+  checks. "Start tracking this system" creates the real tank, sump, equipment and livestock. It can be repeated without duplicates.
+- **Compatibility warnings**: in the planner, and when adding from the species catalog.
+- **Fill timers and RO calculator** (Tools > Fill Timers): enter RO specs to estimate fill time and waste water, then start a timer that
+  beeps on the page and can alert your phone. It only reminds you and cannot shut off water.
+- **Backups** (Tools > Backups): one-click zip of the database and photos, automatic weekly backups, and restore (which saves your
+  current data first). Stored in `data/backups`.
+- **Quarantine tracker**: day counter, medication and observation log, and an alert when the period ends.
+- **Growth timeline**: dated photos per animal with a before and after slider.
+- **Webcam time-lapse**: scheduled frames from a snapshot URL or MJPEG stream, played back in the browser.
+- **Power cost**: estimated kWh and cost from equipment wattage. Set your electricity price in Tools > Settings.
+- `docker-compose.yml`: passes an optional `API_SECRET_KEY` from a `.env` file.
+- **Webhook targeting**: a connection can be limited to specific routines or to fill timers for specific reservoirs, and a timer can
+  choose its connections when it starts. A targeted connection with no event types ticked receives only events about its targets.
+  If its last target is deleted, the connection pauses rather than widening to everything. Migration 0011 runs on start.
+- **Wishlist** (Planner > Wishlist): save animals and gear with a priority, price and link. Each animal is checked against your tank.
+  Move an item into a plan, or mark it bought to add it to tracking. Species catalog cards have a one-tap Wishlist button.
+  Migration 0010 runs on start.
+
 ## Round 4 (2026-11-05)
 
 Apply the same way (`docker compose down && docker compose up -d --build`); migration 0008 runs on start.

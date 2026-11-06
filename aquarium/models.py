@@ -2,6 +2,8 @@ import urllib.parse
 from datetime import timedelta
 
 from django.db import models
+from django.db.models.signals import post_delete, pre_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 from .calculators import (
@@ -33,6 +35,9 @@ class ParameterType(models.Model):
     color = models.CharField(max_length=20, default="#0ea5e9", help_text="Hex color code for charts and badges")
     decimal_places = models.PositiveSmallIntegerField(default=1, help_text="Number of decimal places (e.g. 0 for ppm, 3 for SG)")
     display_order = models.PositiveIntegerField(default=0)
+    stale_after_hours = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Alert if no reading arrives for this many hours (for probes; blank = never)")
 
     class Meta:
         ordering = ['display_order', 'name']
@@ -191,6 +196,8 @@ class Animal(models.Model):
     photo = models.ImageField(upload_to="livestock/", blank=True, null=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    quarantine_started = models.DateField(null=True, blank=True, help_text="Day quarantine began")
+    quarantine_days = models.PositiveIntegerField(default=30, help_text="Planned quarantine length in days")
 
     class Meta:
         ordering = ['status', 'name']
@@ -198,6 +205,39 @@ class Animal(models.Model):
     def __str__(self):
         qty_str = f" ({self.count}x)" if self.count > 1 else ""
         return f"{self.name}{qty_str}"
+
+    def save(self, *args, **kwargs):
+        if self.status == 'quarantine' and not self.quarantine_started:
+            self.quarantine_started = timezone.localdate()
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None:
+                kwargs['update_fields'] = set(update_fields) | {'quarantine_started'}
+        super().save(*args, **kwargs)
+
+    @property
+    def quarantine_day(self):
+        """Day number of quarantine (1 = first day), or None if it has no start date."""
+        if not self.quarantine_started:
+            return None
+        return (timezone.localdate() - self.quarantine_started).days + 1
+
+    @property
+    def quarantine_end_date(self):
+        if not self.quarantine_started:
+            return None
+        return self.quarantine_started + timedelta(days=self.quarantine_days)
+
+    @property
+    def quarantine_percent(self):
+        day = self.quarantine_day
+        if day is None or not self.quarantine_days:
+            return 0
+        return max(0, min(100, round((day - 1) / self.quarantine_days * 100)))
+
+    @property
+    def quarantine_complete(self):
+        end = self.quarantine_end_date
+        return self.status == 'quarantine' and end is not None and timezone.localdate() >= end
 
     @property
     def wikipedia_url(self):
@@ -227,6 +267,14 @@ class WebcamFeed(models.Model):
     feed_type = models.CharField(max_length=20, choices=FEED_TYPES, default='mjpeg')
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
+    snapshot_url = models.CharField(
+        max_length=500, blank=True,
+        help_text="Still-image URL for time-lapse. Blank = grab a frame from the stream URL above (MJPEG feeds only)")
+    timelapse_enabled = models.BooleanField(default=False, help_text="Capture a time-lapse frame on a schedule")
+    timelapse_interval_minutes = models.PositiveIntegerField(default=60, help_text="Minutes between frames")
+    timelapse_keep_days = models.PositiveIntegerField(default=90, help_text="Delete frames older than this many days")
+    last_capture_at = models.DateTimeField(null=True, blank=True, editable=False)
+    last_capture_error = models.CharField(max_length=255, blank=True, editable=False)
 
     class Meta:
         ordering = ['order', 'name']
@@ -244,6 +292,12 @@ class SpeciesCatalog(models.Model):
         ('coral', 'Corals & Anemones'),
     ]
 
+    TEMPERAMENT_CHOICES = [
+        ('peaceful', 'Peaceful'),
+        ('semi', 'Semi-aggressive'),
+        ('aggressive', 'Aggressive'),
+    ]
+
     name = models.CharField(max_length=120, unique=True, help_text="Common hobbyist name")
     species = models.CharField(max_length=150, blank=True, help_text="Scientific/taxonomic name")
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='fish')
@@ -253,6 +307,9 @@ class SpeciesCatalog(models.Model):
     diet = models.CharField(max_length=150, blank=True, help_text="e.g. Herbivore, Omnivore, Carnivore")
     notes = models.TextField(blank=True, help_text="Care tips, temperament, and requirements")
     icon = models.CharField(max_length=10, default='🐠')
+    min_tank_gallons = models.PositiveIntegerField(null=True, blank=True, help_text="Rough minimum display size for an adult")
+    max_size_inches = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True, help_text="Typical adult length")
+    temperament = models.CharField(max_length=12, choices=TEMPERAMENT_CHOICES, blank=True)
 
     class Meta:
         ordering = ['category', 'name']
@@ -532,6 +589,8 @@ class Equipment(models.Model):
     max_flow_gph = models.PositiveIntegerField(null=True, blank=True, help_text="Rated maximum flow in gallons per hour (L/h ÷ 3.785 = gph)")
     power_setting_percent = models.PositiveSmallIntegerField(default=100, help_text="Current power / speed setting, 1-100%")
     flow_derate_percent = models.PositiveSmallIntegerField(default=0, help_text="Flow lost to head height and plumbing, % (return pumps are often 20-40%)")
+    hours_per_day = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True,
+                                        help_text="Hours it draws power per day, for the power estimate (blank = typical for this category)")
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -837,3 +896,366 @@ class DashboardWidget(models.Model):
 
     def __str__(self):
         return f"{self.key} ({'on' if self.enabled else 'off'})"
+
+
+# ==========================================
+# App-wide settings
+# ==========================================
+
+class AppSettings(models.Model):
+    """Single row of app-wide settings and background worker bookkeeping."""
+    electricity_rate = models.DecimalField(max_digits=6, decimal_places=4, default=0.15,
+                                           help_text="Your electricity price per kWh")
+    currency_symbol = models.CharField(max_length=4, default='$')
+    auto_backup_days = models.PositiveIntegerField(default=7, help_text="Make a backup every N days (0 = off)")
+    auto_backup_keep = models.PositiveIntegerField(default=4, help_text="How many automatic backups to keep")
+    worker_last_seen = models.DateTimeField(null=True, blank=True, editable=False)
+    last_schedule_check = models.DateTimeField(null=True, blank=True, editable=False)
+    events_baselined = models.BooleanField(default=False, editable=False)
+    last_auto_backup = models.DateTimeField(null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name_plural = 'App settings'
+
+    def __str__(self):
+        return 'App settings'
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def worker_online(self):
+        return bool(self.worker_last_seen and timezone.now() - self.worker_last_seen < timedelta(minutes=3))
+
+
+# ==========================================
+# Quarantine & growth timeline
+# ==========================================
+
+class QuarantineEntry(models.Model):
+    """One line in an animal's quarantine log: a medication dose, an observation, a water change..."""
+    KIND_CHOICES = [
+        ('medication', '💊 Medication'),
+        ('observation', '👀 Observation'),
+        ('water_change', '🌊 Water change'),
+        ('test', '🧪 Water test'),
+    ]
+    animal = models.ForeignKey(Animal, on_delete=models.CASCADE, related_name='quarantine_entries')
+    logged_on = models.DateField(default=timezone.localdate)
+    kind = models.CharField(max_length=15, choices=KIND_CHOICES, default='observation')
+    medication = models.CharField(max_length=100, blank=True, help_text="e.g. copper, praziquantel")
+    dose = models.CharField(max_length=60, blank=True, help_text="e.g. 2.5 ml, 0.25 ppm")
+    notes = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-logged_on', '-id']
+        verbose_name_plural = 'Quarantine entries'
+
+    def __str__(self):
+        return f"{self.animal.name}: {self.get_kind_display()} on {self.logged_on}"
+
+
+class AnimalPhoto(models.Model):
+    """Dated photo for the growth timeline."""
+    animal = models.ForeignKey(Animal, on_delete=models.CASCADE, related_name='timeline_photos')
+    image = models.ImageField(upload_to='timeline/')
+    taken_on = models.DateField(default=timezone.localdate)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['taken_on', 'id']
+
+    def __str__(self):
+        return f"{self.animal.name} on {self.taken_on}"
+
+
+class TimelapseFrame(models.Model):
+    """One captured webcam frame."""
+    feed = models.ForeignKey(WebcamFeed, on_delete=models.CASCADE, related_name='frames')
+    image = models.ImageField(upload_to='timelapse/')
+    captured_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['captured_at']
+
+    def __str__(self):
+        return f"{self.feed.name} @ {self.captured_at:%Y-%m-%d %H:%M}"
+
+
+# ==========================================
+# Webhooks & alert delivery
+# ==========================================
+
+class WebhookEndpoint(models.Model):
+    """Somewhere to send events: Home Assistant, a phone alert service, your own script."""
+    FORMAT_CHOICES = [
+        ('json', 'JSON webhook (Home Assistant, scripts, ESP32)'),
+        ('ntfy', 'Phone alert via ntfy'),
+    ]
+    name = models.CharField(max_length=80)
+    # Not a URLField: its validator rejects short local device names such as http://esp32-feeder/
+    url = models.CharField(max_length=500, help_text="http(s) address to POST to. For ntfy: https://ntfy.sh/your-private-topic")
+    format = models.CharField(max_length=10, choices=FORMAT_CHOICES, default='json')
+    secret = models.CharField(max_length=128, blank=True,
+                              help_text="Optional. JSON webhooks are signed with this (X-Nudibranch-Signature)")
+    event_types = models.JSONField(default=list, blank=True, help_text="Events to send; empty means all")
+    routines = models.ManyToManyField(MaintenanceRoutine, blank=True, related_name='webhook_endpoints',
+                                      help_text="Only send routine events for these")
+    timer_reservoirs = models.ManyToManyField(DosingReservoir, blank=True, related_name='webhook_endpoints',
+                                              help_text="Only send fill timer events for these reservoirs")
+    is_active = models.BooleanField(default=True)
+    pause_reason = models.CharField(max_length=200, blank=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    def wants(self, event_type, routine_id=None, reservoir_id=None, check_targets=True):
+        """
+        Whether this endpoint should receive an event.
+
+        An endpoint with targets and no ticked event types receives only events about its targets.
+        That matters for hardware: a webhook pointed at a feeder must not fire on a parameter alert.
+        """
+        if not self.is_active:
+            return False
+        routine_ids = set(self.routines.values_list('pk', flat=True))
+        reservoir_ids = set(self.timer_reservoirs.values_list('pk', flat=True))
+        is_routine_event = event_type.startswith('routine.')
+        is_timer_event = event_type.startswith('timer.')
+
+        if self.event_types:
+            if event_type not in self.event_types:
+                return False
+        elif routine_ids or reservoir_ids:
+            if not ((is_routine_event and routine_ids) or (is_timer_event and reservoir_ids)):
+                return False
+
+        if check_targets:
+            if is_routine_event and routine_ids and routine_id not in routine_ids:
+                return False
+            if is_timer_event and reservoir_ids and reservoir_id not in reservoir_ids:
+                return False
+        return True
+
+
+class WebhookDelivery(models.Model):
+    """One event being sent to one endpoint, with its retry state."""
+    STATUS_CHOICES = [('pending', 'Pending'), ('sent', 'Sent'), ('failed', 'Failed')]
+
+    endpoint = models.ForeignKey(WebhookEndpoint, on_delete=models.CASCADE, related_name='deliveries')
+    event_id = models.CharField(max_length=36)
+    event_type = models.CharField(max_length=40)
+    severity = models.CharField(max_length=10, default='info')
+    title = models.CharField(max_length=200)
+    message = models.CharField(max_length=500, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=5)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    response_code = models.PositiveSmallIntegerField(null=True, blank=True)
+    error = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(fields=['endpoint', 'event_id'], name='unique_delivery_per_endpoint'),
+        ]
+        verbose_name_plural = 'Webhook deliveries'
+
+    def __str__(self):
+        return f"{self.event_type} -> {self.endpoint.name} ({self.status})"
+
+
+class EventState(models.Model):
+    """Remembers which conditions already fired, so each one only notifies when it first happens."""
+    key = models.CharField(max_length=120, unique=True)
+    event_type = models.CharField(max_length=40)
+    activated_at = models.DateTimeField(default=timezone.now)
+    cleared_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return self.key
+
+
+# ==========================================
+# RO/DI systems & fill timers
+# ==========================================
+
+class ROSystem(models.Model):
+    """An RO/DI unit, used to estimate how long a fill takes."""
+    name = models.CharField(max_length=80, default='RO/DI')
+    rated_gpd = models.DecimalField(max_digits=6, decimal_places=1, default=75, help_text="Membrane rating, gallons per day")
+    rated_psi = models.DecimalField(max_digits=5, decimal_places=1, default=60, help_text="Pressure the rating is quoted at (check your membrane's spec sheet)")
+    rated_temp_f = models.DecimalField(max_digits=5, decimal_places=1, default=77, help_text="Temperature the rating is quoted at (usually 77°F)")
+    feed_psi = models.DecimalField(max_digits=5, decimal_places=1, default=60, help_text="Your water pressure at the unit")
+    feed_temp_f = models.DecimalField(max_digits=5, decimal_places=1, default=60, help_text="Your incoming water temperature")
+    waste_ratio = models.DecimalField(max_digits=4, decimal_places=1, default=3, help_text="Gallons of waste per gallon of product (3 means 1:3)")
+    measured_gph = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True,
+                                       help_text="Optional: your real timed output in gallons per hour. Overrides the estimate")
+    is_default = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-is_default', 'name']
+        verbose_name = 'RO system'
+
+    def __str__(self):
+        return f"{self.name} ({self.rated_gpd} GPD)"
+
+
+class FillTimer(models.Model):
+    """A running countdown, e.g. while an ATO reservoir fills."""
+    STATUS_CHOICES = [('running', 'Running'), ('finished', 'Finished'), ('cancelled', 'Cancelled')]
+
+    name = models.CharField(max_length=100)
+    reservoir = models.ForeignKey(DosingReservoir, on_delete=models.SET_NULL, null=True, blank=True, related_name='timers')
+    started_at = models.DateTimeField(default=timezone.now)
+    ends_at = models.DateTimeField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='running')
+    notified = models.BooleanField(default=False)
+    endpoints = models.ManyToManyField(WebhookEndpoint, blank=True, related_name='timers',
+                                       help_text="Send this timer's alert only here (none chosen = the usual connections)")
+
+    class Meta:
+        ordering = ['ends_at']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_running(self):
+        return self.status == 'running'
+
+
+# ==========================================
+# System planner
+# ==========================================
+
+class PlannedSystem(DimensionedVessel):
+    """A draft system (or a stocking plan for an existing tank) that can be turned into tracked records."""
+    GOAL_CHOICES = [
+        ('mixed', 'Mixed reef'),
+        ('soft', 'Soft coral reef'),
+        ('lps', 'LPS dominant reef'),
+        ('sps', 'SPS dominant reef'),
+        ('fowlr', 'Fish only with live rock'),
+        ('nano', 'Nano reef'),
+    ]
+    name = models.CharField(max_length=100)
+    goal = models.CharField(max_length=10, choices=GOAL_CHOICES, default='mixed')
+    existing_tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='plans',
+                                      help_text="Planning additions to a tank you already track? Choose it here")
+    sump_gallons = models.DecimalField(max_digits=7, decimal_places=1, default=0, help_text="Sump water volume (0 = no sump)")
+    budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    tracked_tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='source_plans',
+                                     editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.name
+
+
+class PlannedItem(models.Model):
+    """A planned animal or piece of equipment."""
+    KIND_CHOICES = [('livestock', 'Livestock'), ('equipment', 'Equipment')]
+
+    plan = models.ForeignKey(PlannedSystem, on_delete=models.CASCADE, related_name='items')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    species = models.ForeignKey(SpeciesCatalog, on_delete=models.SET_NULL, null=True, blank=True, related_name='planned_items')
+    name = models.CharField(max_length=120)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_cost = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True, help_text="Price each")
+    category = models.CharField(max_length=30, choices=Equipment.CATEGORY_CHOICES, blank=True)
+    wattage = models.PositiveIntegerField(null=True, blank=True, help_text="Watts each")
+    max_flow_gph = models.PositiveIntegerField(null=True, blank=True, help_text="Rated flow each, gph")
+    tracked = models.BooleanField(default=False, editable=False)
+
+    class Meta:
+        ordering = ['kind', 'name']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.name}"
+
+    @property
+    def total_cost(self):
+        return (self.unit_cost or 0) * self.quantity
+
+
+class WishlistItem(models.Model):
+    """Something you'd like to get one day. Can move into a plan, or straight into tracking once bought."""
+    KIND_CHOICES = PlannedItem.KIND_CHOICES
+    PRIORITY_CHOICES = [('must', 'Must have'), ('want', 'Want'), ('someday', 'Someday')]
+    STATUS_CHOICES = [('wanted', 'Wanted'), ('acquired', 'Bought')]
+
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default='livestock')
+    species = models.ForeignKey(SpeciesCatalog, on_delete=models.SET_NULL, null=True, blank=True, related_name='wishlist_items')
+    name = models.CharField(max_length=120)
+    quantity = models.PositiveIntegerField(default=1)
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='want')
+    est_price = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True, help_text="Estimated price each")
+    link = models.URLField(max_length=500, blank=True, help_text="Store page or article")
+    tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='wishlist_items',
+                             help_text="Tank to check it against (blank = your primary tank)")
+    category = models.CharField(max_length=30, choices=Equipment.CATEGORY_CHOICES, blank=True)
+    wattage = models.PositiveIntegerField(null=True, blank=True, help_text="Watts each")
+    max_flow_gph = models.PositiveIntegerField(null=True, blank=True, help_text="Rated flow each, gph")
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='wanted')
+    # Set while the item is in a plan. Removing it from the plan (or deleting the plan) returns it to the list.
+    planned_item = models.OneToOneField(PlannedItem, on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='wishlist_item', editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    acquired_at = models.DateTimeField(null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.name} ({self.get_priority_display()})"
+
+    @property
+    def total_price(self):
+        return (self.est_price or 0) * self.quantity
+
+
+def _pause_endpoints_losing_last_target(instance, relation, label):
+    """
+    Without this, deleting an endpoint's only target would widen it to every routine or timer, so a
+    webhook wired to one feeder could start firing for everything. Pause it and say why instead.
+    """
+    for endpoint in instance.webhook_endpoints.all():
+        if not getattr(endpoint, relation).exclude(pk=instance.pk).exists():
+            endpoint.is_active = False
+            endpoint.pause_reason = f"Paused because {label} \"{instance}\" was deleted."[:200]
+            endpoint.save(update_fields=['is_active', 'pause_reason'])
+
+
+@receiver(pre_delete, sender=MaintenanceRoutine)
+def _routine_deleted(sender, instance, **kwargs):
+    _pause_endpoints_losing_last_target(instance, 'routines', 'its routine')
+
+
+@receiver(pre_delete, sender=DosingReservoir)
+def _reservoir_deleted(sender, instance, **kwargs):
+    _pause_endpoints_losing_last_target(instance, 'timer_reservoirs', 'its reservoir')
+
+
+@receiver(post_delete, sender=AnimalPhoto)
+@receiver(post_delete, sender=TimelapseFrame)
+def _delete_image_file(sender, instance, **kwargs):
+    """Removes the image from disk when its record goes, so old frames don't fill the drive."""
+    if instance.image:
+        instance.image.delete(save=False)

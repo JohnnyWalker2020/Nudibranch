@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ feed.name }} Time-lapse | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <a href="{% url 'webcams' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" aria-label="Back">←</a>
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-tight">{{ feed.name }} Time-lapse</h1>
+        <p class="text-xs text-slate-400">{% if feed.timelapse_enabled %}A frame every {{ feed.timelapse_interval_minutes }} min, kept for {{ feed.timelapse_keep_days }} days{% else %}Scheduled capture is off{% endif %}</p>
+      </div>
+    </div>
+    <a href="{% url 'webcam_edit' feed.id %}?next={% url 'timelapse' feed.id %}" class="shrink-0 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Settings</a>
+  </div>
+
+  {% if feed.last_capture_error %}
+  <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">Last capture failed: {{ feed.last_capture_error }}</div>
+  {% endif %}
+  {% if not can_capture %}
+  <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">This camera type doesn't provide a still image. Add a snapshot URL in Settings. With go2rtc, that's usually <code>http://YOUR-IP:1984/api/frame.jpeg?src=STREAM</code>.</div>
+  {% endif %}
+
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+    <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center">
+      {% if frame_count %}
+        <img id="frame" alt="Time-lapse frame" class="w-full h-full object-contain">
+        <span id="frame-time" class="absolute top-3 left-3 px-2.5 py-1 bg-slate-950/80 rounded-lg text-[11px] font-bold text-white"></span>
+      {% else %}
+        <p class="text-xs text-slate-500 p-6 text-center">No frames in this period yet.</p>
+      {% endif %}
+    </div>
+    {% if frame_count %}
+    <input id="scrub" type="range" min="0" max="{{ frame_count|add:'-1' }}" value="0" class="w-full accent-cyan-500" aria-label="Choose frame">
+    <div class="flex flex-wrap items-center gap-3">
+      <button id="play" type="button" class="px-5 py-2 rounded-xl bg-cyan-500 text-slate-950 text-sm font-bold">Play</button>
+      <label class="text-xs text-slate-400">Speed
+        <select id="speed" class="ml-1 px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs">
+          <option value="500">2 frames/s</option>
+          <option value="200" selected>5 frames/s</option>
+          <option value="100">10 frames/s</option>
+          <option value="42">24 frames/s</option>
+        </select>
+      </label>
+      <span class="text-xs text-slate-500">{{ frame_count }} frame{{ frame_count|pluralize }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <a href="?days=1" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if days == 1 %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">24 hours</a>
+    <a href="?days=7" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if days == 7 %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">7 days</a>
+    <a href="?days=30" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if days == 30 %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">30 days</a>
+    <a href="?days=0" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if days == 0 %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">All ({{ total_frames }})</a>
+    <span class="flex-1"></span>
+    {% if can_capture %}
+    <form method="POST" action="{% url 'timelapse_capture' feed.id %}">{% csrf_token %}<button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400">Capture a frame now</button></form>
+    {% endif %}
+    {% if total_frames %}
+    <form method="POST" action="{% url 'timelapse_clear' feed.id %}" onsubmit="return confirm('Delete all {{ total_frames }} frames for this camera?')">{% csrf_token %}<button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 border border-rose-500/30 hover:bg-rose-500/10">Delete all frames</button></form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if frame_count %}
+<script>
+  (function () {
+    const frames = {{ frames_json|safe }};
+    const img = document.getElementById('frame'), when = document.getElementById('frame-time');
+    const scrub = document.getElementById('scrub'), play = document.getElementById('play'), speed = document.getElementById('speed');
+    let timer = null;
+    function show(i) {
+      img.src = frames[i].url;
+      when.textContent = frames[i].at;
+      scrub.value = i;
+    }
+    function stop() { clearInterval(timer); timer = null; play.textContent = 'Play'; }
+    function start() {
+      play.textContent = 'Pause';
+      timer = setInterval(() => {
+        const next = Number(scrub.value) + 1;
+        if (next >= frames.length) { stop(); return; }
+        show(next);
+      }, Number(speed.value));
+    }
+    play.addEventListener('click', () => {
+      if (timer) { stop(); return; }
+      if (Number(scrub.value) >= frames.length - 1) show(0);
+      start();
+    });
+    speed.addEventListener('change', () => { if (timer) { stop(); start(); } });
+    scrub.addEventListener('input', () => { stop(); show(Number(scrub.value)); });
+    frames.slice(0, 30).forEach(f => { new Image().src = f.url; });
+    show(0);
+  })();
+</script>
+{% endif %}
+{% endblock %}

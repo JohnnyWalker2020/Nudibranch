@@ -3,8 +3,13 @@ from django.utils.html import format_html
 from .models import (
     ParameterType, ParameterLog, AnimalGroup, Animal, WebcamFeed, SpeciesCatalog,
     Tank, Sump, SumpChamber, Equipment, DosingReservoir, MaintenanceRoutine, PlumbingRun,
-    WaterChangeLog, DashboardWidget,
+    WaterChangeLog, DashboardWidget, AppSettings, QuarantineEntry, AnimalPhoto, TimelapseFrame, WebhookEndpoint,
+    WebhookDelivery, ROSystem, FillTimer, PlannedSystem, PlannedItem, WishlistItem,
 )
+
+for _model in (AppSettings, QuarantineEntry, AnimalPhoto, TimelapseFrame, WebhookEndpoint, WebhookDelivery,
+               ROSystem, FillTimer, PlannedSystem, PlannedItem, WishlistItem):
+    admin.site.register(_model)
 
 
 @admin.register(ParameterType)

@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}Wishlist | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  {% include 'aquarium/partials/system_tabs.html' with active='wishlist' %}
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Wishlist</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Animals and gear you'd like someday, checked against your tank before you buy</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{% url 'species_catalog' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">📖 Browse species</a>
+      <a href="{% url 'planner' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">🗺️ Plans</a>
+    </div>
+  </div>
+
+  {% if items %}
+  <div class="grid grid-cols-2 gap-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">On your list</span><p class="text-2xl font-black text-white">{{ items|length }}</p></div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Estimated total</span><p class="text-2xl font-black text-amber-400">{{ currency }}{{ total|floatformat:2 }}</p>{% if unpriced %}<p class="text-[11px] text-slate-500">{{ unpriced }} without a price</p>{% endif %}</div>
+  </div>
+  {% endif %}
+
+  {% for group in combined %}
+  <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+    <p class="text-xs font-bold text-amber-300">If you bought everything for {{ group.tank.name }}</p>
+    {% for w in group.warnings %}<p class="text-xs text-slate-300"><strong>{{ w.title }}.</strong> {{ w.detail }}</p>{% endfor %}
+  </div>
+  {% endfor %}
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for item in items %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <h3 class="text-sm font-bold text-white">{% if item.species %}{{ item.species.icon }} {% endif %}{% if item.quantity > 1 %}{{ item.quantity }}x {% endif %}{{ item.name }}</h3>
+          {% if item.species %}<p class="text-[11px] italic text-slate-400">{{ item.species.species }}</p>{% else %}<p class="text-[11px] text-slate-400">{{ item.get_category_display }}</p>{% endif %}
+        </div>
+        <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md border {% if item.priority == 'must' %}bg-rose-500/10 text-rose-300 border-rose-500/30{% elif item.priority == 'want' %}bg-cyan-500/10 text-cyan-300 border-cyan-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">{{ item.get_priority_display }}</span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
+        {% if item.est_price %}<span class="font-semibold text-amber-400">{{ currency }}{{ item.total_price|floatformat:2 }}</span>{% endif %}
+        {% if item.link %}<a href="{{ item.link }}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline">View link ↗</a>{% endif %}
+        {% if item.species %}<span class="text-slate-500">{{ item.species.care_level }}{% if item.species.min_tank_gallons %} · {{ item.species.min_tank_gallons }}+ gal{% endif %}</span>{% endif %}
+      </div>
+      {% if item.notes %}<p class="text-xs text-slate-400 whitespace-pre-line">{{ item.notes }}</p>{% endif %}
+
+      {% if item.kind == 'livestock' and item.target_tank %}
+        {% for w in item.fit_warnings %}
+        <div class="p-2.5 rounded-xl border {% if w.level == 'danger' %}bg-rose-500/10 border-rose-500/30{% else %}bg-amber-500/10 border-amber-500/30{% endif %}">
+          <p class="text-[11px] font-bold {% if w.level == 'danger' %}text-rose-300{% else %}text-amber-300{% endif %}">{{ w.title }}</p>
+          <p class="text-[11px] text-slate-400">{{ w.detail }}</p>
+        </div>
+        {% empty %}
+        {% if item.species %}<p class="text-[11px] font-semibold text-emerald-400">No issues found for {{ item.target_tank.name }}</p>{% endif %}
+        {% endfor %}
+      {% endif %}
+
+      <div class="mt-auto pt-3 border-t border-slate-800 space-y-2">
+        {% if item.planned_item %}
+          <p class="text-xs text-slate-300">In your plan: <a href="{% url 'plan_detail' item.planned_item.plan_id %}" class="font-semibold text-cyan-400 hover:underline">{{ item.planned_item.plan.name }}</a></p>
+        {% else %}
+          <details class="group">
+            <summary class="cursor-pointer list-none px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs font-semibold text-emerald-300 text-center">Bought it</summary>
+            <form method="POST" action="{% url 'wishlist_bought' item.id %}" class="mt-2 space-y-2">
+              {% csrf_token %}
+              <select name="tank" aria-label="Which tank" class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs">
+                {% for t in tanks %}<option value="{{ t.id }}" {% if item.target_tank.id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+              </select>
+              {% if item.kind == 'livestock' %}<label class="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" name="quarantine" class="rounded"> Start fish in quarantine</label>{% endif %}
+              <button class="w-full px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 text-xs font-bold">Add to my tracked {% if item.kind == 'livestock' %}livestock{% else %}equipment{% endif %}</button>
+            </form>
+          </details>
+          {% if plans %}
+          <details>
+            <summary class="cursor-pointer list-none px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-semibold text-cyan-400 text-center">Add to a plan</summary>
+            <form method="POST" action="{% url 'wishlist_to_plan' item.id %}" class="mt-2 flex gap-2">
+              {% csrf_token %}
+              <select name="plan" aria-label="Which plan" class="flex-1 min-w-0 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs">
+                {% for p in plans %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+              </select>
+              <button class="shrink-0 px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 text-xs font-bold">Add</button>
+            </form>
+          </details>
+          {% endif %}
+        {% endif %}
+        <div class="flex items-center justify-between text-xs">
+          <a href="{% url 'wishlist_edit' item.id %}" class="font-semibold text-slate-400 hover:text-cyan-400">Edit</a>
+          <form method="POST" action="{% url 'wishlist_delete' item.id %}">{% csrf_token %}<button class="text-slate-500 hover:text-rose-400">Remove</button></form>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full py-12 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6">
+      <span class="text-4xl">💜</span>
+      <h3 class="mt-3 text-base font-bold text-white">Your wishlist is empty</h3>
+      <p class="mt-1 text-xs text-slate-400">Add something below, or tap Wishlist on any card in the species catalog.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <form method="POST" action="{% url 'wishlist_add_livestock' %}" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+      {% csrf_token %}
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Add livestock</h2>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Species</label>{{ livestock_form.species }}</div>
+      <div class="grid grid-cols-3 gap-2">
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ livestock_form.quantity }}</div>
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ livestock_form.est_price }}</div>
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Priority</label>{{ livestock_form.priority }}</div>
+      </div>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Check against tank</label>{{ livestock_form.tank }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Link</label>{{ livestock_form.link }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Notes</label>{{ livestock_form.notes }}</div>
+      <button class="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-bold">Add to wishlist</button>
+    </form>
+
+    <form method="POST" action="{% url 'wishlist_add_equipment' %}" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+      {% csrf_token %}
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Add equipment</h2>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Name</label>{{ equipment_form.name }}</div>
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Type</label>{{ equipment_form.category }}</div>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ equipment_form.quantity }}</div>
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ equipment_form.est_price }}</div>
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Priority</label>{{ equipment_form.priority }}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Watts each</label>{{ equipment_form.wattage }}</div>
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Flow each (gph)</label>{{ equipment_form.max_flow_gph }}</div>
+      </div>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Link</label>{{ equipment_form.link }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Notes</label>{{ equipment_form.notes }}</div>
+      <button class="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-bold">Add to wishlist</button>
+    </form>
+  </div>
+
+  {% if bought %}
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
+    <h2 class="p-4 text-xs font-bold uppercase tracking-wider text-slate-400">Recently bought</h2>
+    {% for item in bought %}
+    <div class="p-3 px-4 flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm font-semibold text-white">{% if item.quantity > 1 %}{{ item.quantity }}x {% endif %}{{ item.name }}</p>
+        <p class="text-[11px] text-slate-500">{{ item.acquired_at|date:"M j, Y" }}{% if item.tank %} · {{ item.tank.name }}{% endif %}</p>
+      </div>
+      <form method="POST" action="{% url 'wishlist_delete' item.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-white">Clear</button></form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

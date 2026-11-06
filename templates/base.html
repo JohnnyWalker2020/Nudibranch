@@ -41,9 +41,9 @@
 
   <!-- Top Navigation -->
   <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 pt-safe">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
 
-      <a href="{% url 'dashboard' %}" class="flex items-center gap-3 group">
+      <a href="{% url 'dashboard' %}" class="flex items-center gap-3 group shrink-0">
         <img id="nudibranch-logo" src="/static/icons/nudibranch/cyberpunk.svg" alt="Nudibranch" class="w-9 h-9 rounded-xl shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
         <div>
           <span class="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
@@ -54,19 +54,21 @@
       </a>
 
       {% with current=request.resolver_match.url_name %}
-      <nav class="hidden md:flex items-center gap-1">
-        <a href="{% url 'dashboard' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'dashboard' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Dashboard</a>
-        <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'parameters' or current == 'parameter_settings' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Parameters</a>
-        <a href="{% url 'livestock' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'livestock' or current == 'species_catalog' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Livestock</a>
-        <a href="{% url 'tanks' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'tanks' or current == 'tank_detail' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Tanks</a>
-        <a href="{% url 'equipment' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'equipment' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Equipment</a>
-        <a href="{% url 'dosing' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'dosing' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Dosing</a>
-        <a href="{% url 'routines' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'routines' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Routines</a>
-        <a href="{% url 'webcams' %}" class="px-4 py-2 rounded-xl text-sm font-medium {% if current == 'webcams' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Webcams</a>
+      <nav class="hidden md:flex items-center gap-0.5 min-w-0 overflow-x-auto no-scrollbar">
+        <a href="{% url 'dashboard' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'dashboard' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Dashboard</a>
+        <a href="{% url 'parameters' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'parameters' or current == 'parameter_settings' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Parameters</a>
+        <a href="{% url 'livestock' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'livestock' or current == 'species_catalog' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Livestock</a>
+        <a href="{% url 'tanks' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'tanks' or current == 'tank_detail' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Tanks</a>
+        <a href="{% url 'equipment' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'equipment' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Equipment</a>
+        <a href="{% url 'dosing' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'dosing' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Dosing</a>
+        <a href="{% url 'routines' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'routines' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Routines</a>
+        <a href="{% url 'webcams' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'webcams' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Webcams</a>
+        <a href="{% url 'planner' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'planner' or current == 'plan_detail' or current == 'plan_track' or current == 'wishlist' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Planner</a>
+        <a href="{% url 'tools' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'tools' or current == 'power' or current == 'timers' or current == 'integrations' or current == 'backups' or current == 'quarantine_list' or current == 'quarantine_detail' or current == 'app_settings' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Tools</a>
       </nav>
       {% endwith %}
 
-      <div class="flex items-center gap-2 sm:gap-3">
+      <div class="flex items-center gap-2 sm:gap-3 shrink-0">
         <a href="{% url 'notifications' %}" class="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors {% if request.resolver_match.url_name == 'notifications' %}text-cyan-400 bg-slate-800{% endif %}" title="Alerts & Notifications">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
           {% if global_total_alerts > 0 %}
@@ -138,7 +140,7 @@
         <span class="text-[10px] font-semibold">Livestock</span>
       </a>
       <!-- System hub: Tanks, Equipment, Dosing, Routines (sub-tabs shown on those pages) -->
-      <a href="{% url 'tanks' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'tanks' or current == 'tank_detail' or current == 'equipment' or current == 'dosing' or current == 'routines' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+      <a href="{% url 'tanks' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'tanks' or current == 'tank_detail' or current == 'equipment' or current == 'dosing' or current == 'routines' or current == 'tools' or current == 'power' or current == 'timers' or current == 'integrations' or current == 'backups' or current == 'quarantine_list' or current == 'quarantine_detail' or current == 'app_settings' or current == 'planner' or current == 'plan_detail' or current == 'plan_track' or current == 'wishlist' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="2"/></svg>
         <span class="text-[10px] font-semibold">System</span>
       </a>

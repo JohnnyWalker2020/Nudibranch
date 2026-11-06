@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .alerts import compute_alert_state
+from .compatibility import warnings_for_addition
 from .calculators import (
     DOSE_CHEMICALS, DOSE_PARAMETERS, MAX_DAILY_RAISE, SALT_MIX_RECIPES,
     calculate_salt_mix, dose_estimate, estimate_daily_change,
@@ -764,6 +765,7 @@ def species_add_to_tank(request, species_id):
         )
 
         care_notes = f"Care: {species.care_level}. Diet: {species.diet}. {species.notes}".strip()
+        new_warnings = warnings_for_addition(species, target_tank, count)
 
         animal = Animal.objects.create(
             name=species.name,
@@ -776,6 +778,9 @@ def species_add_to_tank(request, species_id):
         )
         animal.groups.add(group_obj)
         messages.success(request, f"Added {count}x {species.name} to {target_tank.name if target_tank else 'your roster'}.")
+        for warning in new_warnings:
+            if warning['level'] != 'info':
+                messages.warning(request, f"{warning['title']}. {warning['detail']}")
         return redirect('livestock')
 
     return redirect('species_catalog')

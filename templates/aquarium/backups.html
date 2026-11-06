@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Backups | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  {% include 'aquarium/partials/system_tabs.html' with active='tools' %}
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Backups</h1>
+      <p class="text-xs text-slate-400 mt-0.5">{% if settings_obj.auto_backup_days %}Automatic backup every {{ settings_obj.auto_backup_days }} day{{ settings_obj.auto_backup_days|pluralize }}, keeping {{ settings_obj.auto_backup_keep }}{% else %}Automatic backups are off{% endif %} · <a href="{% url 'app_settings' %}?next={% url 'backups' %}" class="text-cyan-400 hover:underline">change</a></p>
+    </div>
+    <form method="POST" action="{% url 'backup_create' %}" class="flex items-center gap-3">
+      {% csrf_token %}
+      <label class="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" name="include_timelapse" checked class="rounded"> Include time-lapse</label>
+      <button class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Back up now</button>
+    </form>
+  </div>
+
+  <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+    Backups are saved in <code>data/backups</code> on this PC, so they won't survive a failed drive. Download one now and then and keep it somewhere else.
+  </div>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
+    {% for b in backups %}
+    <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <p class="text-sm font-semibold text-white">{{ b.created|date:"M j, Y, g:i A" }}</p>
+        <p class="text-[11px] text-slate-500">{% if b.kind == 'pre-restore' %}Saved before a restore{% elif b.kind == 'auto' %}Automatic{% else %}Manual{% endif %} · {{ b.size_mb }} MB</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{% url 'backup_download' b.name %}" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400">Download</a>
+        <form method="POST" action="{% url 'backup_delete' b.name %}" onsubmit="return confirm('Delete this backup?')">{% csrf_token %}<button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 border border-rose-500/30 hover:bg-rose-500/10">Delete</button></form>
+      </div>
+    </div>
+    {% empty %}
+    <p class="p-8 text-center text-xs text-slate-500">No backups yet.</p>
+    {% endfor %}
+  </div>
+
+  <form method="POST" action="{% url 'backup_restore' %}" enctype="multipart/form-data" class="bg-slate-900 border border-rose-500/30 rounded-2xl p-5 space-y-3">
+    {% csrf_token %}
+    <h2 class="text-sm font-bold text-rose-300">Restore from a backup</h2>
+    <p class="text-xs text-slate-400">This replaces everything in the app with the backup's data. Your current data is saved as a new backup first, so you can undo it.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Saved backup</label>
+        <select name="name" class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+          <option value="">Choose...</option>
+          {% for b in backups %}<option value="{{ b.name }}">{{ b.created|date:"M j, Y, g:i A" }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Or upload a backup file</label>
+        <input type="file" name="file" accept=".zip" class="w-full text-xs text-slate-300">
+      </div>
+    </div>
+    <div>
+      <label for="confirm" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Type RESTORE to confirm</label>
+      <input id="confirm" name="confirm" autocomplete="off" class="w-full sm:w-64 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+    </div>
+    <button class="px-4 py-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-sm font-bold text-rose-300 hover:bg-rose-500/30">Restore</button>
+  </form>
+</div>
+{% endblock %}

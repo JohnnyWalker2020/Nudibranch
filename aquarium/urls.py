@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, views_tools as tools
 
 urlpatterns = [
     # Dashboard & Parameters
@@ -87,4 +87,71 @@ urlpatterns = [
 
     # Notifications & Alerts Center
     path('notifications/', views.notifications_view, name='notifications'),
+
+    # Tools hub
+    path('tools/', tools.tools_view, name='tools'),
+    path('tools/settings/', tools.app_settings_view, name='app_settings'),
+    path('tools/power/', tools.power_view, name='power'),
+
+    # System planner
+    path('planner/', tools.planner_list_view, name='planner'),
+    path('planner/new/', tools.plan_create_view, name='plan_create'),
+    path('planner/<int:plan_id>/', tools.plan_detail_view, name='plan_detail'),
+    path('planner/<int:plan_id>/edit/', tools.plan_edit_view, name='plan_edit'),
+    path('planner/<int:plan_id>/delete/', tools.plan_delete_view, name='plan_delete'),
+    path('planner/<int:plan_id>/add-livestock/', tools.plan_add_livestock_view, name='plan_add_livestock'),
+    path('planner/<int:plan_id>/add-equipment/', tools.plan_add_equipment_view, name='plan_add_equipment'),
+    path('planner/<int:plan_id>/track/', tools.plan_track_view, name='plan_track'),
+    path('planner/items/<int:item_id>/delete/', tools.plan_item_delete_view, name='plan_item_delete'),
+
+    # Wishlist
+    path('planner/wishlist/', tools.wishlist_view, name='wishlist'),
+    path('planner/wishlist/add-livestock/', tools.wishlist_add_livestock_view, name='wishlist_add_livestock'),
+    path('planner/wishlist/add-equipment/', tools.wishlist_add_equipment_view, name='wishlist_add_equipment'),
+    path('planner/wishlist/species/<int:species_id>/', tools.wishlist_add_species_view, name='wishlist_add_species'),
+    path('planner/wishlist/<int:item_id>/edit/', tools.wishlist_edit_view, name='wishlist_edit'),
+    path('planner/wishlist/<int:item_id>/delete/', tools.wishlist_delete_view, name='wishlist_delete'),
+    path('planner/wishlist/<int:item_id>/to-plan/', tools.wishlist_to_plan_view, name='wishlist_to_plan'),
+    path('planner/wishlist/<int:item_id>/bought/', tools.wishlist_bought_view, name='wishlist_bought'),
+
+    # Quarantine
+    path('quarantine/', tools.quarantine_list_view, name='quarantine_list'),
+    path('quarantine/<int:animal_id>/', tools.quarantine_detail_view, name='quarantine_detail'),
+    path('quarantine/<int:animal_id>/start/', tools.quarantine_start_view, name='quarantine_start'),
+    path('quarantine/<int:animal_id>/plan/', tools.quarantine_plan_view, name='quarantine_plan'),
+    path('quarantine/<int:animal_id>/finish/', tools.quarantine_finish_view, name='quarantine_finish'),
+    path('quarantine/<int:animal_id>/log/', tools.quarantine_entry_add_view, name='quarantine_entry_add'),
+    path('quarantine/log/<int:entry_id>/delete/', tools.quarantine_entry_delete_view, name='quarantine_entry_delete'),
+
+    # Growth timeline & time-lapse
+    path('livestock/<int:animal_id>/timeline/', tools.timeline_view, name='timeline'),
+    path('livestock/timeline/<int:photo_id>/delete/', tools.timeline_photo_delete_view, name='timeline_photo_delete'),
+    path('webcams/<int:cam_id>/timelapse/', tools.timelapse_view, name='timelapse'),
+    path('webcams/<int:cam_id>/timelapse/capture/', tools.timelapse_capture_view, name='timelapse_capture'),
+    path('webcams/<int:cam_id>/timelapse/clear/', tools.timelapse_clear_view, name='timelapse_clear'),
+
+    # Webhooks & phone alerts
+    path('integrations/', tools.integrations_view, name='integrations'),
+    path('integrations/webhooks/add/', tools.webhook_create_view, name='webhook_create'),
+    path('integrations/webhooks/<int:endpoint_id>/edit/', tools.webhook_edit_view, name='webhook_edit'),
+    path('integrations/webhooks/<int:endpoint_id>/delete/', tools.webhook_delete_view, name='webhook_delete'),
+    path('integrations/webhooks/<int:endpoint_id>/test/', tools.webhook_test_view, name='webhook_test'),
+
+    # Backups
+    path('backups/', tools.backups_view, name='backups'),
+    path('backups/create/', tools.backup_create_view, name='backup_create'),
+    path('backups/restore/', tools.backup_restore_view, name='backup_restore'),
+    path('backups/<str:name>/download/', tools.backup_download_view, name='backup_download'),
+    path('backups/<str:name>/delete/', tools.backup_delete_view, name='backup_delete'),
+
+    # Fill timers & RO systems
+    path('timers/', tools.timers_view, name='timers'),
+    path('timers/start/', tools.timer_start_view, name='timer_start'),
+    path('timers/<int:timer_id>/cancel/', tools.timer_cancel_view, name='timer_cancel'),
+    path('timers/<int:timer_id>/extend/', tools.timer_extend_view, name='timer_extend'),
+    path('timers/<int:timer_id>/dismiss/', tools.timer_dismiss_view, name='timer_dismiss'),
+    path('timers/ro/add/', tools.ro_create_view, name='ro_create'),
+    path('timers/ro/<int:ro_id>/edit/', tools.ro_edit_view, name='ro_edit'),
+    path('timers/ro/<int:ro_id>/delete/', tools.ro_delete_view, name='ro_delete'),
+    path('api/calculators/fill/', tools.fill_calc_api, name='fill_calc_api'),
 ]

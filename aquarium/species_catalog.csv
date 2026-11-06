@@ -1,0 +1,242 @@
+name,species,category,suggested_group,care_level,reef_safe,diet,notes,min_tank_gallons,max_size_inches,temperament,icon
+Ocellaris Clownfish,Amphiprion ocellaris,fish,Clownfish Pair,Beginner,Yes,"Omnivore (pellets, flakes, mysis)",Hardy and iconic. Pairs easily with another clown; can host anemones.,20,3.5,semi,🐠
+Percula Clownfish,Amphiprion percula,fish,Clownfish Pair,Beginner,Yes,Omnivore,True Percula clownfish with prominent black outlines. Peaceful reef inhabitant.,20,3,semi,🐠
+Blue Green Chromis,Chromis viridis,fish,School,Beginner,Yes,Planktivore / Omnivore,Active schooling damselfish. Shimmers bright metallic aqua. Keep in odd-numbered groups.,30,3,peaceful,🐟
+Yellow Tang,Zebrasoma flavescens,fish,Fish,Moderate,Yes,"Herbivore (nori seaweed, algae pellets)",Classic reef centerpiece. Voracious grazer on filamentous algae.,75,8,semi,🐠
+Blue / Hippo Tang,Paracanthurus hepatus,fish,Fish,Moderate,Yes,Omnivore / Herbivore,"Active swimmer, needs ample horizontal swimming space. Prone to ich if stressed.",125,12,semi,🐠
+Royal Gramma,Gramma loreto,fish,Fish,Beginner,Yes,"Carnivore (mysis, brine, pods)",Stunning violet-and-yellow coloration. Caves and rock crevices are essential.,30,3,semi,🐠
+Firefish Goby,Nemateleotris magnifica,fish,Fish,Beginner,Yes,Planktivore / Carnivore,Peaceful dartfish with high dorsal fin. Known jumper—requires a tight tank lid.,20,3,peaceful,🐟
+Yellow Watchman Goby,Cryptocentrus cinctus,fish,Fish,Beginner,Yes,Carnivore,Bottom dweller with charismatic grumpy face. Forms a famous symbiotic bond with pistol shrimp.,20,4,peaceful,🐠
+Diamond Watchman Goby,Valenciennea puellaris,fish,Fish,Moderate,Yes,Carnivore / Sand Sifter,"Master sand-sifter. Continuously filters sand bed through gills, keeping sand spotless.",40,6,peaceful,🐟
+Lawnmower Blenny,Salarias fasciatus,fish,Fish,Beginner,Yes,Herbivore,Excellent natural grazer for nuisance hair algae and microalgae films.,40,5,semi,🐟
+Tailspot Blenny,Ecsenius stigmatura,fish,Fish,Beginner,Yes,Herbivore / Omnivore,"Small, comical nano fish. Perches on rocks and pecks at microalgae.",15,2.5,peaceful,🐟
+Six Line Wrasse,Pseudocheilinus hexataenia,fish,Fish,Beginner,Yes,Carnivore / Pest Eater,"Active hunter that eats nuisance flatworms, bristleworms, and pyramid snails.",30,3,semi,🐠
+Banggai Cardinalfish,Pterapogon kauderni,fish,Fish,Beginner,Yes,Carnivore,"Gentle, slow-moving fish with striking black and silver stripes. Mouthbrooder.",30,3,peaceful,🐠
+Clarkii Clownfish,Amphiprion clarkii,fish,Clownfish Pair,Beginner,Yes,Omnivore,Hardy and bold. Hosts nearly every clown-hosting anemone. Can get pushy as it matures.,30,5,semi,🐠
+Maroon Clownfish,Amphiprion biaculeatus,fish,Clownfish Pair,Moderate,Yes,Omnivore,Largest and most aggressive clown. Females get big. Best added last and kept with robust tankmates.,40,6,aggressive,🐠
+Tomato Clownfish,Amphiprion frenatus,fish,Clownfish Pair,Beginner,Yes,Omnivore,Very hardy but territorial. Often pairs with a bubble tip anemone.,30,5,semi,🐠
+Pink Skunk Clownfish,Amphiprion perideraion,fish,Clownfish Pair,Moderate,Yes,Omnivore,Small and more timid than most clowns. Keep away from aggressive tankmates.,30,4,peaceful,🐠
+Cinnamon Clownfish,Amphiprion melanopus,fish,Clownfish Pair,Beginner,Yes,Omnivore,Hardy with a dark body and white head bar. Territorial once paired.,30,4.5,semi,🐠
+Black Axil Chromis,Chromis atripectoralis,fish,School,Beginner,Yes,Planktivore / Omnivore,Looks like a green chromis with a dark spot at the pectoral fin base. Groups can thin out through bickering.,30,4,peaceful,🐟
+Lyretail Anthias,Pseudanthias squamipinnis,fish,School,Moderate,Yes,"Planktivore (mysis, frequent small meals)",Colorful shoaling fish. Feed two or more times daily. Keep one male with several females.,70,5,semi,🐟
+Bartlett's Anthias,Pseudanthias bartlettorum,fish,School,Moderate,Yes,Planktivore,One of the more peaceful anthias. Needs frequent feeding and open swimming room.,55,3.5,peaceful,🐟
+Sunburst Anthias,Serranocirrhitus latus,fish,Fish,Moderate,Yes,Carnivore / Planktivore,Shy cave-dweller that often swims upside down under ledges. Prefers dimmer spots.,40,4,peaceful,🐠
+Pajama Cardinalfish,Sphaeramia nematoptera,fish,School,Beginner,Yes,Carnivore,Peaceful and slow. Most active at dusk. Very easy to feed.,30,3.5,peaceful,🐠
+Threadfin Cardinalfish,Zoramia leptacantha,fish,School,Beginner,Yes,Carnivore / Planktivore,Small peaceful shoaling cardinal. May be eaten by large or aggressive fish.,30,2.5,peaceful,🐟
+Yellowtail Blue Damselfish,Chrysiptera parasema,fish,Fish,Beginner,Yes,Omnivore,Among the milder damsels. Bright blue with a yellow tail. Territorial around rockwork.,30,3,semi,🐟
+Azure Damselfish,Chrysiptera hemicyanea,fish,Fish,Beginner,Yes,Omnivore,Hardy with blue and yellow split coloration. Can harass new additions.,30,3,semi,🐟
+Starck's Damselfish,Chrysiptera starcki,fish,Fish,Moderate,Yes,Omnivore,Striking electric blue and yellow. Less commonly available and fairly territorial.,30,3,aggressive,🐟
+Domino Damselfish,Dascyllus trimaculatus,fish,Fish,Beginner,Yes,Omnivore,Extremely hardy but very aggressive as an adult. Think twice before adding to a peaceful reef.,40,5.5,aggressive,🐟
+Three-Stripe Damselfish,Dascyllus aruanus,fish,Fish,Beginner,Yes,Omnivore,Tough and territorial with bold black and white bars. Hard to remove once settled.,30,3,aggressive,🐟
+Purple Tang,Zebrasoma xanthurum,fish,Fish,Moderate,Yes,Herbivore (nori and algae),Deep purple with a yellow tail. Can be aggressive toward other tangs. Needs a large tank.,125,10,aggressive,🐠
+Scopas Tang,Zebrasoma scopas,fish,Fish,Moderate,Yes,Herbivore (nori and algae),Hardy grazer similar in shape to a yellow tang. Needs swimming room and can bully similar fish.,75,8,semi,🐠
+Sailfin Tang,Zebrasoma veliferum,fish,Fish,Moderate,Yes,Herbivore (nori and algae),Grows large with tall fins. Needs a long tank as an adult.,125,15,semi,🐠
+Kole Tang,Ctenochaetus strigosus,fish,Fish,Moderate,Yes,Herbivore / Detritivore,Bristle-tooth grazer that combs rock and glass for film algae. Generally one of the calmer tangs.,75,7,semi,🐠
+Tomini Tang,Ctenochaetus tominiensis,fish,Fish,Moderate,Yes,Herbivore / Detritivore,One of the smaller tangs. Good film algae grazer and fairly peaceful.,55,6,semi,🐠
+Powder Blue Tang,Acanthurus leucosternon,fish,Fish,Expert,Yes,Herbivore (nori and algae),Beautiful but ich-prone and aggressive toward other tangs. Quarantine carefully. Needs a large tank.,125,9,aggressive,🐠
+Powder Brown Tang,Acanthurus japonicus,fish,Fish,Moderate,Yes,Herbivore (nori and algae),Often a little hardier than the powder blue. Still ich-prone and needs plenty of swimming room.,100,8,semi,🐠
+Achilles Tang,Acanthurus achilles,fish,Fish,Expert,Yes,Herbivore (nori and algae),Needs very high flow and oxygen plus a big tank. Very ich-prone. Not for beginners.,150,10,aggressive,🐠
+Naso Tang,Naso lituratus,fish,Fish,Moderate,Yes,Herbivore (brown macroalgae and nori),Grows large and needs a long tank. Loves brown seaweed.,125,18,semi,🐠
+Foxface Rabbitfish,Siganus vulpinus,fish,Fish,Beginner,With Caution,Herbivore (nori and algae),Hardy and peaceful grazer but may nip some corals. Venomous fin spines: handle with care.,75,9,peaceful,🐠
+Magnificent Foxface,Siganus magnificus,fish,Fish,Moderate,With Caution,Herbivore (nori and algae),Close relative of the foxface with bolder markings. Venomous fin spines.,75,9,peaceful,🐠
+Flame Angelfish,Centropyge loricula,fish,Fish,Moderate,With Caution,Omnivore (algae and meaty foods),Vivid orange-red dwarf angel. May nip clams and fleshy corals.,55,4,semi,🐠
+Coral Beauty Angelfish,Centropyge bispinosa,fish,Fish,Moderate,With Caution,Omnivore (algae and meaty foods),Among the hardier dwarf angels. May nip LPS and clam mantles.,55,4,semi,🐠
+Lemonpeel Angelfish,Centropyge flavissima,fish,Fish,Moderate,With Caution,Omnivore (algae and meaty foods),Bright yellow dwarf angel. Known for nipping corals more than some others.,55,5.5,semi,🐠
+Cherub Angelfish,Centropyge argi,fish,Fish,Moderate,With Caution,Omnivore (algae and meaty foods),Tiny Atlantic dwarf angel. Hardy and suitable for smaller tanks.,30,3,semi,🐠
+Potter's Angelfish,Centropyge potteri,fish,Fish,Expert,With Caution,Omnivore (algae and meaty foods),Hawaiian dwarf angel. Often harder to acclimate. Needs a mature tank with plenty of grazing.,55,4,semi,🐠
+Bellus Angelfish,Genicanthus bellus,fish,Fish,Moderate,Yes,Planktivore,Swallowtail angel that feeds in open water. Generally leaves corals alone.,100,7,peaceful,🐠
+Watanabei Angelfish,Genicanthus watanabei,fish,Fish,Moderate,Yes,Planktivore,Reef-friendly swallowtail angel. Needs swimming room and frequent feeding.,100,6,peaceful,🐠
+Emperor Angelfish,Pomacanthus imperator,fish,Fish,Expert,With Caution,Omnivore (sponge-based foods),Spectacular color change into adulthood. Needs a very large tank. Often nips corals and clams.,180,15,semi,🐠
+Queen Angelfish,Holacanthus ciliaris,fish,Fish,Expert,No,Omnivore (sponge-based foods),Large Atlantic angel that grazes on sponges and corals. Best in a big fish-only system.,180,18,aggressive,🐠
+Melanurus Wrasse,Halichoeres melanurus,fish,Fish,Moderate,With Caution,Carnivore,Hunts pests such as pyramid snails. May eat small shrimp and snails. Needs a sand bed to sleep in.,55,5,semi,🐠
+Yellow Coris Wrasse,Halichoeres chrysus,fish,Fish,Beginner,Yes,Carnivore,Bright yellow and hardy. Buries in sand at night. Sometimes helps with flatworms.,40,4.5,peaceful,🐠
+Christmas Wrasse,Halichoeres ornatissimus,fish,Fish,Moderate,With Caution,Carnivore,Red and green ornate wrasse. Needs sand. May eat small inverts.,55,5,semi,🐠
+McCosker's Flasher Wrasse,Paracheilinus mccoskeri,fish,Fish,Moderate,Yes,Planktivore,Males flash brilliant colors when displaying. Needs a tight lid because it jumps.,40,3,peaceful,🐠
+Carpenter's Flasher Wrasse,Paracheilinus carpenteri,fish,Fish,Moderate,Yes,Planktivore,Peaceful flasher wrasse. Keep one male with several females. Known jumper.,40,3,peaceful,🐠
+Solar Fairy Wrasse,Cirrhilabrus solorensis,fish,Fish,Moderate,Yes,Planktivore,Colorful and active reef wrasse. Sleeps in a mucus cocoon. Needs a tight lid.,70,5,peaceful,🐠
+Lubbock's Fairy Wrasse,Cirrhilabrus lubbocki,fish,Fish,Moderate,Yes,Planktivore,Smaller fairy wrasse that fits mid-sized reefs well. Known jumper.,55,3.5,peaceful,🐠
+Exquisite Fairy Wrasse,Cirrhilabrus exquisitus,fish,Fish,Moderate,Yes,Planktivore,Active swimmer with shimmering color. Needs a tight lid.,70,5,peaceful,🐠
+Possum Wrasse,Wetmorella nigropinnata,fish,Fish,Moderate,Yes,Carnivore,Tiny secretive wrasse that hides in rock. Needs small meaty foods.,20,3,peaceful,🐠
+Mystery Wrasse,Pseudocheilinus ocellatus,fish,Fish,Moderate,Yes,Carnivore,Colorful relative of the six line. Can be territorial toward similar wrasses.,30,3,semi,🐠
+Leopard Wrasse,Macropharyngodon meleagris,fish,Fish,Expert,Yes,Carnivore (pods and small meaty foods),Beautiful but often hard to get feeding. Best in a mature tank full of pods with a sand bed.,55,6,peaceful,🐠
+Bluestreak Cleaner Wrasse,Labroides dimidiatus,fish,Fish,Expert,Yes,Carnivore (parasites and fish mucus),Specialized cleaner that often starves in captivity. Generally best left in the ocean.,55,5.5,peaceful,🐠
+Dragon Wrasse,Novaculichthys taeniourus,fish,Fish,Moderate,No,Carnivore,Flips rocks and rearranges the tank. Eats inverts and small fish. Best in a fish-only system.,100,12,aggressive,🐠
+Harlequin Tuskfish,Choerodon fasciatus,fish,Fish,Moderate,No,Carnivore,Striking banded fish with blue teeth. Eats crustaceans. Needs a large tank.,125,10,aggressive,🐠
+Yellow Clown Goby,Gobiodon okinawae,fish,Fish,Beginner,With Caution,Omnivore,Tiny fish that perches among coral branches. May nip SPS polyps. Good for nano tanks.,10,1.5,peaceful,🐟
+Green Clown Goby,Gobiodon histrio,fish,Fish,Moderate,With Caution,Omnivore,Small coral-perching goby with red lines. May nip SPS polyps.,10,1.5,peaceful,🐟
+Neon Goby,Elacatinus oceanops,fish,Fish,Beginner,Yes,Carnivore / Cleaner,Small cleaner goby. Captive-bred fish are widely available and hardy.,10,2,peaceful,🐟
+Purple Firefish,Nemateleotris decora,fish,Fish,Moderate,Yes,Planktivore,Peaceful dartfish with purple fins. Known jumper. Needs a tight lid.,20,3.5,peaceful,🐟
+Bluecheek Goby,Valenciennea strigata,fish,Fish,Moderate,Yes,Carnivore / Sand Sifter,Constantly sifts sand. Needs a mature deep sand bed to find enough food. Known jumper.,55,7,peaceful,🐟
+Randall's Shrimp Goby,Amblyeleotris randalli,fish,Fish,Moderate,Yes,Carnivore,Pairs with pistol shrimp. Stands guard at the burrow entrance. Needs sand.,20,4,peaceful,🐟
+Yasha Goby,Stonogobiops yasha,fish,Fish,Moderate,Yes,Carnivore,Small striped goby with a tall dorsal fin. Pairs with Randall's pistol shrimp.,10,2,peaceful,🐟
+Court Jester Goby,Koumansetta rainfordi,fish,Fish,Expert,Yes,Micro-grazer (pods and film),Needs a mature tank with plenty of natural food to pick at. Often thins out in new tanks.,20,2.5,peaceful,🐟
+Scissortail Dartfish,Ptereleotris evides,fish,Fish,Beginner,Yes,Planktivore,Peaceful open-water swimmer. Bolts when startled and jumps: use a tight lid.,30,5.5,peaceful,🐟
+Zebra Dartfish,Ptereleotris zebra,fish,Fish,Moderate,Yes,Planktivore,Peaceful with fine vertical bars. Can be kept in small groups in larger tanks. Known jumper.,30,4,peaceful,🐟
+Engineer Goby,Pholidichthys leucotaenia,fish,Fish,Beginner,Yes,Carnivore,Not a true goby. Digs extensive tunnels under rock so build rockwork on the glass. Long-lived.,125,20,peaceful,🐟
+Midas Blenny,Ecsenius midas,fish,Fish,Beginner,Yes,Omnivore / Planktivore,Golden fish that swims in the open and perches on rock with lots of personality.,30,5,semi,🐟
+Bicolor Blenny,Ecsenius bicolor,fish,Fish,Beginner,Yes,Herbivore / Omnivore,Hardy algae picker with two-tone coloring. May nip at larger polyps on occasion.,30,4.5,semi,🐟
+Starry Blenny,Salarias ramosus,fish,Fish,Moderate,Yes,Herbivore,Algae grazer dotted with white spots. Needs a mature tank with plenty of algae growth.,30,5,peaceful,🐟
+Canary Fang Blenny,Meiacanthus oualanensis,fish,Fish,Beginner,Yes,Omnivore,Bright yellow open-water blenny. Has venomous fangs but is peaceful and rarely a problem.,30,4,peaceful,🐟
+Black Combtooth Blenny,Ecsenius namiyei,fish,Fish,Moderate,Yes,Herbivore / Omnivore,Larger combtooth blenny. Grazes film algae and perches on rocks.,30,4,peaceful,🐟
+Orchid Dottyback,Pseudochromis fridmani,fish,Fish,Beginner,Yes,Carnivore,Vivid magenta and among the most peaceful dottybacks. Captive-bred fish are common.,30,3,semi,🐠
+Neon Dottyback,Pseudochromis aldabraensis,fish,Fish,Beginner,Yes,Carnivore,Hardy orange and neon-blue fish. Often aggressive: pick tankmates carefully.,30,4,aggressive,🐠
+Sunrise Dottyback,Pseudochromis flavivertex,fish,Fish,Beginner,Yes,Carnivore,Blue and yellow with moderate aggression. May harass small shrimp.,30,3,semi,🐠
+Black Cap Basslet,Gramma melacara,fish,Fish,Beginner,Yes,Carnivore,Purple body with a black cap. Hardy cave-dweller. Territorial toward its own kind.,30,4,semi,🐠
+Swissguard Basslet,Liopropoma rubre,fish,Fish,Moderate,Yes,Carnivore,Shy striped fish that stays in caves. May eat tiny shrimp.,30,3,peaceful,🐠
+Chalk Bass,Serranus tortugarum,fish,School,Beginner,Yes,Carnivore,Small hardy Atlantic bass. Unusually peaceful and can be kept in groups.,30,3,peaceful,🐟
+Harlequin Bass,Serranus tigrinus,fish,Fish,Moderate,With Caution,Carnivore,Handsome black and white bass. Will eat small shrimp and small fish.,30,4,semi,🐠
+Yellow Assessor,Assessor flavissimus,fish,Fish,Beginner,Yes,Carnivore / Planktivore,Peaceful cave-dweller that often swims upside down under overhangs.,30,2.5,peaceful,🐠
+Blue Assessor,Assessor macneilli,fish,Fish,Beginner,Yes,Carnivore / Planktivore,Deep blue relative of the yellow assessor. Shy at first and peaceful.,30,2.5,peaceful,🐠
+Green Mandarin Dragonet,Synchiropus splendidus,fish,Fish,Expert,Yes,Micro-predator (live copepods),Often starves in young tanks. Needs a mature pod population or a fish trained to frozen food.,75,3,peaceful,🐠
+Spotted Mandarin Dragonet,Synchiropus picturatus,fish,Fish,Expert,Yes,Micro-predator (live copepods),Same pod-hungry needs as the green mandarin. Add only to mature tanks.,75,3,peaceful,🐠
+Scooter Dragonet,Synchiropus ocellatus,fish,Fish,Moderate,Yes,Micro-predator (pods),Often sold as a scooter blenny but it is a dragonet. Needs pods. Males fight.,30,3,peaceful,🐠
+Ruby Red Dragonet,Synchiropus sycorax,fish,Fish,Moderate,Yes,Micro-predator (pods),Tiny red dragonet. Needs a good pod supply. Males fight.,30,1.5,peaceful,🐠
+Flame Hawkfish,Neocirrhites armatus,fish,Fish,Beginner,With Caution,Carnivore,Perches on coral heads and watches everything. May eat small shrimp.,30,4,semi,🐠
+Longnose Hawkfish,Oxycirrhites typus,fish,Fish,Moderate,With Caution,Carnivore,Checkered fish with a long snout. May eat small shrimp. Known jumper.,30,5,semi,🐠
+Arc-Eye Hawkfish,Paracirrhites arcatus,fish,Fish,Beginner,With Caution,Carnivore,Hardy perching predator. Will hunt shrimp and small crabs.,30,5,semi,🐠
+Copperband Butterflyfish,Chelmon rostratus,fish,Fish,Expert,With Caution,Carnivore,Famous for sometimes eating aiptasia. Can be hard to feed. Needs a mature tank.,75,8,semi,🐠
+Raccoon Butterflyfish,Chaetodon lunula,fish,Fish,Moderate,No,Omnivore,Hardy butterfly that eats aiptasia but also corals and inverts. Best kept outside a reef.,100,8,semi,🐠
+Pearlscale Butterflyfish,Chaetodon xanthurus,fish,Fish,Moderate,With Caution,Omnivore,Attractive and comparatively hardy butterfly. May nip corals.,75,6,semi,🐠
+Longnose Butterflyfish,Forcipiger flavissimus,fish,Fish,Moderate,With Caution,Omnivore,Bright yellow with a long snout that can pick at tube worms and polyps.,75,8,semi,🐠
+Lined Seahorse,Hippocampus erectus,fish,Fish,Expert,With Caution,Carnivore (frozen mysis),Best in a dedicated low-flow tank. Avoid stinging corals and fast feeders.,30,7,peaceful,🐠
+Bluestripe Pipefish,Doryrhamphus excisus,fish,Fish,Expert,Yes,Micro-predator (pods),Thin and delicate. Needs small live or frozen foods and calm tankmates.,30,2.5,peaceful,🐟
+Snowflake Moray Eel,Echidna nebulosa,fish,Fish,Moderate,With Caution,Carnivore (crustaceans),Hardy eel that hunts crustaceans at night. Secure lid required because eels escape.,55,24,semi,🐍
+Dwarf Fuzzy Lionfish,Dendrochirus brachypterus,fish,Fish,Moderate,With Caution,Carnivore,Small lionfish. Venomous spines. Eats small fish and shrimp.,40,7,semi,🐠
+Fu Manchu Lionfish,Dendrochirus biocellatus,fish,Fish,Expert,With Caution,Carnivore (live or frozen meaty foods),Shy nocturnal dwarf lion. Often hard to feed. Venomous spines.,40,5,semi,🐠
+Volitans Lionfish,Pterois volitans,fish,Fish,Moderate,With Caution,Carnivore,Large predator that eats anything it can swallow. Venomous spines. Needs a very large tank.,120,15,aggressive,🐠
+Picasso Triggerfish,Rhinecanthus aculeatus,fish,Fish,Moderate,No,Carnivore,Hardy with wild markings. Will eat inverts and rearrange rocks. Best in a fish-only tank.,75,10,aggressive,🐠
+Niger Triggerfish,Odonus niger,fish,Fish,Moderate,With Caution,Carnivore,One of the calmer triggers. May still eat shrimp and crabs. Needs a big tank.,100,18,semi,🐠
+Bluejaw Triggerfish,Xanthichthys auromarginatus,fish,Fish,Moderate,With Caution,Planktivore,Open-water planktivore that is friendlier to reefs than most triggers. Watch small inverts.,100,10,semi,🐠
+Valentini Puffer,Canthigaster valentini,fish,Fish,Moderate,With Caution,Carnivore,Small sharpnose puffer. May nip corals and inverts. Toxic if eaten by a tankmate.,30,4,semi,🐡
+Porcupine Puffer,Diodon holocanthus,fish,Fish,Moderate,No,Carnivore (hard-shelled foods),Engaging personality but messy. Needs shelled foods to wear down its beak. Eats inverts.,180,18,semi,🐡
+Longhorn Cowfish,Lactoria cornuta,fish,Fish,Expert,No,Omnivore,Can release toxin when stressed or dying and wipe out a tank. Grows large.,180,18,semi,🐡
+Matted Filefish,Acreichthys tomentosus,fish,Fish,Moderate,With Caution,Omnivore,Often bought to eat aiptasia. Results vary and it may nip soft corals and zoanthids.,30,4,peaceful,🐠
+Trochus Snail,Trochus sp.,cleanup_crew,Cleanup Crew,Beginner,Yes,Herbivore (film & hair algae),Top-tier algae snail. Can upright itself if flipped upside down.,,,,🐌
+Nassarius Snail,Nassarius vibex,cleanup_crew,Cleanup Crew,Beginner,Yes,Carnivore / Detritivore,"Burrows under the sand bed, emerges like a zombie when fish are fed to clean leftover food.",,,,🐌
+Astraea Snail,Astraea tecta,cleanup_crew,Cleanup Crew,Beginner,Yes,"Herbivore (diatoms, green film)",Classic glass and live-rock grazer with pyramid shell. Cannot flip itself if overturned.,,,,🐌
+Cerith Snail,Cerithium sp.,cleanup_crew,Cleanup Crew,Beginner,Yes,Detritivore / Herbivore,"Cleans glass, rock crevices, and burrows into sand bed eating detritus and diatoms.",,,,🐌
+Mexican Turbo Snail,Turbo fluctuosa,cleanup_crew,Cleanup Crew,Beginner,Yes,Voracious Herbivore,Bulldozer snail that demolishes thick green hair algae.,,,,🐌
+Blue Leg Hermit Crab,Clibanarius tricolor,cleanup_crew,Cleanup Crew,Beginner,Yes,Omnivore / Scavenger,Miniature scavenger. Scours rock holes for detritus and nuisance algae. Provide empty shells.,,,,🦀
+Scarlet Reef Hermit Crab,Paguristes cadenati,cleanup_crew,Cleanup Crew,Beginner,Yes,Herbivore / Scavenger,The most peaceful hermit crab. Bright red legs with yellow eye stalks.,,,,🦀
+Emerald Crab,Mithraculus sculptus,cleanup_crew,Cleanup Crew,Beginner,With Caution,Herbivore (bubble algae),Famous for controlling nuisance Valonia (bubble algae).,,,,🦀
+Peppermint Shrimp,Lysmata wurdemanni,cleanup_crew,Cleanup Crew,Beginner,Yes,Omnivore / Scavenger,Popular aiptasia eater but results vary. Several look-alike species are sold under this name.,,,,🦐
+Sand-Sifting Starfish,Astropecten polyacanthus,cleanup_crew,Cleanup Crew,Moderate,With Caution,Carnivore (sand bed life),Strips sand beds of life and then starves. Needs a very large mature sand bed.,75,12,peaceful,⭐
+Fighting Conch,Strombus alatus,cleanup_crew,Cleanup Crew,Beginner,Yes,Herbivore / Detritivore,Great sand bed grazer that keeps sand turned over. Does not actually fight.,,,,🐌
+Queen Conch,Aliger gigas,cleanup_crew,Cleanup Crew,Moderate,Yes,Herbivore / Detritivore,Grows large. Excellent sand grazer for bigger systems with mature sand.,55,10,peaceful,🐌
+Margarita Snail,Margarites pupillus,cleanup_crew,Cleanup Crew,Moderate,Yes,Herbivore,Cool-water snail that often lives only briefly in warm reef tanks.,,,,🐌
+Nerite Snail,Nerita sp.,cleanup_crew,Cleanup Crew,Beginner,Yes,Herbivore,Good on glass and rock. Tends to climb out above the water line so use a lid.,,,,🐌
+Stomatella Snail,Stomatella varia,cleanup_crew,Cleanup Crew,Beginner,Yes,Herbivore / Detritivore,Fast flat-bodied grazer that often appears on its own and breeds readily in reefs.,,,,🐌
+Bumblebee Snail,Engina mendicaria,cleanup_crew,Cleanup Crew,Beginner,With Caution,Carnivore / Scavenger,Small striped scavenger. May prey on other small snails and worms.,,,,🐌
+Money Cowrie,Monetaria moneta,cleanup_crew,Cleanup Crew,Beginner,Yes,Herbivore,Small algae-grazing cowrie with a smooth glossy shell.,,,,🐌
+Tiger Cowrie,Cypraea tigris,cleanup_crew,Cleanup Crew,Moderate,With Caution,Omnivore,Large and beautiful. Can bulldoze corals and may eat sponges and soft corals.,55,5,peaceful,🐌
+Abalone,Haliotis sp.,cleanup_crew,Cleanup Crew,Moderate,Yes,Herbivore,Excellent rock and glass grazer. Sensitive to low oxygen. Do not pry it off rock.,,,,🐌
+Dwarf Zebra Hermit Crab,Calcinus laevimanus,cleanup_crew,Cleanup Crew,Beginner,With Caution,Omnivore / Scavenger,Hardy little scavenger. May attack snails for their shells. Provide spares.,,,,🦀
+Electric Blue Hermit Crab,Calcinus elegans,cleanup_crew,Cleanup Crew,Beginner,With Caution,Omnivore / Scavenger,Brilliant blue legs. May attack snails for their shells. Provide spares.,,,,🦀
+Halloween Hermit Crab,Ciliopagurus strigatus,cleanup_crew,Cleanup Crew,Moderate,With Caution,Omnivore / Scavenger,Orange and red banded legs. Larger and sometimes bothers snails and small inverts.,,,,🦀
+Sally Lightfoot Crab,Percnon gibbesi,cleanup_crew,Cleanup Crew,Moderate,With Caution,Herbivore / Scavenger,Fast flat crab that grazes hair algae. Larger ones may become opportunistic.,,,,🦀
+Tiger Tail Sea Cucumber,Holothuria hilla,cleanup_crew,Cleanup Crew,Moderate,With Caution,Detritivore,Cleans sand and hides by day. Can release toxin if injured. Guard pump intakes.,,,,🥒
+Pink and Black Sea Cucumber,Holothuria edulis,cleanup_crew,Cleanup Crew,Moderate,With Caution,Detritivore,Pink underside and dark top. Good sand cleaner. Can release toxin if injured.,,,,🥒
+Micro Brittle Star,Amphipholis squamata,cleanup_crew,Cleanup Crew,Beginner,Yes,Detritivore,Tiny scavenger that often appears on its own. A harmless sign of a healthy tank.,,,,⭐
+Red Serpent Star,Ophioderma squamosissimum,cleanup_crew,Cleanup Crew,Moderate,Yes,Scavenger,Smooth-armed nighttime scavenger. Generally safer than green brittle stars.,,,,⭐
+Green Brittle Star,Ophiarachna incrassata,cleanup_crew,Cleanup Crew,Moderate,With Caution,Carnivore / Scavenger,Large and able to catch small sleeping fish and shrimp. Think carefully before adding.,55,20,aggressive,⭐
+Pincushion Urchin,Lytechinus variegatus,cleanup_crew,Cleanup Crew,Moderate,With Caution,Herbivore,Strong algae grazer. Can knock over loose coral frags and rockwork.,,,,🦔
+Longspine Urchin,Diadema setosum,cleanup_crew,Cleanup Crew,Moderate,With Caution,Herbivore,Powerful algae grazer with sharp venomous spines. Needs a big tank.,55,12,peaceful,🦔
+Pencil Urchin,Eucidaris tribuloides,cleanup_crew,Cleanup Crew,Moderate,With Caution,Omnivore,Thick blunt spines. May graze on corals and encrusting life.,,,,🦔
+Copepods,Tisbe sp.,cleanup_crew,Cleanup Crew,Beginner,Yes,Detritivore / Phytoplankton,Tiny live food that also cleans. Seed these before adding mandarins and other pod eaters.,,,,🦠
+Amphipods,Gammarus sp.,cleanup_crew,Cleanup Crew,Beginner,Yes,Detritivore,Tiny crustaceans that hide in rock and clean. A valuable natural food source for fish.,,,,🦠
+Skunk Cleaner Shrimp,Lysmata amboinensis,invert,Invertebrates,Beginner,Yes,Omnivore / Cleaner,Bold and friendly. Sets up cleaning stations where fish queue to have parasites removed.,,,,🦐
+Blood Red Fire Shrimp,Lysmata debelius,invert,Invertebrates,Beginner,Yes,Omnivore,Deep crimson red with striking white antennae and legs. Shy scavenger.,,,,🦐
+Tiger Pistol Shrimp,Alpheus bellulus,invert,Invertebrates,Moderate,Yes,Carnivore,Excavates elaborate underground burrows shared with watchman gobies.,,,,🦐
+Bubble Tip Anemone (BTA),Entacmaea quadricolor,invert,Invertebrates,Moderate,Yes,Photosynthetic / Meaty foods,Natural host for clownfish. Requires stable mature water parameters and good lighting.,30,12,semi,🪸
+Tuxedo Urchin,Mespilia globulus,invert,Invertebrates,Beginner,Yes,Herbivore,Voracious algae grazer that covers itself with small debris and shells for camouflage.,,,,🦔
+Harlequin Shrimp,Hymenocera picta,invert,Invertebrates,Expert,With Caution,Carnivore (starfish only),Stunning but eats only live starfish. Plan a long-term food supply before buying.,10,2,peaceful,🦐
+Sexy Shrimp,Thor amboinensis,invert,Invertebrates,Beginner,With Caution,Omnivore,Tiny dancing shrimp ideal for nanos. May nibble zoanthids and anemones.,,,,🦐
+Coral Banded Shrimp,Stenopus hispidus,invert,Invertebrates,Beginner,With Caution,Omnivore / Scavenger,Hardy and showy. Aggressive toward other shrimp and may grab small fish.,20,3,aggressive,🦐
+Camel Shrimp,Rhynchocinetes durbanensis,invert,Invertebrates,Beginner,With Caution,Omnivore,Hardy and striped but often nips soft corals and polyps. Best in groups.,,,,🦐
+Randall's Pistol Shrimp,Alpheus randalli,invert,Invertebrates,Moderate,Yes,Carnivore,Small red and white pistol shrimp. Classic partner for yasha and other shrimp gobies.,,,,🦐
+Pederson Cleaner Shrimp,Ancylomenes pedersoni,invert,Invertebrates,Moderate,Yes,Omnivore / Cleaner,Small transparent cleaner that lives among anemones. Watch out for large predators.,,,,🦐
+Bumblebee Shrimp,Gnathophyllum americanum,invert,Invertebrates,Moderate,Yes,Omnivore / Scavenger,Tiny striped shrimp for quiet nano tanks. Easily eaten by larger fish.,,,,🦐
+Pom Pom Crab,Lybia tessellata,invert,Invertebrates,Moderate,Yes,Omnivore / Scavenger,Tiny boxer crab that holds small anemones in its claws like pom poms. Easily lost in rockwork.,,,,🦀
+Porcelain Crab,Neopetrolisthes maculatus,invert,Invertebrates,Beginner,Yes,Filter feeder,Filter-feeding crab that lives in anemones. Feed fine foods.,,,,🦀
+Arrow Crab,Stenorhynchus seticornis,invert,Invertebrates,Moderate,With Caution,Omnivore / Scavenger,Spindly long-legged crab that can catch bristleworms but may harass shrimp.,,,,🦀
+Decorator Crab,Camposcia retusa,invert,Invertebrates,Moderate,With Caution,Omnivore / Scavenger,Covers itself in sponge and algae. Fun to watch but may snip corals to wear them.,,,,🦀
+Red Reef Lobster,Enoplometopus occidentalis,invert,Invertebrates,Moderate,With Caution,Carnivore / Scavenger,Small reef lobster that is active at night. Can prey on small fish and shrimp.,30,5,semi,🦞
+Peacock Mantis Shrimp,Odontodactylus scyllarus,invert,Invertebrates,Expert,No,Carnivore,Spectacular but needs its own tank. Its strike is strong enough to crack thin glass.,30,7,aggressive,🦐
+Feather Duster Worm,Sabellastarte sp.,invert,Invertebrates,Beginner,Yes,Filter feeder,Fan-shaped tube worm. Needs fine foods. May be nipped by angels and butterflies.,,,,🪱
+Christmas Tree Worm,Spirobranchus giganteus,invert,Invertebrates,Expert,Yes,Filter feeder,Colorful spirals living in rock or coral. Often sold on a live coral head.,,,,🪱
+Flame Scallop,Ctenoides scaber,invert,Invertebrates,Expert,Yes,Filter feeder,Eye-catching but often starves. Needs frequent fine feeding and a mature tank.,,,,🐚
+Maxima Clam,Tridacna maxima,invert,Invertebrates,Expert,Yes,Photosynthetic / Filter feeder,Vivid mantle. Needs strong light and stable alkalinity. Sensitive when small.,30,12,peaceful,🐚
+Crocea Clam,Tridacna crocea,invert,Invertebrates,Expert,Yes,Photosynthetic / Filter feeder,Small burrowing clam with an intense mantle. Needs very strong light. Place on rock.,30,6,peaceful,🐚
+Derasa Clam,Tridacna derasa,invert,Invertebrates,Moderate,Yes,Photosynthetic / Filter feeder,Among the hardiest giant clams. Tolerates moderate light. Place on sand or rubble.,55,20,peaceful,🐚
+Squamosa Clam,Tridacna squamosa,invert,Invertebrates,Moderate,Yes,Photosynthetic / Filter feeder,Fluted shell with a patterned mantle. Moderate to high light. Place on sand or rubble.,55,16,peaceful,🐚
+Blue Linckia Starfish,Linckia laevigata,invert,Invertebrates,Expert,Yes,Detritivore / Biofilm,Striking but ships poorly. Needs slow careful acclimation and a very mature tank.,75,12,peaceful,⭐
+Chocolate Chip Starfish,Protoreaster nodosus,invert,Invertebrates,Beginner,No,Omnivore,Hardy but eats corals and clams along with other sessile inverts. Not for reef tanks.,30,8,semi,⭐
+Sea Hare,Dolabella auricularia,invert,Invertebrates,Moderate,Yes,Herbivore (hair algae),Big appetite for hair algae. Often starves once the algae is gone. Guard pump intakes.,55,8,peaceful,🐌
+Berghia Nudibranch,Berghia stephanieae,invert,Invertebrates,Moderate,Yes,Carnivore (aiptasia only),The namesake sea slug. Eats only aiptasia and starves once it runs out. Guard intakes and avoid predators.,,,,🐌
+Lettuce Sea Slug,Elysia crispata,invert,Invertebrates,Moderate,Yes,Herbivore (bryopsis and algae),Often sold as a lettuce nudibranch but is a sacoglossan. Feeds on algae and needs a steady supply.,,,,🐌
+Green Star Polyps (GSP),Pachyclavularia violacea,coral,Corals,Beginner,Yes,Photosynthetic,Extremely hardy neon green mat. Keep on an isolated rock island to prevent spreading over rockwork.,,,,🪸
+Zoanthids & Palys,Zoanthus sp.,coral,Corals,Beginner,Yes,Photosynthetic,Vibrant button polyps in endless color morphs. Note: Handle with care due to palytoxin.,,,,🪸
+Duncan Coral,Duncanopsammia axifuga,coral,Corals,Beginner,Yes,Photosynthetic / Target feeder,Hardy LPS coral with large green fleshy polyps. Spawns new heads rapidly.,,,,🪸
+Hammer Coral,Euphyllia ancora,coral,Corals,Moderate,Yes,Photosynthetic,Waving tentacles with hammer-shaped tips. Moderate light and gentle oscillating flow.,,,,🪸
+Torch Coral,Euphyllia glabrescens,coral,Corals,Moderate,Yes,Photosynthetic,Prized long waving tentacles with glowing tips. Keep space between it and other non-Euphyllia.,,,,🪸
+Frogspawn Coral,Euphyllia divisa,coral,Corals,Moderate,Yes,Photosynthetic,Multilobed tentacles resembling frog eggs. Hardy and stunning under blue actinics.,,,,🪸
+Candy Cane Coral,Caulastraea furcata,coral,Corals,Beginner,Yes,Photosynthetic,Hardy trumpet-shaped LPS coral. Extends feeder tentacles at night.,,,,🪸
+Montipora Cap,Montipora capricornis,coral,Corals,Moderate,Yes,Photosynthetic,The best beginner SPS coral. Forms stunning swirling plates under good lighting.,,,,🪸
+Toadstool Leather Coral,Sarcophyton sp.,coral,Corals,Beginner,Yes,Photosynthetic,Hardy mushroom-shaped soft coral with long flowing polyp tentacles.,,,,🪸
+Pulsing Xenia,Xenia sp.,coral,Corals,Beginner,With Caution,Photosynthetic / Filter feeder,Pulsing soft coral that can spread fast. Isolate it on its own rock.,,,,🪸
+Kenya Tree Coral,Capnella sp.,coral,Corals,Beginner,Yes,Photosynthetic,Very hardy tree-shaped soft coral. Drops branches and spreads readily.,,,,🪸
+Finger Leather Coral,Sinularia sp.,coral,Corals,Beginner,Yes,Photosynthetic,Hardy soft coral. Can release chemicals that affect SPS so run carbon.,,,,🪸
+Cabbage Leather Coral,Sinularia dura,coral,Corals,Beginner,Yes,Photosynthetic,Flat ruffled leather coral that does well in low to moderate light.,,,,🪸
+Devil's Hand Leather Coral,Lobophytum sp.,coral,Corals,Beginner,Yes,Photosynthetic,Tough finger-lobed leather coral. Sheds a waxy layer from time to time.,,,,🪸
+Colt Coral,Klyxum sp.,coral,Corals,Beginner,Yes,Photosynthetic,Soft bushy coral that sways in flow. Grows fast and may need trimming.,,,,🪸
+Clove Polyps,Clavularia sp.,coral,Corals,Beginner,With Caution,Photosynthetic,Fast-spreading mat coral with feathery polyps. Isolate it on its own rock.,,,,🪸
+Anthelia,Anthelia sp.,coral,Corals,Beginner,With Caution,Photosynthetic / Filter feeder,Waving hand soft coral. Can spread rapidly across rockwork.,,,,🪸
+Yellow Polyps,Parazoanthus gracilis,coral,Corals,Beginner,Yes,Photosynthetic / Filter feeder,Hardy golden polyps that spread slowly. Handle with gloves like other zoanthid relatives.,,,,🪸
+Pipe Organ Coral,Tubipora musica,coral,Corals,Moderate,Yes,Photosynthetic / Filter feeder,Red skeleton with green polyps. Appreciates moderate flow and stable water.,,,,🪸
+Discosoma Mushroom,Discosoma sp.,coral,Corals,Beginner,With Caution,Photosynthetic,Hardy low-light mushroom. Can overgrow and sting neighbors over time.,,,,🪸
+Rhodactis Mushroom,Rhodactis sp.,coral,Corals,Beginner,With Caution,Photosynthetic,Hairy-looking mushroom that handles low light and low flow. Give it some space.,,,,🪸
+Bounce Mushroom,Rhodactis inchoata,coral,Corals,Expert,With Caution,Photosynthetic,Prized bubble-covered mushroom. Expensive and slower to settle than most mushrooms.,,,,🪸
+Ricordea Florida,Ricordea florida,coral,Corals,Moderate,Yes,Photosynthetic / Meaty foods,Bubbly Atlantic mushroom in many colors. Loves a mature tank and small meaty foods.,,,,🪸
+Ricordea Yuma,Ricordea yuma,coral,Corals,Moderate,Yes,Photosynthetic / Meaty foods,Pacific ricordea with a multicolored center. Needs moderate light and low to moderate flow.,,,,🪸
+Sea Rod Gorgonian,Eunicea sp.,coral,Corals,Moderate,Yes,Photosynthetic,Photosynthetic Caribbean gorgonian. Needs good flow to shed its waxy coating.,,,,🪸
+Sea Fan,Gorgonia ventalina,coral,Corals,Moderate,Yes,Photosynthetic / Filter feeder,Fan-shaped gorgonian. Place it across steady flow.,,,,🪸
+Carnation Coral,Dendronephthya sp.,coral,Corals,Expert,Yes,Filter feeder (non-photosynthetic),Non-photosynthetic and hard to keep alive. Needs constant very fine feeding.,,,,🪸
+Sun Coral,Tubastraea sp.,coral,Corals,Expert,Yes,Meaty foods (non-photosynthetic),Non-photosynthetic orange polyps. Needs individual target feeding. Thrives under overhangs.,,,,🪸
+Goniopora,Goniopora sp.,coral,Corals,Expert,Yes,Photosynthetic / Target feeder,Flowerpot coral with long polyps. Has improved in captivity but is still often short-lived.,,,,🪸
+Alveopora,Alveopora sp.,coral,Corals,Expert,Yes,Photosynthetic / Target feeder,Similar to goniopora with twelve tentacles per polyp. Needs mature stable water.,,,,🪸
+Bubble Coral,Plerogyra sinuosa,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Inflated bubble tissue by day and long stinging sweepers at night. Give it plenty of room.,,,,🪸
+Open Brain Coral,Trachyphyllia geoffroyi,coral,Corals,Moderate,Yes,Photosynthetic / Target feeder,Sits on sand with low flow. Large fleshy polyp that loves to be fed.,,,,🪸
+Lobophyllia,Lobophyllia sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Colorful fleshy LPS. Needs lower flow and space because it sends out sweepers at night.,,,,🪸
+Acan Lord,Micromussa lordhowensis,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Colorful LPS often sold as Acanthastrea. Low to moderate light. Feeds eagerly at night.,,,,🪸
+Acan Echinata,Acanthastrea echinata,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Fleshy encrusting LPS. Does well on rock and can be aggressive to close neighbors.,,,,🪸
+Blastomussa,Blastomussa merleti,coral,Corals,Beginner,Yes,Photosynthetic / Target feeder,Hardy low-light LPS with round polyps. Fairly peaceful and good in shaded spots.,,,,🪸
+Favia,Dipsastraea sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Moon coral often still sold as Favia. Extends sweeper tentacles at night.,,,,🪸
+Favites,Favites sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Honeycomb brain coral with shared polyp walls. Gives off sweepers at night.,,,,🪸
+Chalice Coral,Echinophyllia sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Plating LPS with vivid colored mouths. Moderate light and flow. Can sting neighbors.,,,,🪸
+Plate Coral,Fungia sp.,coral,Corals,Moderate,Yes,Photosynthetic / Target feeder,Free-living coral for the sand bed. Can inflate and move. Keep clear of neighbors.,,,,🪸
+Elegance Coral,Catalaphyllia jardinei,coral,Corals,Expert,With Caution,Photosynthetic / Target feeder,Stunning but delicate and very aggressive. Place on sand in low to moderate flow.,,,,🪸
+Galaxea,Galaxea fascicularis,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Fine tubular LPS with very long powerful sweepers. Give it a wide buffer zone.,,,,🪸
+Scroll Coral,Turbinaria reniformis,coral,Corals,Moderate,Yes,Photosynthetic,Plating coral that does best with good light and moderate flow. Often quite durable.,,,,🪸
+Branching Hammer Coral,Euphyllia paraancora,coral,Corals,Moderate,With Caution,Photosynthetic,Branching form of hammer coral. Moderate light and flow. Sweepers need space.,,,,🪸
+Scolymia,Scolymia sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Round single-polyp LPS. Low light and low flow. Feed regularly.,,,,🪸
+Button Coral,Cynarina lacrymalis,coral,Corals,Moderate,Yes,Photosynthetic / Target feeder,Translucent inflated single-polyp LPS. Likes the sand bed in low flow.,,,,🪸
+Birdsnest Coral,Seriatopora hystrix,coral,Corals,Moderate,Yes,Photosynthetic,Fine-branching SPS with strong light and flow. Often the first branching SPS a keeper tries.,,,,🪸
+Stylophora,Stylophora pistillata,coral,Corals,Moderate,Yes,Photosynthetic,Fast-growing branching SPS. Good light and flow. Comes in pink and green.,,,,🪸
+Pocillopora,Pocillopora damicornis,coral,Corals,Moderate,Yes,Photosynthetic,Fast-growing and forgiving SPS. Can spread on its own through tiny larvae.,,,,🪸
+Montipora Digitata,Montipora digitata,coral,Corals,Moderate,Yes,Photosynthetic,Finger-like and fast-growing. Among the easier SPS to start with.,,,,🪸
+Montipora Setosa,Montipora setosa,coral,Corals,Moderate,Yes,Photosynthetic,Short fine branching SPS popular for bright colors. Needs strong light and flow.,,,,🪸
+Acropora Millepora,Acropora millepora,coral,Corals,Expert,Yes,Photosynthetic,Classic staghorn-style SPS. Needs very stable alkalinity with strong light and flow.,,,,🪸
+Acropora Tenuis,Acropora tenuis,coral,Corals,Expert,Yes,Photosynthetic,Fast-growing table-forming SPS. Needs very stable water plus strong light and flow.,,,,🪸
+Psammocora,Psammocora sp.,coral,Corals,Moderate,Yes,Photosynthetic,Encrusting SPS with a velvety texture. Moderate light and flow.,,,,🪸
+Hydnophora,Hydnophora sp.,coral,Corals,Moderate,With Caution,Photosynthetic,Horn coral that grows branches. Its sweepers sting neighbors despite small polyps.,,,,🪸
+Leptoseris,Leptoseris sp.,coral,Corals,Moderate,Yes,Photosynthetic,Thin plating coral that tolerates lower light well. Vulnerable to being shaded or stung.,,,,🪸
+Porites,Porites sp.,coral,Corals,Moderate,Yes,Photosynthetic,Slow-growing stony coral. Durable once settled. Watch for red bugs and flatworms.,,,,🪸
+Cyphastrea,Cyphastrea sp.,coral,Corals,Beginner,Yes,Photosynthetic,Encrusting stony coral. Tolerant of low to moderate light and a good first small-polyp coral.,,,,🪸
+Pavona Cactus Coral,Pavona cactus,coral,Corals,Moderate,Yes,Photosynthetic,Thin upright plates. Moderate light and flow. Can spread over time.,,,,🪸
+Rock Flower Anemone,Epicystis crucifer,coral,Corals,Beginner,Yes,Photosynthetic / Meaty foods,Colorful Atlantic anemone that tends to stay put. Usually does not host clownfish.,10,4,peaceful,🪸
+Long Tentacle Anemone,Macrodactyla doreensis,coral,Corals,Moderate,With Caution,Photosynthetic / Meaty foods,Buries its foot in sand and hosts clownfish. Guard pump intakes because anemones can wander.,40,20,semi,🪸
+Mini Maxi Carpet Anemone,Stichodactyla tapetum,coral,Corals,Moderate,With Caution,Photosynthetic / Meaty foods,Small colorful carpet anemone. Strong sting and can wander. Guard pump intakes.,20,6,semi,🪸
+Condylactis Anemone,Condylactis gigantea,coral,Corals,Moderate,With Caution,Photosynthetic / Meaty foods,Atlantic anemone with purple-tipped tentacles. Rarely hosts clownfish. Can sting neighbors.,30,12,semi,🪸
+Sebae Anemone,Heteractis crispa,coral,Corals,Expert,With Caution,Photosynthetic / Meaty foods,Long-tentacled host anemone. Often bleached when sold. Avoid white specimens.,55,20,semi,🪸
+Ritteri Anemone,Heteractis magnifica,coral,Corals,Expert,With Caution,Photosynthetic / Meaty foods,Spectacular but demanding. Needs intense light and strong flow. Likes high perches.,75,36,semi,🪸
+Haddon's Carpet Anemone,Stichodactyla haddoni,coral,Corals,Expert,With Caution,Photosynthetic / Meaty foods,Very large with a powerful sting that can catch fish. Needs a big mature tank.,75,30,aggressive,🪸

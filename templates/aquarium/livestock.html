@@ -80,6 +80,8 @@
             <div class="flex flex-wrap items-center gap-2 pt-1">
               <a href="{{ animal.wikipedia_url }}" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 border border-slate-800">Wikipedia</a>
               <a href="{{ animal.reef2reef_search_url }}" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-cyan-400 border border-slate-800">🌊 Reef2Reef</a>
+              <a href="{% url 'timeline' animal.id %}" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 border border-slate-800">📸 Timeline</a>
+              <a href="{% url 'quarantine_detail' animal.id %}" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 border border-slate-800">🩺 Quarantine{% if animal.status == 'quarantine' and animal.quarantine_day %}: day {{ animal.quarantine_day }}{% endif %}</a>
               {% if animal.status == 'quarantine' or animal.status == 'monitoring' %}
                 <a href="{{ animal.reef2reef_disease_url }}" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-[11px] font-bold text-rose-300 border border-rose-500/40">🩺 Disease help</a>
               {% endif %}

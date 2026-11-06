@@ -16,6 +16,38 @@ Open **[http://localhost:8000](http://localhost:8000)** in your browser or phone
 
 ---
 
+## 🧰 Tools
+
+Find these under the **Planner** and **Tools** tabs. On a phone, open **System** and scroll the tabs at the top.
+
+- **System Planner**: plan a new system or stocking for an existing tank, check it, then start tracking it.
+- **Fill Timers & RO Calculator**: estimate fill time from your RO specs and get a reminder. Timers can't shut off water.
+- **Phone Alerts & Webhooks**: send events to your phone (via ntfy), Home Assistant or your own devices.
+- **Backups**: save and restore your database and photos. Copy backups off this PC now and then.
+- **Quarantine Tracker**, **Power Cost**, plus a **Timeline** on each animal and a **Time-lapse** on each camera.
+
+The app has no login, so anyone who can reach it can see and change everything, including downloading backups. Keep it on your home network and don't expose port 8000 to the internet.
+
+### Webhook payload
+```json
+{
+  "id": "unique-id-use-this-to-ignore-repeats",
+  "type": "routine.scheduled",
+  "severity": "info",
+  "title": "Feeder: Feed",
+  "message": "Scheduled for 08:00.",
+  "occurred_at": "2026-11-05T14:00:00+00:00",
+  "data": {"routine": "Feeder", "action": "Feed", "scheduled_for": "2026-11-05T08:00:00-06:00"}
+}
+```
+Headers: `X-Nudibranch-Event`, `X-Nudibranch-Delivery`, and `X-Nudibranch-Signature: sha256=...` when a secret is set.
+
+Keep any feeder's own schedule as the main one. If this PC or Docker is off, nothing is sent.
+
+To point a webhook at one device, edit the connection and tick only that routine or reservoir. With no event types ticked, it then receives only events about those targets. Routine events include `routine_id` in `data`, and timer events include `timer_id` and `reservoir_id`.
+
+---
+
 ## 🐠 In-App Creature & Coral Tracking (GUI)
 
 You no longer need to use the Django Admin to manage your tank inhabitants:
@@ -23,7 +55,7 @@ You no longer need to use the Django Admin to manage your tank inhabitants:
 - Click **"Browse Common Species"** to explore the built-in saltwater species catalog.
 - Click **"Add Custom"** to add an unlisted specimen with your own photo and details.
 - Features:
-  - **35+ Built-in Reef Species**: Pre-populated with popular fish, cleanup crew snails/crabs, shrimp, and corals.
+  - **240+ Built-in Reef Species**: Pre-populated with popular fish, cleanup crew, invertebrates, corals, and anemones. Edit the list in `aquarium/species_catalog.csv`.
   - **1-Click Quick Add**: Pick a species and quantity (e.g. `5x` Trochus Snails or `1x` Royal Gramma) to add it immediately with recommended groups, diet notes, and care level.
   - **Form Autofill**: When manually adding or editing, select any common species from the dropdown to automatically prefill scientific names, care level, diet, and group tags.
   - **Photo Upload**: Supports photos taken directly from your phone camera or desktop file picker.
@@ -33,7 +65,7 @@ You no longer need to use the Django Admin to manage your tank inhabitants:
 
 ## 📖 Common Species Catalog
 
-The app includes a searchable, curated library of popular saltwater aquarium inhabitants:
+The app includes a searchable, curated library of popular saltwater aquarium inhabitants. Examples:
 - **🐠 Fish**: Ocellaris & Percula Clowns, Blue-Green Chromis (School), Yellow Tang, Blue Hippo Tang, Royal Gramma, Firefish Goby, Yellow Watchman Goby, Diamond Sand-Sifter, Lawnmower Blenny, Tailspot Blenny, Six-Line Wrasse, Banggai Cardinal, etc.
 - **🐌 Cleanup Crew**: Trochus Snail, Nassarius Snail, Astraea Snail, Cerith Snail, Mexican Turbo, Blue Leg Hermit, Scarlet Reef Hermit, Emerald Crab, Peppermint Shrimp.
 - **🦐 Invertebrates & Shrimp**: Skunk Cleaner Shrimp, Blood Red Fire Shrimp, Tiger Pistol Shrimp, Bubble Tip Anemone (BTA), Tuxedo Urchin.

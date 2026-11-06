@@ -33,7 +33,7 @@
         {{ field }}
       {% else %}
         <div class="space-y-1.5">
-          {% if field.field.widget.input_type == 'checkbox' %}
+          {% if field.field.widget.input_type == 'checkbox' and not field.field.widget.allow_multiple_selected %}
             <label class="flex items-start gap-3 cursor-pointer">
               <span class="mt-0.5">{{ field }}</span>
               <span>

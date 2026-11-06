@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+
+{% block title %}Fill Timers | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  {% include 'aquarium/partials/system_tabs.html' with active='timers' %}
+
+  <div>
+    <h1 class="text-2xl font-black text-white tracking-tight">Fill Timers &amp; RO Calculator</h1>
+    <p class="text-xs text-slate-400 mt-0.5">Work out how long a fill takes, then let the app remind you</p>
+  </div>
+
+  <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+    <strong>A timer only reminds you. It can't turn your water off.</strong> Estimates can be off, so stay nearby or use a float valve or a timed shut-off on anything that could overflow.
+    {% if not worker_online %}<br>The background worker isn't running, so phone alerts won't be sent right now.{% elif not timer_endpoints %}<br><a href="{% url 'integrations' %}" class="underline">Connect your phone</a> to get timer alerts when this page is closed.{% endif %}
+  </div>
+
+  <div id="timer-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for timer in running %}
+    <div class="timer-card bg-slate-900 border border-cyan-500/40 rounded-2xl p-5 space-y-3" data-ends="{{ timer.ends_at|date:'c' }}" data-started="{{ timer.started_at|date:'c' }}" data-name="{{ timer.name }}">
+      <p class="text-sm font-bold text-white">{{ timer.name }}</p>
+      <p class="timer-clock text-4xl font-black text-cyan-400 tabular-nums">--:--</p>
+      <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div class="timer-bar h-full bg-cyan-500" style="width:0%"></div></div>
+      <div class="flex flex-wrap items-center gap-2">
+        <form method="POST" action="{% url 'timer_extend' timer.id %}">{% csrf_token %}<input type="hidden" name="minutes" value="5"><button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">+5 min</button></form>
+        <form method="POST" action="{% url 'timer_cancel' timer.id %}">{% csrf_token %}<button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 border border-rose-500/30 hover:bg-rose-500/10">Stop</button></form>
+        {% if timer.reservoir %}<form method="POST" action="{% url 'refill_reservoir' timer.reservoir.id %}?next={% url 'timers' %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'timers' %}"><button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/10">Mark refilled</button></form>{% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full py-8 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl text-xs text-slate-400">No timers running.</div>
+    {% endfor %}
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <form id="calc" method="POST" action="{% url 'timer_start' %}" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+      {% csrf_token %}
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Start a fill</h2>
+
+      <div>
+        <label for="res-select" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Reservoir</label>
+        <select id="res-select" name="reservoir" class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+          <option value="">None, I'll enter an amount</option>
+          {% for r in reservoirs %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+        </select>
+      </div>
+
+      {% if ro_rows %}
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2">
+          <label for="ro-select" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">RO/DI system</label>
+          <select id="ro-select" class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+            {% for row in ro_rows %}<option value="{{ row.system.id }}">{{ row.system.name }} ({{ row.gph }} gal/h)</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="gallons" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Gallons to make</label>
+          <input id="gallons" type="number" step="0.01" min="0" class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+        </div>
+        <div>
+          <label for="stop-at" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Stop at %</label>
+          <input id="stop-at" type="number" min="1" max="100" value="90" class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+        </div>
+      </div>
+      <div id="calc-result" class="hidden p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-300"></div>
+      {% else %}
+      <p class="text-xs text-slate-400"><a href="{% url 'ro_create' %}" class="text-cyan-400 hover:underline">Add your RO/DI system</a> to work out fill times.</p>
+      {% endif %}
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="minutes" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Minutes</label>
+          <input id="minutes" name="minutes" type="number" step="0.1" min="0.1" max="1440" required class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+        </div>
+        <div>
+          <label for="timer-name" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Name (optional)</label>
+          <input id="timer-name" name="name" maxlength="100" class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+        </div>
+      </div>
+      {% if all_endpoints %}
+      <div>
+        <p class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Send the alert to</p>
+        <div class="flex flex-wrap gap-x-4 gap-y-1">
+          {% for endpoint in all_endpoints %}<label class="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" name="endpoints" value="{{ endpoint.id }}" class="rounded"> {{ endpoint.name }}</label>{% endfor %}
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">None ticked sends it to your usual timer alert connections.</p>
+      </div>
+      {% endif %}
+      <div class="flex flex-wrap gap-2">
+        <button type="button" data-min="5" class="preset px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-semibold text-slate-300">5 min</button>
+        <button type="button" data-min="15" class="preset px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-semibold text-slate-300">15 min</button>
+        <button type="button" data-min="30" class="preset px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-semibold text-slate-300">30 min</button>
+        <button type="button" data-min="60" class="preset px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-semibold text-slate-300">1 hour</button>
+      </div>
+      <button class="w-full px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-bold">Start timer</button>
+    </form>
+
+    <div class="space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Your RO/DI systems</h2>
+          <a href="{% url 'ro_create' %}" class="text-xs font-semibold text-cyan-400 hover:underline">+ Add</a>
+        </div>
+        {% for row in ro_rows %}
+        <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-950/50 border border-slate-800/60">
+          <div>
+            <p class="text-sm font-semibold text-white">{{ row.system.name }}</p>
+            <p class="text-[11px] text-slate-400">{{ row.system.rated_gpd|floatformat }} GPD rated, {% if row.system.measured_gph %}measured {{ row.gph }} gal/h{% else %}about {{ row.gph }} gal/h at {{ row.system.feed_psi|floatformat }} psi and {{ row.system.feed_temp_f|floatformat }}°F{% endif %}</p>
+          </div>
+          <a href="{% url 'ro_edit' row.system.id %}" class="text-xs font-semibold text-slate-400 hover:text-cyan-400">Edit</a>
+        </div>
+        {% empty %}
+        <p class="text-xs text-slate-500">None yet.</p>
+        {% endfor %}
+        <p class="text-[11px] text-slate-500">The estimate scales the rating by your pressure and water temperature. For the best accuracy, time how long your unit takes to fill a known container and enter that as "measured output".</p>
+      </div>
+
+      {% if recent %}
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
+        <h2 class="p-4 text-xs font-bold uppercase tracking-wider text-slate-400">Recent</h2>
+        {% for timer in recent %}
+        <div class="p-3 px-4 flex items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-white">{{ timer.name }}</p>
+            <p class="text-[11px] text-slate-500">{{ timer.get_status_display }} · {{ timer.ends_at|date:"M j, g:i A" }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            {% if timer.status == 'finished' and timer.reservoir %}<form method="POST" action="{% url 'refill_reservoir' timer.reservoir.id %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'timers' %}"><button class="text-xs font-semibold text-emerald-300 hover:underline">Mark refilled</button></form>{% endif %}
+            <form method="POST" action="{% url 'timer_dismiss' timer.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-white">Dismiss</button></form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const reservoirs = {{ reservoirs_json|safe }};
+    const byId = id => document.getElementById(id);
+    const resSelect = byId('res-select'), roSelect = byId('ro-select'), gallons = byId('gallons');
+    const stopAt = byId('stop-at'), minutes = byId('minutes'), result = byId('calc-result');
+    const calcUrl = "{% url 'fill_calc_api' %}";
+
+    async function calculate() {
+      if (!roSelect || !gallons.value) { if (result) result.classList.add('hidden'); return; }
+      const query = new URLSearchParams({ system: roSelect.value, gallons: gallons.value, stop_at: stopAt.value || 100 });
+      const response = await fetch(`${calcUrl}?${query}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      result.textContent = `Make ${data.gallons} gal (${data.liters} L) in about ${data.hours_label} at ${data.gph} gal/h. Waste water: about ${data.waste_gallons} gal.`;
+      result.classList.remove('hidden');
+      minutes.value = data.minutes;
+    }
+
+    if (resSelect && gallons) {
+      resSelect.addEventListener('change', () => {
+        const res = reservoirs.find(r => String(r.id) === resSelect.value);
+        if (res) gallons.value = res.gallons_to_full;
+        calculate();
+      });
+      [gallons, stopAt, roSelect].forEach(el => el && el.addEventListener('input', calculate));
+    }
+
+    document.querySelectorAll('.preset').forEach(btn => btn.addEventListener('click', () => { minutes.value = btn.dataset.min; }));
+
+    // Countdown. It runs from the server's end time, so reloading the page doesn't change it.
+    const cards = [...document.querySelectorAll('.timer-card')];
+    let audio = null;
+    function beep() {
+      try {
+        audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.35, 0.7].forEach(offset => {
+          const osc = audio.createOscillator(), gain = audio.createGain();
+          osc.frequency.value = 880;
+          osc.connect(gain); gain.connect(audio.destination);
+          gain.gain.value = 0.2;
+          osc.start(audio.currentTime + offset);
+          osc.stop(audio.currentTime + offset + 0.2);
+        });
+      } catch (e) { /* sound isn't available */ }
+    }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function tick() {
+      const now = Date.now();
+      cards.forEach(card => {
+        const ends = Date.parse(card.dataset.ends), started = Date.parse(card.dataset.started);
+        const left = Math.max(0, Math.ceil((ends - now) / 1000));
+        const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
+        card.querySelector('.timer-clock').textContent = left ? (h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`) : 'Done!';
+        card.querySelector('.timer-bar').style.width = Math.min(100, (now - started) / (ends - started) * 100) + '%';
+        if (!left && !card.dataset.alerted) {
+          card.dataset.alerted = '1';
+          card.classList.add('animate-pulse');
+          card.querySelector('.timer-clock').classList.replace('text-cyan-400', 'text-amber-400');
+          beep();
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Timer finished', { body: card.dataset.name });
+          }
+        }
+      });
+    }
+    if (cards.length) {
+      tick();
+      setInterval(tick, 1000);
+      if ('Notification' in window && Notification.permission === 'default') {
+        document.addEventListener('click', () => Notification.requestPermission(), { once: true });
+      }
+    }
+  })();
+</script>
+{% endblock %}

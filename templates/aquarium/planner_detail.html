@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ plan.name }} | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <a href="{% url 'planner' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" aria-label="Back">←</a>
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-tight">{{ plan.name }}</h1>
+        <p class="text-xs text-slate-400">{{ plan.get_goal_display }}{% if plan.existing_tank %} · Additions to {{ plan.existing_tank.name }}{% endif %}{% if plan.tracked_tank %} · <a href="{% url 'tank_detail' plan.tracked_tank.id %}" class="text-emerald-400 hover:underline">Tracking as {{ plan.tracked_tank.name }}</a>{% endif %}</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{% url 'plan_edit' plan.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Edit plan</a>
+      {% if a.untracked_count or not plan.tracked_tank %}
+      <a href="{% url 'plan_track' plan.id %}" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-bold text-xs rounded-xl">{% if plan.existing_tank or plan.tracked_tank %}Add to tracking{% else %}Start tracking this system{% endif %}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Water</span>
+      <p class="text-2xl font-black text-white">{{ a.system_gallons }} <span class="text-sm text-slate-400">gal</span></p>
+      <p class="text-[11px] text-slate-500">{{ a.display_gallons }} gal display</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Budget</span>
+      <p class="text-2xl font-black {% if a.over_budget %}text-rose-400{% else %}text-white{% endif %}">{{ a.currency }}{{ a.total_cost|floatformat:2 }}</p>
+      <p class="text-[11px] text-slate-500">{% if a.budget is not None %}of {{ a.currency }}{{ a.budget|floatformat:2 }}{% else %}No budget set{% endif %}</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Running cost</span>
+      <p class="text-2xl font-black text-amber-400">{{ a.currency }}{{ a.cost_month_power|floatformat:2 }}</p>
+      <p class="text-[11px] text-slate-500">Power per month, about {{ a.kwh_day }} kWh/day</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Fish load</span>
+      <p class="text-2xl font-black text-white">{% if a.bioload is not None %}{{ a.bioload }}{% else %}-{% endif %} <span class="text-sm text-slate-400">in/gal</span></p>
+      <p class="text-[11px] text-slate-500">Adult size. Rough limit 0.25</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+      <!-- Livestock -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Livestock</h2>
+        {% for item in a.livestock %}
+        <div class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/60">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-white">{% if item.species %}{{ item.species.icon }} {% endif %}{{ item.quantity }}x {{ item.name }}{% if item.tracked %} <span class="text-[10px] font-bold text-emerald-400">Tracking</span>{% endif %}</p>
+            {% if item.species %}<p class="text-[11px] text-slate-500">{{ item.species.care_level }}{% if item.species.min_tank_gallons %} · {{ item.species.min_tank_gallons }}+ gal{% endif %}{% if item.species.temperament %} · {{ item.species.get_temperament_display }}{% endif %} · Reef safe: {{ item.species.reef_safe }}</p>{% endif %}
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            {% if item.unit_cost %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
+            {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Remove</button></form>{% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-xs text-slate-500">Nothing planned yet.</p>
+        {% endfor %}
+        <form method="POST" action="{% url 'plan_add_livestock' plan.id %}" class="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end pt-2 border-t border-slate-800">
+          {% csrf_token %}
+          <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Species</label>{{ livestock_form.species }}</div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ livestock_form.quantity }}</div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ livestock_form.unit_cost }}</div>
+          <button class="col-span-2 sm:col-span-4 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-cyan-400">Add livestock</button>
+        </form>
+      </div>
+
+      <!-- Equipment -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Equipment</h2>
+        {% for item in a.gear %}
+        <div class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/60">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-white">{{ item.quantity }}x {{ item.name }}{% if item.tracked %} <span class="text-[10px] font-bold text-emerald-400">Tracking</span>{% endif %}</p>
+            <p class="text-[11px] text-slate-500">{{ item.get_category_display }}{% if item.wattage %} · {{ item.wattage }} W{% endif %}{% if item.max_flow_gph %} · {{ item.max_flow_gph }} gph{% endif %}</p>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            {% if item.unit_cost %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
+            {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Remove</button></form>{% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-xs text-slate-500">Nothing planned yet.</p>
+        {% endfor %}
+        <form method="POST" action="{% url 'plan_add_equipment' plan.id %}" class="grid grid-cols-2 sm:grid-cols-3 gap-2 items-end pt-2 border-t border-slate-800">
+          {% csrf_token %}
+          <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Name</label>{{ equipment_form.name }}</div>
+          <div class="col-span-2 sm:col-span-1"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Type</label>{{ equipment_form.category }}</div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ equipment_form.quantity }}</div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Watts each</label>{{ equipment_form.wattage }}</div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Flow each (gph)</label>{{ equipment_form.max_flow_gph }}</div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ equipment_form.unit_cost }}</div>
+          <button class="col-span-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-cyan-400">Add equipment</button>
+        </form>
+      </div>
+      {% if plan.notes %}<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5"><h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Notes</h2><p class="text-sm text-slate-300 whitespace-pre-line">{{ plan.notes }}</p></div>{% endif %}
+    </div>
+
+    <!-- Checks -->
+    <div class="space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Stocking checks</h2>
+        {% for w in a.warnings %}
+        <div class="p-3 rounded-xl border {% if w.level == 'danger' %}bg-rose-500/10 border-rose-500/30{% elif w.level == 'warning' %}bg-amber-500/10 border-amber-500/30{% else %}bg-slate-950/50 border-slate-800{% endif %}">
+          <p class="text-xs font-bold {% if w.level == 'danger' %}text-rose-300{% elif w.level == 'warning' %}text-amber-300{% else %}text-slate-300{% endif %}">{{ w.title }}</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">{{ w.detail }}</p>
+        </div>
+        {% empty %}
+        <p class="text-xs text-emerald-400">No stocking issues found.</p>
+        {% endfor %}
+        <p class="text-[11px] text-slate-500">Rules of thumb to prompt a closer look. Individual animals vary, so check with experienced keepers too.</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">System checks</h2>
+        <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Return turnover</span><span class="font-semibold {% if a.flow.return_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.flow.return_turnover %}{{ a.flow.return_turnover }}x/hr{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.flow.return_range.0|floatformat:0 }}-{{ a.flow.return_range.1|floatformat:0 }})</span></span></div>
+        <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Circulation</span><span class="font-semibold {% if a.flow.circulation_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.flow.circulation_turnover %}{{ a.flow.circulation_turnover }}x/hr{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.flow.circulation_range.0|floatformat:0 }}-{{ a.flow.circulation_range.1|floatformat:0 }})</span></span></div>
+        <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Heating</span><span class="font-semibold {% if a.heater_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.heater_per_gal %}{{ a.heater_per_gal }} W/gal{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.heater_range.0|floatformat:0 }}-{{ a.heater_range.1|floatformat:0 }})</span></span></div>
+        {% if a.missing %}
+        <div class="pt-2 border-t border-slate-800">
+          <p class="text-xs font-bold text-amber-300">Still to add</p>
+          <ul class="mt-1 text-xs text-slate-400 list-disc pl-4 space-y-0.5">{% for label in a.missing %}<li>{{ label }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+        <p class="text-[11px] text-slate-500">Return pumps are assumed to lose 25% of their rated flow to head height.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

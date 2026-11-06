@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Power Cost | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  {% include 'aquarium/partials/system_tabs.html' with active='power' %}
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Power Cost</h1>
+      <p class="text-xs text-slate-400 mt-0.5">An estimate from rated wattage, at {{ summary.currency }}{{ summary.rate|floatformat:3 }} per kWh</p>
+    </div>
+    <a href="{% url 'app_settings' %}?next={% url 'power' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs text-center">Change electricity price</a>
+  </div>
+
+  {% if tanks|length > 1 %}
+  <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+    <a href="{% url 'power' %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">All tanks</a>
+    {% for t in tanks %}<a href="{% url 'power' %}?tank={{ t.id }}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_tank.id == t.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">{{ t.name }}</a>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Per day</span><p class="text-2xl font-black text-white">{{ summary.kwh_day }} <span class="text-sm text-slate-400">kWh</span></p></div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Cost per day</span><p class="text-2xl font-black text-white">{{ summary.currency }}{{ summary.cost_day|floatformat:2 }}</p></div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Cost per month</span><p class="text-2xl font-black text-amber-400">{{ summary.currency }}{{ summary.cost_month|floatformat:2 }}</p></div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Cost per year</span><p class="text-2xl font-black text-white">{{ summary.currency }}{{ summary.cost_year|floatformat:2 }}</p></div>
+  </div>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-[10px] uppercase text-slate-500 border-b border-slate-800">
+        <th class="p-3">Equipment</th><th class="p-3 text-right">Watts</th><th class="p-3 text-right">Setting</th><th class="p-3 text-right">Hours/day</th><th class="p-3 text-right">kWh/day</th><th class="p-3 text-right">Per month</th>
+      </tr></thead>
+      <tbody>
+        {% for row in summary.rows %}
+        <tr class="border-b border-slate-800/60">
+          <td class="p-3"><a href="{% url 'equipment_edit' row.equipment.id %}?next={% url 'power' %}" class="font-semibold text-white hover:text-cyan-400">{{ row.equipment.name }}</a>{% if row.equipment.status == 'offline' %}<span class="ml-1 text-[10px] text-slate-500">offline</span>{% endif %}</td>
+          <td class="p-3 text-right text-slate-300">{{ row.equipment.wattage }}</td>
+          <td class="p-3 text-right text-slate-300">{{ row.setting }}%</td>
+          <td class="p-3 text-right text-slate-300">{{ row.hours|floatformat }}{% if row.is_typical %}<span class="text-slate-500" title="Typical for this category. Edit the equipment to set your own."> *</span>{% endif %}</td>
+          <td class="p-3 text-right text-slate-300">{{ row.kwh_day }}</td>
+          <td class="p-3 text-right font-semibold text-amber-400">{{ summary.currency }}{{ row.cost_month|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="p-8 text-center text-xs text-slate-400">No equipment has a wattage yet. Add wattage on the <a href="{% url 'equipment' %}" class="text-cyan-400 hover:underline">Equipment</a> page.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-[11px] text-slate-500">* Typical hours for that kind of equipment, such as about 6 hours a day for a heater. Real use depends on your room temperature and schedules. Add "hours per day" to an item for a closer figure.</p>
+</div>
+{% endblock %}

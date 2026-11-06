@@ -546,13 +546,18 @@ class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
 class WebcamFeedForm(forms.ModelForm):
     class Meta:
         model = WebcamFeed
-        fields = ['name', 'feed_url', 'feed_type', 'is_active', 'order']
+        fields = ['name', 'feed_url', 'feed_type', 'is_active', 'order', 'timelapse_enabled', 'snapshot_url',
+                  'timelapse_interval_minutes', 'timelapse_keep_days']
         widgets = {
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Front view'}),
             'feed_url': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'http://192.168.1.50:1984/api/stream.mjpeg?src=tank'}),
             'feed_type': forms.Select(attrs={'class': INPUT}),
             'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX}),
             'order': forms.NumberInput(attrs={'class': INPUT, 'min': '0'}),
+            'timelapse_enabled': forms.CheckboxInput(attrs={'class': CHECKBOX}),
+            'snapshot_url': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'http://192.168.1.50:1984/api/frame.jpeg?src=tank'}),
+            'timelapse_interval_minutes': forms.NumberInput(attrs={'class': INPUT, 'min': '1'}),
+            'timelapse_keep_days': forms.NumberInput(attrs={'class': INPUT, 'min': '1'}),
         }
 
 
