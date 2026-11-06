@@ -1,8 +1,17 @@
 # Nudibranch: change summary
 
+## Round 7 (2026-11-06)
+
+Security update. Copy `.env.example` to `.env` and fill it in before running `docker compose up -d --build`.
+
+- **Sign-in required**: every page, photo and backup now needs an account, and the first visit creates one if none exist.
+  Devices logging readings use `API_SECRET_KEY` instead. Reset a password with `docker compose exec web python manage.py changepassword NAME`.
+- **Secrets moved to `.env`**, which Git and Docker image builds ignore. The app refuses to start in production without `DJANGO_SECRET_KEY`.
+- **Port 8000 only listens on this computer by default**, for use with Tailscale Serve. Set `BIND_ADDRESS=0.0.0.0` in `.env` to allow your local network.
+
 ## Round 6 (2026-11-05)
 
-Apply with `docker compose up -d --build`; migrations 0012 to 0019 run on start and assign your existing water tests to your primary tank.
+Apply with `docker compose up -d --build`; migrations 0012 to 0021 run on start and assign your existing water tests to your primary tank.
 
 - **One selected system**: a selector at the top of every page picks the system, remembered per browser. The dashboard, parameters,
   charts, livestock, equipment, dosing, routines, webcams, alerts, power and calculators then show just that system.
@@ -21,11 +30,11 @@ Apply with `docker compose up -d --build`; migrations 0012 to 0019 run on start 
   pairs in `static/icons/nudibranch`, and small copies are made at startup. The "Match my icon" scheme builds its colours from the icon. Settings has "Disable icon aging" and "Enable old version icons".
 - **The Damage**: there's a hidden, fire-themed spending ledger. It's off until you "light the match" inside it, which turns on "what you
   paid" on livestock and equipment. Those land in the ledger and stay in sync with it. Planner and Wishlist prices are always visible, and
-  only reach the ledger when an item moves into an active tank. Putting the fire out hides spending but erases nothing, and the page says so. The ledger can be filtered by system and dates, and has a spending chart.
+  only reach the ledger when an item moves into an active tank. Putting the fire out hides spending but erases nothing, and the page says so. The ledger can be filtered by system and dates.
 - **Fixed**: restarting the app recreated "Main Display Tank" and its sample gear if they'd been renamed or deleted. Sample data is
   now only added to a brand new install.
 - **Fixed**: the top navigation overlapped the logo on narrower screens. It now scrolls instead.
-- **Docs**: rewrote the README to cover all current features, webhooks and development.
+- **Docs**: rewrote the README to cover all current features, webhooks and development, with screenshots in `docs/screenshots`.
 
 ## Round 5 (2026-11-05)
 

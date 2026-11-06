@@ -11,7 +11,10 @@
       <h1 class="text-2xl font-black text-white tracking-tight">Tools</h1>
       <p class="text-xs text-slate-400 mt-0.5">Planning, timers, alerts, and keeping your data safe</p>
     </div>
-    <a href="{% url 'app_settings' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⚙️ Settings</a>
+    <div class="flex items-center gap-2">
+      <a href="{% url 'app_settings' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⚙️ Settings</a>
+      <form method="POST" action="{% url 'logout' %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">Sign out</button></form>
+    </div>
   </div>
 
   {% if not settings_obj.worker_online %}

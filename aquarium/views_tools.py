@@ -8,6 +8,8 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model, login
+from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Count
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -38,6 +40,30 @@ MAX_TIMER_SECONDS = 24 * 60 * 60
 def _form_page(request, form, title, back_url, subtitle='', multipart=False):
     return render(request, 'aquarium/generic_form.html', {
         'form': form, 'title': title, 'subtitle': subtitle, 'back_url': back_url, 'multipart': multipart,
+    })
+
+
+# ==========================================
+# First-run account
+# ==========================================
+
+def setup_view(request):
+    """Creates the first account. Once any account exists, this page is closed for good."""
+    User = get_user_model()
+    if User.objects.exists():
+        return redirect('login')
+    form = UserCreationForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        user = form.save(commit=False)
+        user.is_staff = True
+        user.is_superuser = True
+        user.save()
+        login(request, user)
+        messages.success(request, f"Welcome, {user.username}. You're signed in.")
+        return redirect('dashboard')
+    return render(request, 'aquarium/auth_page.html', {
+        'form': form, 'heading': 'Create your account', 'button': 'Create account', 'show_help': True,
+        'intro': 'Nudibranch needs one account to protect your data. Only you will use it.',
     })
 
 

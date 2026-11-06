@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>{{ heading }} | Nudibranch</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem;
+           background: #020617; color: #e2e8f0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { width: 100%; max-width: 24rem; padding: 2rem; background: #0f172a; border: 1px solid #1e293b; border-radius: 1.5rem; }
+    h1 { margin: 0 0 .25rem; font-size: 1.5rem; color: #fff; }
+    p { margin: 0 0 1.25rem; font-size: .85rem; color: #94a3b8; line-height: 1.4; }
+    label { display: block; margin: 1rem 0 .35rem; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
+    input:not([type=hidden]) { width: 100%; padding: .7rem .9rem; font-size: 1rem; color: #fff; background: #1e293b; border: 1px solid #334155; border-radius: .75rem; }
+    input:focus { outline: 2px solid #06b6d4; }
+    button { width: 100%; margin-top: 1.5rem; padding: .8rem; font-size: .95rem; font-weight: 700; color: #fff; cursor: pointer;
+             background: linear-gradient(to right, #06b6d4, #2563eb); border: 0; border-radius: .75rem; }
+    .help { margin: .35rem 0 0; font-size: .7rem; color: #64748b; }
+    .help ul { margin: 0; padding-left: 1rem; }
+    .error { margin: .4rem 0 0; font-size: .8rem; color: #fda4af; }
+    .error ul { margin: 0; padding: 0; list-style: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🪸 {{ heading }}</h1>
+    <p>{{ intro }}</p>
+    <form method="POST">
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      {% if form.non_field_errors %}<div class="error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form %}
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if show_help and field.help_text %}<div class="help">{{ field.help_text|safe }}</div>{% endif %}
+        {% if field.errors %}<div class="error" role="alert">{{ field.errors }}</div>{% endif %}
+      {% endfor %}
+      <button>{{ button }}</button>
+    </form>
+  </main>
+</body>
+</html>

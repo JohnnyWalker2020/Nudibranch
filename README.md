@@ -4,32 +4,72 @@ A self-hosted, mobile-friendly app for saltwater aquarium keepers. Track water c
 
 Built with **Python**, **Django 5**, **SQLite**, **Tailwind CSS**, **HTMX** and **Chart.js**, and installable on your phone as a **Progressive Web App**.
 
-> **Keep it on your home network.** The app has no login, so anyone who can reach it can see and change everything, including downloading backups. Don't expose port 8000 to the internet.
+> **Keep it private.** Everything requires a sign-in, but this app isn't hardened for the public internet. Don't forward port 8000 on your router or use Tailscale Funnel. Use [Tailscale](#-reaching-it-from-your-phone) to reach it from elsewhere.
+
+![The dashboard](docs/screenshots/dashboard.png)
+
+---
+
+## 📸 Screenshots
+
+| Water chemistry | Compare planned systems |
+|---|---|
+| ![Parameter chart with target ranges](docs/screenshots/parameters.png) | ![A project comparing three planned systems side by side](docs/screenshots/planner-project.png) |
+
+| Species catalog | Wishlist |
+|---|---|
+| ![Species catalog with care details](docs/screenshots/species-catalog.png) | ![Wishlist with tank fit checks](docs/screenshots/wishlist.png) |
+
+| Colours and characters | Fill timers | On your phone |
+|---|---|---|
+| ![Colour schemes and character icons](docs/screenshots/system-look.png) | ![Fill timer and RO calculator](docs/screenshots/fill-timers.png) | ![Dashboard on a phone, using Match my icon](docs/screenshots/mobile-dashboard.png) |
+
+*Screenshots use sample data.*
 
 ---
 
 ## 🚀 Getting started
 
-You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose. From the project folder, run:
+You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose.
 
-```bash
-docker compose up -d --build
-```
+1. Copy `.env.example` to `.env`, then fill in `DJANGO_SECRET_KEY` and `API_SECRET_KEY` with long random values. The file explains how. Git ignores `.env`, so it stays private.
+2. From the project folder, run:
 
-Then open **[http://localhost:8000](http://localhost:8000)**, or `http://YOUR-PC-IP:8000` from your phone.
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Open **[http://localhost:8000](http://localhost:8000)** on the same computer. If there are no accounts yet, you'll be asked to create one.
 
 Run the same command to apply updates. Database changes are applied on startup, and your data stays in the `data` folder.
 
+Forgot your password? Reset it from the project folder, replacing `YOUR-USERNAME`:
+
+```bash
+docker compose exec web python manage.py changepassword YOUR-USERNAME
+```
+
 ### Settings
 
-Set these in `docker-compose.yml`, or put `API_SECRET_KEY` in a `.env` file beside it.
+Set these in your `.env` file. `TIME_ZONE` is in `docker-compose.yml`.
 
 | Setting | What it does |
 |---|---|
+| `DJANGO_SECRET_KEY` | Required. The app won't start without it. |
+| `API_SECRET_KEY` | The key devices must send to log readings. |
+| `CSRF_TRUSTED_ORIGINS` | The addresses you open the app from. Without yours, forms are rejected. |
+| `BIND_ADDRESS` | `127.0.0.1` allows only this computer, which is the default. `0.0.0.0` allows your whole local network. |
 | `TIME_ZONE` | Your time zone, used for schedules and log times. This repo's default is `America/Regina`, so change it to yours. |
-| `DJANGO_SECRET_KEY` | Change this to your own long random value. |
-| `CSRF_TRUSTED_ORIGINS` | Add the address you use from other devices, such as `http://192.168.1.50:8000`. Otherwise forms will be rejected from those devices. |
-| `API_SECRET_KEY` | Optional key required by the parameter logging API. Without it, anyone on your network can post readings. |
+
+### 📱 Reaching it from your phone
+
+The safest setup is [Tailscale](https://tailscale.com) with its Serve feature, which gives you a private HTTPS address that only your own devices can reach. Install Tailscale on both devices, then on the computer running Nudibranch:
+
+```bash
+tailscale serve --bg 8000
+```
+
+Add the `https://` address it shows to `CSRF_TRUSTED_ORIGINS` in `.env`, then run `docker compose up -d` again. Webcams with local network addresses won't load away from home unless they're also reachable through Tailscale.
 
 ---
 
@@ -42,6 +82,7 @@ Pick a system from the **System** menu at the top of any page. The dashboard, pa
 - **All systems views:** Equipment and Power can show every system at once.
 - **System look:** tap 🎨 to give each system its own colour scheme and icon, from 26 nudibranch characters or your own image. **Match my icon** builds the colour scheme from the icon itself.
 - **Retiring a system:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and its character ages into the old version. You can bring it back at any time. Your own uploaded icon never changes.
+- **Icon settings:** under **Tools > Settings**, **Disable icon aging** keeps retired systems young, and **Enable old version icons** lets any system use an old version.
 
 ### Water parameters
 - Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges.
@@ -96,7 +137,7 @@ Touch the nudibranch (the app icon) three times quickly, and it stings you with 
 
 - Livestock and equipment get a "what you paid" field, which lands in the ledger automatically and stays in sync with it.
 - Planner and Wishlist prices are always visible, and only reach the ledger when an item moves into an active tank.
-- Filter by system and dates, and watch a chart of your running total, with money under a line of flames.
+- Filter by system and dates.
 - **Put out the fire** to hide your spending again. Your $ values aren't erased.
 
 </details>
@@ -288,18 +329,14 @@ print(response.status_code, response.json())
 
 ---
 
-### Optional API Security Key
-To protect the API from unauthorized callers, create a `.env` file beside `docker-compose.yml`, then restart the app:
-```bash
-API_SECRET_KEY=my-super-secret-reef-token
-```
-Then pass the key in your requests:
+### API Key
+Devices log readings with the `API_SECRET_KEY` from your `.env` file. Pass it in your requests:
 ```bash
 curl -H "X-API-Key: my-super-secret-reef-token" ...
 # or
 curl -H "Authorization: Bearer my-super-secret-reef-token" ...
 ```
-*(Without `API_SECRET_KEY`, the API accepts readings from anyone who can reach it).*
+*(If `API_SECRET_KEY` is empty, the logging endpoint accepts readings from anyone who can reach it, so keep it set).*
 
 ---
 

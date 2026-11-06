@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest import mock
 
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import Client, TestCase, TransactionTestCase, override_settings
@@ -1344,6 +1345,12 @@ class CharacterIconTests(TestCase):
         self.assertEqual(len(labels), len(set(labels)))
         self.assertIn('Dragon Mage', labels)
 
+    def test_names_are_plain_descriptions(self):
+        franchise_words = ('jedi', '-borg', 'ghibli', 'ironman', 'joker', 'kpop', 'dune', 'federation', 'straw-hat', 'turtle')
+        for character in character_icons():
+            for word in franchise_words:
+                self.assertNotIn(word, character['key'])
+
     def test_picker_only_offers_young_by_default(self):
         page = self.client.get(reverse('system_theme'))
         self.assertContains(page, 'value="01-dragon-mage-young"')
@@ -1519,6 +1526,97 @@ class MatchMyIconTests(TestCase):
         self.tank.refresh_from_db()
         self.assertIsNone(self.tank.icon_palette())
         self.assertEqual(self.client.get('/').status_code, 200)
+
+
+@override_settings(LOGIN_REQUIRED=True)
+class SignInTests(TestCase):
+    PASSWORD = 'correct-horse-battery-staple-42'
+
+    def make_user(self):
+        return get_user_model().objects.create_superuser('reefer', password=self.PASSWORD)
+
+    def test_every_kind_of_page_needs_sign_in(self):
+        self.make_user()
+        tank = Tank.objects.create(name='T', capacity_is_manual=True)
+        for url in ('/', '/parameters/', '/livestock/', '/backups/', '/integrations/', '/the-damage/', '/planner/',
+                    f'/tanks/{tank.pk}/', '/media/livestock/x.jpg', '/backups/nudibranch-manual-20260101-000000.zip/download/'):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 302, url)
+            self.assertTrue(response.url.startswith('/login/'), url)
+        self.assertEqual(self.client.post(reverse('backup_create')).status_code, 302)
+        self.assertEqual(self.client.post(reverse('tank_archive', args=[tank.pk])).status_code, 302)
+        tank.refresh_from_db()
+        self.assertFalse(tank.is_archived)
+
+    def test_sign_in_returns_to_the_page_and_sign_out_ends_it(self):
+        self.make_user()
+        response = self.client.post('/login/', {'username': 'reefer', 'password': self.PASSWORD, 'next': '/livestock/'})
+        self.assertRedirects(response, '/livestock/')
+        self.assertEqual(self.client.get('/').status_code, 200)
+        self.assertContains(self.client.get(reverse('tools')), 'Sign out')
+        self.client.post(reverse('logout'))
+        self.assertEqual(self.client.get('/').status_code, 302)
+
+    def test_wrong_password_and_offsite_redirect(self):
+        self.make_user()
+        response = self.client.post('/login/', {'username': 'reefer', 'password': 'nope'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get('/').status_code, 302)
+        response = self.client.post('/login/', {'username': 'reefer', 'password': self.PASSWORD, 'next': 'https://evil.example/'})
+        self.assertEqual(response.url, '/')
+
+    def test_page_does_not_leak_data_before_sign_in(self):
+        self.make_user()
+        Tank.objects.create(name='Secret Tank', capacity_is_manual=True)
+        page = self.client.get('/login/')
+        self.assertNotContains(page, 'Secret Tank')
+        self.assertNotContains(page, 'system-select')
+
+    def test_first_visit_creates_the_account_then_setup_closes(self):
+        self.assertRedirects(self.client.get('/'), '/setup/')
+        self.assertContains(self.client.get('/setup/'), 'Create your account')
+        self.client.post('/setup/', {'username': 'first', 'password1': 'x', 'password2': 'x'})
+        self.assertEqual(get_user_model().objects.count(), 0)  # a weak password is refused
+        response = self.client.post('/setup/', {'username': 'first', 'password1': self.PASSWORD, 'password2': self.PASSWORD})
+        self.assertRedirects(response, '/')
+        user = get_user_model().objects.get()
+        self.assertTrue(user.is_superuser and user.check_password(self.PASSWORD))
+        other = Client()
+        self.assertRedirects(other.get('/setup/'), '/login/')
+        other.post('/setup/', {'username': 'intruder', 'password1': self.PASSWORD, 'password2': self.PASSWORD})
+        self.assertEqual(get_user_model().objects.count(), 1)
+
+    def test_public_paths(self):
+        self.make_user()
+        self.assertEqual(self.client.get('/sw.js').status_code, 200)
+        self.assertEqual(self.client.get('/login/').status_code, 200)
+        self.assertIn(self.client.get('/admin/').status_code, (200, 302))
+
+    @override_settings(API_SECRET_KEY='device-key')
+    def test_devices_use_the_api_key(self):
+        self.make_user()
+        ParameterType.objects.create(name='Alk', code='alk', unit='dKH', min_ideal=8, max_ideal=9)
+        Tank.objects.create(name='T', capacity_is_manual=True)
+        body = json.dumps({'parameter': 'alk', 'value': 8})
+        log = reverse('api_parameter_log')
+        self.assertEqual(self.client.post(log, body, content_type='application/json').status_code, 401)
+        self.assertEqual(self.client.post(log, body, content_type='application/json', headers={'X-API-Key': 'wrong'}).status_code, 401)
+        self.assertEqual(self.client.post(log, body, content_type='application/json', headers={'X-API-Key': 'device-key'}).status_code, 201)
+        self.assertEqual(self.client.post(log, body, content_type='application/json', headers={'Authorization': 'Bearer device-key'}).status_code, 201)
+        types = reverse('api_parameter_types')
+        self.assertEqual(self.client.get(types).status_code, 401)
+        self.assertEqual(self.client.get(types, headers={'X-API-Key': 'wrong'}).status_code, 401)
+        self.assertEqual(self.client.get(types, headers={'X-API-Key': 'device-key'}).status_code, 200)
+        # The key opens only those two endpoints.
+        self.assertEqual(self.client.get(reverse('api_chart_data'), headers={'X-API-Key': 'device-key'}).status_code, 401)
+        self.assertEqual(self.client.get(reverse('api_species_catalog'), headers={'X-API-Key': 'device-key'}).status_code, 401)
+        self.assertEqual(self.client.get('/backups/', headers={'X-API-Key': 'device-key'}).status_code, 302)
+
+    def test_background_form_requests_are_told_to_sign_in(self):
+        self.make_user()
+        response = self.client.post(reverse('quick_log_create'), {}, headers={'HX-Request': 'true'})
+        self.assertEqual(response.status_code, 401)
+        self.assertTrue(response['HX-Redirect'].startswith('/login/'))
 
 
 class SystemLookTests(TestCase):

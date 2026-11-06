@@ -7,6 +7,9 @@ env/
 venv/
 .venv/
 data/
+.env
+*.env
+docs/
 *.sqlite3*
 media/
 .git

@@ -1,5 +1,8 @@
 import os
+import sys
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.signals import connection_created
 from django.dispatch import receiver
 
@@ -10,11 +13,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv('DATA_DIR', BASE_DIR / 'data'))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'nudibranch-dev-secret-key-saltwater-aquarium-tracker')
+TESTING = 'test' in sys.argv
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', '1') == '1'
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured('Set DJANGO_SECRET_KEY in your .env file. See .env.example.')
+    SECRET_KEY = 'nudibranch-dev-secret-key-saltwater-aquarium-tracker'
 
 ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
@@ -26,7 +35,15 @@ else:
     CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
 
 # Optional API Secret Key for automated external callers (ESP32, Raspberry Pi, Home Assistant)
-API_SECRET_KEY = os.getenv('API_SECRET_KEY', '')
+API_SECRET_KEY = '' if TESTING else os.getenv('API_SECRET_KEY', '')
+
+# Every page needs a signed-in user. Tests that cover this turn it back on themselves.
+LOGIN_REQUIRED = not TESTING
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = 'login'
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # stay signed in on your own devices for 30 days
+SESSION_SAVE_EVERY_REQUEST = True       # ...counted from the last visit
 
 # Application definition
 INSTALLED_APPS = [
@@ -49,6 +66,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'aquarium.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
