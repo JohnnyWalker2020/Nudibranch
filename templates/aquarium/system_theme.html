@@ -24,42 +24,59 @@
           </span>
         </label>
         {% endfor %}
+        <label class="cursor-pointer">
+          <input type="radio" name="theme" value="icon" class="peer sr-only" {% if active_tank.theme == 'icon' %}checked{% endif %}>
+          <span class="block p-3 rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400 transition-colors">
+            <span class="flex gap-1.5 mb-2">
+              {% if icon_palette %}
+              <span class="w-7 h-7 rounded-lg border border-white/10" style="background:{{ icon_palette.cyan.500 }}"></span>
+              <span class="w-7 h-7 rounded-lg border border-white/10" style="background:{{ icon_palette.blue.600 }}"></span>
+              <span class="w-7 h-7 rounded-lg border border-white/10" style="background:{{ icon_palette.slate.900 }}"></span>
+              {% else %}
+              <span class="w-7 h-7 flex items-center justify-center text-lg">🎲</span>
+              {% endif %}
+            </span>
+            <span class="text-xs font-semibold text-white">Match my icon</span>
+          </span>
+        </label>
       </div>
+      <p class="text-[11px] text-slate-500">Match my icon uses the colours of the icon you've saved, and follows it if the icon changes. With "Surprise me", the icon keeps changing, so it uses Deep Ocean.</p>
     </section>
 
     <section class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3">
       <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">App icon</h2>
-      <div class="grid grid-cols-3 sm:grid-cols-5 gap-3">
+      {% if aging_shown %}<p class="text-xs text-amber-300">🧓 This system is retired, so it shows the old version of whichever character you pick.</p>{% endif %}
+      <div class="grid grid-cols-3 sm:grid-cols-5 gap-3 max-h-96 overflow-y-auto pr-1">
         <label class="cursor-pointer">
-          <input type="radio" name="icon_choice" value="" class="peer sr-only" {% if not active_tank.icon_choice %}checked{% endif %}>
+          <input type="radio" name="icon_choice" value="" class="peer sr-only" {% if not selected_icon %}checked{% endif %}>
           <span class="flex flex-col items-center gap-1.5 p-2 h-full rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400">
             <span class="w-12 h-12 flex items-center justify-center text-2xl">🎲</span>
             <span class="text-[10px] font-semibold text-slate-300 text-center">Surprise me</span>
           </span>
         </label>
-        {% for key, label in stock_icons %}
+        {% for c in characters %}
         <label class="cursor-pointer">
-          <input type="radio" name="icon_choice" value="{{ key }}" class="peer sr-only" {% if active_tank.icon_choice == key %}checked{% endif %}>
+          <input type="radio" name="icon_choice" value="{{ c.young }}" class="peer sr-only" {% if selected_icon ==  c.young  %}checked{% endif %}>
           <span class="flex flex-col items-center gap-1.5 p-2 h-full rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400">
-            <img src="/static/icons/nudibranch/{{ key }}.svg" alt="" class="w-12 h-12 rounded-xl">
-            <span class="text-[10px] font-semibold text-slate-300 text-center">{{ label }}</span>
+            <img src="{{ c.young_url }}" alt="" loading="lazy" width="48" height="48" class="w-12 h-12 rounded-xl object-cover">
+            <span class="text-[10px] font-semibold text-slate-300 text-center">{{ c.label }}</span>
           </span>
         </label>
         {% endfor %}
-        {% if active_tank.is_archived %}
-        {% for key, label in retired_icons %}
+        {% if old_icons_enabled %}
+        {% for c in characters %}
         <label class="cursor-pointer">
-          <input type="radio" name="icon_choice" value="{{ key }}" class="peer sr-only" {% if active_tank.icon_choice == key %}checked{% endif %}>
+          <input type="radio" name="icon_choice" value="{{ c.old }}" class="peer sr-only" {% if selected_icon ==  c.old  %}checked{% endif %}>
           <span class="flex flex-col items-center gap-1.5 p-2 h-full rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400">
-            <img src="/static/icons/nudibranch/{{ key }}.svg" alt="" class="w-12 h-12 rounded-xl">
-            <span class="text-[10px] font-semibold text-slate-300 text-center">{{ label }}</span>
+            <img src="{{ c.old_url }}" alt="" loading="lazy" width="48" height="48" class="w-12 h-12 rounded-xl object-cover">
+            <span class="text-[10px] font-semibold text-slate-300 text-center">{{ c.label }} (old)</span>
           </span>
         </label>
         {% endfor %}
         {% endif %}
         {% if active_tank.custom_icon %}
         <label class="cursor-pointer">
-          <input type="radio" name="icon_choice" value="custom" class="peer sr-only" {% if active_tank.icon_choice == 'custom' %}checked{% endif %}>
+          <input type="radio" name="icon_choice" value="custom" class="peer sr-only" {% if selected_icon == 'custom' %}checked{% endif %}>
           <span class="flex flex-col items-center gap-1.5 p-2 h-full rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400">
             <img src="{{ active_tank.custom_icon.url }}" alt="" class="w-12 h-12 rounded-xl object-cover">
             <span class="text-[10px] font-semibold text-slate-300 text-center">Your icon</span>
@@ -70,7 +87,7 @@
       <div class="pt-3 border-t border-slate-800">
         <label for="id_custom_icon" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">{% if active_tank.custom_icon %}Replace your icon{% else %}Or add your own{% endif %}</label>
         <input id="id_custom_icon" type="file" name="custom_icon" accept="image/png,image/jpeg,image/webp,image/gif" class="w-full text-xs text-slate-300">
-        <p class="text-[11px] text-slate-500 mt-1">PNG, JPG, WebP or GIF, up to 5 MB. Square images look best.</p>
+        <p class="text-[11px] text-slate-500 mt-1">PNG, JPG, WebP or GIF, up to 5 MB. Square images look best. Your own icon never changes, even if the system retires.</p>
         {% for err in form.custom_icon.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
       </div>
     </section>

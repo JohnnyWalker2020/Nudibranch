@@ -4,10 +4,10 @@ from urllib.parse import urlsplit
 from django import forms
 
 from .events import EVENT_TYPES
-from .themes import RETIRED_ICONS, STOCK_ICONS
-from .forms import CHECKBOX, CostGatedMixin, INPUT, TEXTAREA
+from .icons import character_icons
+from .forms import CHECKBOX, INPUT, TEXTAREA
 from .models import (
-    AnimalPhoto, AppSettings, CostEntry, Equipment, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem,
+    AnimalPhoto, AppSettings, CostEntry, Equipment, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem,
     SpeciesCatalog, Tank, WebhookEndpoint, WishlistItem,
 )
 
@@ -36,12 +36,19 @@ class StyledFormMixin:
 class SystemThemeForm(forms.ModelForm):
     MAX_ICON_BYTES = 5 * 1024 * 1024
     ALLOWED_FORMATS = ('PNG', 'JPEG', 'WEBP', 'GIF')
-    icon_choice = forms.ChoiceField(
-        required=False, choices=[('', 'Random'), ('custom', 'Your icon')] + STOCK_ICONS + RETIRED_ICONS)
+    icon_choice = forms.ChoiceField(required=False)
 
     class Meta:
         model = Tank
         fields = ['theme', 'icon_choice', 'custom_icon']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = [('', 'Random'), ('custom', 'Your icon')]
+        choices += [(c['young'], c['label']) for c in character_icons()]
+        if AppSettings.load().enable_old_version_icons:
+            choices += [(c['old'], f"{c['label']} (old)") for c in character_icons()]
+        self.fields['icon_choice'].choices = choices
 
     def clean_custom_icon(self):
         upload = self.cleaned_data.get('custom_icon')
@@ -78,7 +85,8 @@ class CostEntryForm(StyledFormMixin, forms.ModelForm):
 class AppSettingsForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = AppSettings
-        fields = ['electricity_rate', 'currency_symbol', 'auto_backup_days', 'auto_backup_keep']
+        fields = ['electricity_rate', 'currency_symbol', 'auto_backup_days', 'auto_backup_keep',
+                  'disable_icon_aging', 'enable_old_version_icons']
 
 
 class WebhookEndpointForm(StyledFormMixin, forms.ModelForm):
@@ -154,14 +162,13 @@ class ROSystemForm(StyledFormMixin, forms.ModelForm):
         }
 
 
-class PlannedSystemForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
-    cost_fields = ('budget',)
-
+class PlannedSystemForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = PlannedSystem
-        fields = ['name', 'goal', 'existing_tank', 'dimension_unit', 'width', 'depth', 'height', 'fill_percent',
+        fields = ['name', 'project', 'goal', 'existing_tank', 'dimension_unit', 'width', 'depth', 'height', 'fill_percent',
                   'capacity_is_manual', 'volume_gallons', 'sump_gallons', 'budget', 'notes']
         labels = {
+            'project': 'Part of a project',
             'existing_tank': 'Stock an existing tank instead?',
             'capacity_is_manual': 'Enter the capacity myself',
             'volume_gallons': 'Display volume (gallons)',
@@ -171,11 +178,18 @@ class PlannedSystemForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['existing_tank'].empty_label = 'No, this is a new system'
+        self.fields['project'].empty_label = 'No project'
         self.fields['existing_tank'].queryset = Tank.objects.filter(is_archived=False)
 
 
-class PlannedLivestockForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
-    cost_fields = ('unit_cost',)
+class PlanProjectForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = PlanProject
+        fields = ['name', 'budget', 'notes']
+        widgets = {'name': forms.TextInput(attrs={'placeholder': 'e.g. Fish room build-out'})}
+
+
+class PlannedLivestockForm(StyledFormMixin, forms.ModelForm):
     species = forms.ModelChoiceField(queryset=SpeciesCatalog.objects.order_by('name'), empty_label='Choose a species...')
 
     class Meta:
@@ -184,8 +198,7 @@ class PlannedLivestockForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
         labels = {'unit_cost': 'Price each'}
 
 
-class WishlistLivestockForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
-    cost_fields = ('est_price',)
+class WishlistLivestockForm(StyledFormMixin, forms.ModelForm):
     species = forms.ModelChoiceField(queryset=SpeciesCatalog.objects.order_by('name'), empty_label='Choose a species...')
 
     class Meta:
@@ -207,8 +220,7 @@ class WishlistLivestockForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
         return item
 
 
-class WishlistEquipmentForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
-    cost_fields = ('est_price',)
+class WishlistEquipmentForm(StyledFormMixin, forms.ModelForm):
     category = forms.ChoiceField(choices=Equipment.CATEGORY_CHOICES, label='Type')
 
     class Meta:
@@ -226,8 +238,7 @@ class WishlistEquipmentForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
         return item
 
 
-class PlannedEquipmentForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
-    cost_fields = ('unit_cost',)
+class PlannedEquipmentForm(StyledFormMixin, forms.ModelForm):
     category = forms.ChoiceField(choices=Equipment.CATEGORY_CHOICES)
 
     class Meta:

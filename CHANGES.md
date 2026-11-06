@@ -2,7 +2,7 @@
 
 ## Round 6 (2026-11-05)
 
-Apply with `docker compose up -d --build`; migrations 0012 to 0017 run on start and assign your existing water tests to your primary tank.
+Apply with `docker compose up -d --build`; migrations 0012 to 0019 run on start and assign your existing water tests to your primary tank.
 
 - **One selected system**: a selector at the top of every page picks the system, remembered per browser. The dashboard, parameters,
   charts, livestock, equipment, dosing, routines, webcams, alerts, power and calculators then show just that system.
@@ -13,13 +13,15 @@ Apply with `docker compose up -d --build`; migrations 0012 to 0017 run on start 
   Background alerts check every system, and the selector marks other systems that have alerts.
 - **Equipment** and **Power** have an "All systems" view. Webcams can belong to one system, or show on all.
 - **Calculators** use the selected system automatically, with whole system, display, sump or custom volume.
-- **Retiring a system** (button on its tank page): keeps all its data, gives it a retiree icon, and stops its alerts, schedules, time-lapse
-  and new tests. It moves to a Retired group in the selector and can be brought back any time, with its old icon. The retiree icons are
-  placeholders in `static/icons/nudibranch/retired_*.svg`: replace those files, keeping the names.
-- **System look**: each system has a colour scheme and a stock or uploaded icon.
-- **The Damage**: there's a hidden, fire-themed spending ledger. Prices are off until you "light the match" inside it, which turns on
-  price fields on the wishlist and in plans, plus "what you paid" on livestock and equipment. Those all land in the ledger and stay in sync
-  with it. Putting it out hides prices but deletes nothing. The ledger can be filtered by system and dates, and has a spending chart.
+- **Planner projects**: group several planned systems into a project to compare them side by side and see combined water, cost, power and
+  budget. Copy a plan to try a variation. Nothing becomes real until you track that one plan.
+- **Retiring a system** (button on its tank page): keeps all its data, switches its icon to the old version, and stops its alerts, schedules,
+  time-lapse and new tests. It moves to a Retired group in the selector and can be brought back any time. An uploaded icon never changes.
+- **System look**: each system has a colour scheme and a character or uploaded icon. Characters are `NN-name-young.png` and `NN-name-old.png`
+  pairs in `static/icons/nudibranch`, and small copies are made at startup. The "Match my icon" scheme builds its colours from the icon. Settings has "Disable icon aging" and "Enable old version icons".
+- **The Damage**: there's a hidden, fire-themed spending ledger. It's off until you "light the match" inside it, which turns on "what you
+  paid" on livestock and equipment. Those land in the ledger and stay in sync with it. Planner and Wishlist prices are always visible, and
+  only reach the ledger when an item moves into an active tank. Putting the fire out hides spending but erases nothing, and the page says so. The ledger can be filtered by system and dates, and has a spending chart.
 - **Fixed**: restarting the app recreated "Main Display Tank" and its sample gear if they'd been renamed or deleted. Sample data is
   now only added to a brand new install.
 - **Fixed**: the top navigation overlapped the logo on narrower screens. It now scrolls instead.

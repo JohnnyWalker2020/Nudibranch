@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from .calculators import estimate_flow_gph, turnover_summary
 from .compatibility import ACTIVE_STATUSES, bioload, check_stock, tank_stock
-from .models import AnimalGroup, Animal, AppSettings, Equipment, Sump, Tank
+from .models import AnimalGroup, Animal, AppSettings, Equipment, PlannedSystem, Sump, Tank
 from .power import DAYS_PER_MONTH, TYPICAL_HOURS, daily_kwh, power_summary
 
 RETURN_HEAD_LOSS_PERCENT = 25  # planning assumption for head height and plumbing losses
@@ -125,9 +125,10 @@ def create_tracked_record(tank, *, kind, name, species=None, quantity=1, categor
                           max_flow_gph=None, quarantine_fish=False, unit_price=None):
     """
     Creates the real equipment or animal record for something planned or bought. A known price is
-    recorded as what you paid, which adds it to The Damage (only while costs are switched on).
+    recorded as what you paid, which adds it to The Damage. That happens even while prices are hidden,
+    so a price entered earlier is still there, and counted, when they're switched back on.
     """
-    price = unit_price if unit_price and AppSettings.load().costs_enabled else None
+    price = unit_price or None
     if kind == 'equipment':
         for _ in range(quantity):
             Equipment.objects.create(
@@ -149,6 +150,40 @@ def create_tracked_record(tank, *, kind, name, species=None, quantity=1, categor
         group, _ = AnimalGroup.objects.get_or_create(
             name=species.suggested_group, defaults={'icon': species.icon, 'color': '#0ea5e9'})
         animal.groups.add(group)
+
+
+def summarize_project(project):
+    """Each plan's analysis plus combined totals. Reads only: nothing here creates tracked records."""
+    plans = list(project.plans.select_related('existing_tank', 'tracked_tank').prefetch_related('items').order_by('name'))
+    rows = [{'plan': plan, 'a': analyze(plan)} for plan in plans]
+    cost = sum(row['a']['total_cost'] for row in rows)
+    budget = float(project.budget) if project.budget is not None else None
+    return rows, {
+        'gallons': sum(row['a']['system_gallons'] for row in rows),
+        'cost': round(cost, 2),
+        'power': round(sum(row['a']['cost_month_power'] for row in rows), 2),
+        'tracked': sum(1 for plan in plans if plan.tracked_tank_id),
+        'over_budget': budget is not None and cost > budget,
+    }
+
+
+@transaction.atomic
+def duplicate_plan(plan):
+    """An untracked copy of a plan and its items, for trying a variation."""
+    items = list(plan.items.all())
+    copy = PlannedSystem.objects.get(pk=plan.pk)
+    copy.pk = None
+    copy._state.adding = True
+    copy.name = f"Copy of {plan.name}"[:100]
+    copy.tracked_tank = None
+    copy.save()
+    for item in items:
+        item.pk = None
+        item._state.adding = True
+        item.plan = copy
+        item.tracked = False
+        item.save()
+    return copy
 
 
 @transaction.atomic

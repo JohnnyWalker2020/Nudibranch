@@ -40,8 +40,8 @@ Pick a system from the **System** menu at the top of any page. The dashboard, pa
 
 - **Shared across systems:** the wishlist, plans, species catalog, parameter names and units, webhooks, backups and the quarantine list.
 - **All systems views:** Equipment and Power can show every system at once.
-- **System look:** tap 🎨 to give each system its own colour scheme and icon, from a stock set or your own image.
-- **Retiring a system:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and gives it a retiree icon. You can bring it back at any time.
+- **System look:** tap 🎨 to give each system its own colour scheme and icon, from 26 nudibranch characters or your own image. **Match my icon** builds the colour scheme from the icon itself.
+- **Retiring a system:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and its character ages into the old version. You can bring it back at any time. Your own uploaded icon never changes.
 
 ### Water parameters
 - Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges.
@@ -59,7 +59,8 @@ The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spr
 
 ### Planning
 - **System Planner:** design a new system or plan stocking for an existing tank, with checks for stocking, flow, heating and power. **Start tracking this system** then creates the real tank, sump, equipment and livestock.
-- **Wishlist:** save animals and gear with a priority, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
+- **Projects:** group several planned systems to compare them side by side and see combined cost, water and power. Copy a plan to try a variation. Nothing becomes real until you track that one plan.
+- **Wishlist:** save animals and gear with a priority, price, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
 
 ### Equipment, dosing and maintenance
 - **Equipment:** service intervals, placement in the display or sump, and pump flow and turnover estimates.
@@ -91,12 +92,12 @@ Add MJPEG, snapshot or embedded camera feeds, and assign each to a system or sho
 
 <br>
 
-Touch the nudibranch (the app icon) three times quickly, and it stings you with **The Damage**, a fire-themed spending ledger. Prices are hidden across the app until you **Light the match** inside it. After that:
+Touch the nudibranch (the app icon) three times quickly, and it stings you with **The Damage**, a fire-themed spending ledger. It's off until you **Light the match** inside it. After that:
 
-- Wishlist and plan items can have prices, and livestock and equipment get a "what you paid" field.
-- It all lands in the ledger automatically, and stays in sync with it.
+- Livestock and equipment get a "what you paid" field, which lands in the ledger automatically and stays in sync with it.
+- Planner and Wishlist prices are always visible, and only reach the ledger when an item moves into an active tank.
 - Filter by system and dates, and watch a chart of your running total, with money under a line of flames.
-- **Put out the fire** to hide prices again. Nothing is deleted.
+- **Put out the fire** to hide your spending again. Your $ values aren't erased.
 
 </details>
 
@@ -312,5 +313,5 @@ docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python 
 
 - `aquarium/`: the Django app. Views for the newer tools are in `views_tools.py`, and background jobs are in `management/commands/run_worker.py`.
 - `aquarium/species_catalog.csv`: the built-in species list.
-- `static/icons/nudibranch/retired_*.svg`: **placeholder** retiree icons. Replace these files with final art, keeping the same names.
+- `static/icons/nudibranch/`: character icons, as `NN-name-young.png` and `NN-name-old.png` pairs. Add a pair and restart to add a character. Small copies are generated at startup in `thumbs/`.
 - [CHANGES.md](CHANGES.md): what changed in each round.

@@ -18,11 +18,12 @@ from django.utils import timezone
 from PIL import Image
 
 from .alerts import compute_alert_state
-from .themes import RETIRED_ICONS
+from . import icons
+from .icons import character_icons
 from . import backups, compatibility, events, fill, planner, power, timelapse
 from .models import (
     Animal, AnimalPhoto, AppSettings, CostEntry, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
-    ParameterLog, ParameterType, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
+    ParameterLog, ParameterType, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
     TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint, WishlistItem,
 )
 
@@ -546,6 +547,98 @@ class PlannerTests(TestCase):
         self.assertEqual(planner.track_plan(plan), tank)
         self.assertEqual(Tank.objects.count(), 1)
         self.assertTrue(tank.animals.filter(name='Big').exists())
+
+
+class PlanProjectTests(TestCase):
+    def setUp(self):
+        self.fish = species('Clown', 'Amphiprion ocellaris')
+        self.project = PlanProject.objects.create(name='Fish room', budget=Decimal('500'))
+        self.one = self.plan('Reef A', 75)
+        self.two = self.plan('Reef B', 40)
+        self.loose = PlannedSystem.objects.create(name='Loose', volume_gallons=10, capacity_is_manual=True)
+
+    def plan(self, name, gallons):
+        plan = PlannedSystem.objects.create(name=name, volume_gallons=gallons, capacity_is_manual=True, sump_gallons=10, project=self.project)
+        PlannedItem.objects.create(plan=plan, kind='livestock', species=self.fish, name='Clown', quantity=2, unit_cost=Decimal('30'))
+        PlannedItem.objects.create(plan=plan, kind='equipment', name='Pump', category='return_pump', wattage=50, max_flow_gph=800, unit_cost=Decimal('200'))
+        return plan
+
+    def test_combined_totals_and_comparison(self):
+        page = self.client.get(reverse('project_detail', args=[self.project.pk]))
+        totals = page.context['totals']
+        self.assertEqual(totals['gallons'], 135.0)
+        self.assertEqual(totals['cost'], 520.0)
+        self.assertTrue(totals['over_budget'])
+        self.assertEqual(totals['tracked'], 0)
+        self.assertGreater(totals['power'], 0)
+        for text in ('Reef A', 'Reef B', 'Return turnover', 'Still to add', 'Loose'):
+            self.assertContains(page, text)
+        self.assertEqual([r['plan'] for r in page.context['rows']], [self.one, self.two])
+
+    def test_planning_a_project_creates_nothing_real(self):
+        self.client.get(reverse('project_detail', args=[self.project.pk]))
+        self.client.get(reverse('planner'))
+        self.client.post(reverse('plan_duplicate', args=[self.one.pk]))
+        self.client.post(reverse('project_add_plans', args=[self.project.pk]), {'plans': [self.loose.pk]})
+        self.assertEqual(Tank.objects.count(), 0)
+        self.assertEqual(Equipment.objects.count(), 0)
+        self.assertEqual(Animal.objects.count(), 0)
+        self.assertEqual(CostEntry.objects.count(), 0)
+
+    def test_tracking_one_leaves_the_others_as_plans(self):
+        self.client.post(reverse('plan_track', args=[self.one.pk]))
+        self.assertEqual(list(Tank.objects.values_list('name', flat=True)), ['Reef A'])
+        self.two.refresh_from_db()
+        self.assertIsNone(self.two.tracked_tank)
+        self.assertFalse(self.two.items.filter(tracked=True).exists())
+        self.assertEqual(self.client.get(reverse('project_detail', args=[self.project.pk])).context['totals']['tracked'], 1)
+
+    def test_duplicate_is_independent_and_untracked(self):
+        planner.track_plan(self.one)
+        response = self.client.post(reverse('plan_duplicate', args=[self.one.pk]))
+        copy = PlannedSystem.objects.get(name='Copy of Reef A')
+        self.assertRedirects(response, reverse('plan_detail', args=[copy.pk]))
+        self.assertEqual(copy.project, self.project)
+        self.assertIsNone(copy.tracked_tank)
+        self.assertEqual(copy.items.count(), 2)
+        self.assertFalse(copy.items.filter(tracked=True).exists())
+        copy.items.first().delete()
+        self.one.refresh_from_db()
+        self.assertEqual(self.one.items.count(), 2)
+        self.assertIsNotNone(self.one.tracked_tank)
+        planner.track_plan(copy)
+        self.assertEqual(Tank.objects.count(), 2)
+
+    def test_add_remove_and_delete_keep_plans(self):
+        url = reverse('project_add_plans', args=[self.project.pk])
+        self.client.post(url, {'plans': [self.loose.pk]})
+        self.loose.refresh_from_db()
+        self.assertEqual(self.loose.project, self.project)
+        self.client.post(reverse('project_remove_plan', args=[self.project.pk, self.loose.pk]))
+        self.loose.refresh_from_db()
+        self.assertIsNone(self.loose.project)
+        self.client.post(reverse('project_delete', args=[self.project.pk]))
+        self.assertEqual(PlanProject.objects.count(), 0)
+        self.assertEqual(PlannedSystem.objects.count(), 3)
+
+    def test_new_plan_preselects_project(self):
+        page = self.client.get(reverse('plan_create'), {'project': self.project.pk})
+        self.assertEqual(page.context['form'].initial['project'], self.project)
+        response = self.client.post(reverse('project_create'), {'name': 'Second'})
+        self.assertRedirects(response, reverse('project_detail', args=[PlanProject.objects.get(name='Second').pk]))
+
+    def test_empty_project_and_list_render(self):
+        empty = PlanProject.objects.create(name='Empty')
+        self.assertContains(self.client.get(reverse('project_detail', args=[empty.pk])), 'No systems in this project yet')
+        page = self.client.get(reverse('planner'))
+        self.assertContains(page, 'Fish room')
+        self.assertContains(page, 'New project')
+        self.assertEqual(self.client.get(reverse('project_edit', args=[empty.pk])).status_code, 200)
+
+    def test_existing_tank_plan_in_project(self):
+        tank = Tank.objects.create(name='Current', volume_gallons=40, capacity_is_manual=True, is_primary=True)
+        PlannedSystem.objects.create(name='Stock it', existing_tank=tank, project=self.project)
+        self.assertEqual(self.client.get(reverse('project_detail', args=[self.project.pk])).status_code, 200)
 
 
 class QuarantineTests(TestCase):
@@ -1102,45 +1195,41 @@ class ParameterTargetTests(TestCase):
 
 class RetiredSystemTests(TestCase):
     def setUp(self):
-        self.main = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True, icon_choice='robot')
-        self.old = Tank.objects.create(name='Old', volume_gallons=20, capacity_is_manual=True, is_primary=False, icon_choice='dragon')
+        self.main = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True, icon_choice='03-robot-young')
+        self.old = Tank.objects.create(name='Old', volume_gallons=20, capacity_is_manual=True, is_primary=False, icon_choice='01-dragon-mage-young')
         self.alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9, low_limit=7)
         self.log = ParameterLog.objects.create(parameter_type=self.alk, tank=self.old, value=Decimal('5'))
 
     def retire(self, tank=None):
         return self.client.post(reverse('tank_archive', args=[(tank or self.old).pk]))
 
-    def test_keeps_data_and_sets_retiree_icon(self):
+    def test_keeps_data_and_switches_to_old_icon(self):
         Animal.objects.create(name='Oldie', tank=self.old)
+        self.assertIn('01-dragon-mage-young', self.old.icon_url)
         self.retire()
         self.old.refresh_from_db()
         self.assertTrue(self.old.is_archived)
         self.assertIsNotNone(self.old.archived_at)
-        self.assertIn(self.old.icon_choice, [key for key, _ in RETIRED_ICONS])
-        self.assertTrue(self.old.icon_url.endswith(f"{self.old.icon_choice}.svg"))
+        self.assertIn('01-dragon-mage-old', self.old.icon_url)
         self.assertEqual(self.old.parameter_logs.count(), 1)
         self.assertEqual(self.old.animals.count(), 1)
 
-    def test_all_placeholder_icons_exist(self):
-        from django.conf import settings
-        for key, _ in RETIRED_ICONS:
-            self.assertTrue((settings.BASE_DIR / 'static' / 'icons' / 'nudibranch' / f'{key}.svg').exists(), key)
-
-    def test_restore_brings_back_old_icon(self):
+    def test_restore_brings_back_young_icon(self):
         self.retire()
         response = self.client.post(reverse('tank_restore', args=[self.old.pk]))
         self.assertRedirects(response, reverse('tank_detail', args=[self.old.pk]))
         self.old.refresh_from_db()
         self.assertFalse(self.old.is_archived)
-        self.assertEqual((self.old.icon_choice, self.old.icon_before_archive), ('dragon', ''))
+        self.assertEqual(self.old.icon_choice, '01-dragon-mage-young')
+        self.assertIn('01-dragon-mage-young', self.old.icon_url)
         self.assertEqual(self.client.get('/').context['active_tank'], self.old)
 
-    def test_retiring_twice_keeps_original_icon(self):
+    def test_retiring_twice_is_harmless(self):
         self.retire()
         self.retire()
         self.client.post(reverse('tank_restore', args=[self.old.pk]))
         self.old.refresh_from_db()
-        self.assertEqual(self.old.icon_choice, 'dragon')
+        self.assertIn('01-dragon-mage-young', self.old.icon_url)
 
     def test_retiring_primary_promotes_another(self):
         self.retire(self.main)
@@ -1208,14 +1297,15 @@ class RetiredSystemTests(TestCase):
         choices = self.client.get(reverse('plan_create')).context['form'].fields['existing_tank'].queryset
         self.assertEqual(list(choices), [self.main])
 
-    def test_retiree_icons_offered_only_when_retired(self):
-        self.assertNotContains(self.client.get(reverse('system_theme')), 'Rocking Chair')
+    def test_retired_page_explains_the_old_icon(self):
+        self.assertNotContains(self.client.get(reverse('system_theme')), 'This system is retired')
         self.retire()
         self.client.post(reverse('system_select'), {'tank': self.old.pk})
-        self.assertContains(self.client.get(reverse('system_theme')), 'Rocking Chair')
-        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': 'retired_rocker'})
+        self.assertContains(self.client.get(reverse('system_theme')), 'This system is retired')
+        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '03-robot-young'})
         self.old.refresh_from_db()
-        self.assertEqual(self.old.icon_choice, 'retired_rocker')
+        self.assertIn('03-robot-old', self.old.icon_url)
+        self.assertIn('03-robot-old', self.client.get('/').context['system_icon_url'])
 
     def test_every_system_retired_still_works(self):
         self.retire()
@@ -1224,6 +1314,211 @@ class RetiredSystemTests(TestCase):
         self.assertIsNotNone(self.client.get('/').context['active_tank'])
         call_command('seed_reef_data', stdout=io.StringIO())
         self.assertEqual(Tank.objects.count(), 2)
+
+
+class CharacterIconTests(TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        override = override_settings(MEDIA_ROOT=self.tmp)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.main = Tank.objects.create(name='Main', capacity_is_manual=True, is_primary=True, icon_choice='03-robot-young')
+        self.other = Tank.objects.create(name='Other', capacity_is_manual=True, is_primary=False)
+
+    def settings_on(self, **values):
+        AppSettings.load()
+        AppSettings.objects.filter(pk=1).update(**values)
+
+    def retire(self, tank):
+        self.client.post(reverse('tank_archive', args=[tank.pk]))
+        tank.refresh_from_db()
+
+    def test_all_26_characters_are_complete_pairs(self):
+        characters = character_icons()
+        self.assertEqual(len(characters), 26)
+        for c in characters:
+            self.assertNotEqual(c['young'], c['old'], c['key'])
+            self.assertEqual(c['old'], f"{c['key']}-old")
+        labels = [c['label'] for c in characters]
+        self.assertEqual(len(labels), len(set(labels)))
+        self.assertIn('Dragon Mage', labels)
+
+    def test_picker_only_offers_young_by_default(self):
+        page = self.client.get(reverse('system_theme'))
+        self.assertContains(page, 'value="01-dragon-mage-young"')
+        self.assertNotContains(page, 'value="01-dragon-mage-old"')
+        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '01-dragon-mage-old'})
+        self.main.refresh_from_db()
+        self.assertEqual(self.main.icon_choice, '03-robot-young')
+
+    def test_surprise_me_only_uses_young(self):
+        pool = self.client.get('/').context['random_icons']
+        self.assertEqual(len(pool), 26)
+        self.assertTrue(all('-young' in item['path'] for item in pool))
+
+    def test_aging_switches_on_retire_and_back(self):
+        self.assertIn('03-robot-young', self.main.icon_url)
+        self.retire(self.main)
+        self.assertIn('03-robot-old', self.main.icon_url)
+        self.client.post(reverse('tank_restore', args=[self.main.pk]))
+        self.main.refresh_from_db()
+        self.assertIn('03-robot-young', self.main.icon_url)
+
+    def test_disable_icon_aging(self):
+        self.retire(self.main)
+        self.settings_on(disable_icon_aging=True)
+        self.assertIn('03-robot-young', self.main.icon_url)
+        self.settings_on(disable_icon_aging=False)
+        self.assertIn('03-robot-old', self.main.icon_url)
+
+    def test_enable_old_version_icons(self):
+        self.settings_on(enable_old_version_icons=True)
+        self.assertContains(self.client.get(reverse('system_theme')), 'value="01-dragon-mage-old"')
+        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '01-dragon-mage-old'})
+        self.main.refresh_from_db()
+        self.assertEqual(self.main.icon_choice, '01-dragon-mage-old')
+        self.assertIn('01-dragon-mage-old', self.main.icon_url)
+        # Turned off again: the system shows the young version, and saving the page keeps that character.
+        self.settings_on(enable_old_version_icons=False)
+        self.assertIn('01-dragon-mage-young', self.main.icon_url)
+        page = self.client.get(reverse('system_theme'))
+        self.assertEqual(page.context['selected_icon'], '01-dragon-mage-young')
+
+    def test_old_choice_with_aging_disabled_still_works(self):
+        self.settings_on(enable_old_version_icons=True, disable_icon_aging=True)
+        Tank.objects.filter(pk=self.main.pk).update(icon_choice='01-dragon-mage-old')
+        self.main.refresh_from_db()
+        self.retire(self.main)
+        self.assertIn('01-dragon-mage-old', self.main.icon_url)
+        self.other.icon_choice = '03-robot-young'
+        self.other.save()
+        self.retire(self.other)
+        self.assertIn('03-robot-young', self.other.icon_url)
+
+    def test_uploaded_icon_stays_static(self):
+        buf = io.BytesIO()
+        Image.new('RGB', (8, 8), 'red').save(buf, 'PNG')
+        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '', 'custom_icon': SimpleUploadedFile('me.png', buf.getvalue(), 'image/png')})
+        self.main.refresh_from_db()
+        url = self.main.icon_url
+        self.assertIn('/media/icons/', url)
+        self.retire(self.main)
+        self.assertEqual(self.main.icon_url, url)
+        self.assertNotContains(self.client.get(reverse('system_theme')), 'This system is retired')
+
+    def test_surprise_me_retired_gets_a_lasting_old_icon(self):
+        self.assertEqual(self.other.icon_url, '')
+        self.retire(self.other)
+        first = self.other.icon_url
+        self.assertIn('-old', first)
+        self.assertEqual(Tank.objects.get(pk=self.other.pk).icon_url, first)
+        self.settings_on(disable_icon_aging=True)
+        self.assertEqual(self.other.icon_url, '')
+
+    def test_settings_page_has_both_options(self):
+        page = self.client.get(reverse('app_settings'))
+        self.assertContains(page, 'Disable icon aging')
+        self.assertContains(page, 'Enable old version icons')
+        self.client.post(reverse('app_settings'), {
+            'electricity_rate': '0.15', 'currency_symbol': '$', 'auto_backup_days': 7, 'auto_backup_keep': 4,
+            'disable_icon_aging': 'on', 'enable_old_version_icons': 'on'})
+        saved = AppSettings.load()
+        self.assertTrue(saved.disable_icon_aging and saved.enable_old_version_icons)
+
+    def test_removed_icon_falls_back_to_random(self):
+        Tank.objects.filter(pk=self.main.pk).update(icon_choice='gone-young')
+        self.main.refresh_from_db()
+        self.assertEqual(self.main.icon_url, '')
+
+    def test_thumbnails_are_small_and_leave_originals_alone(self):
+        from unittest.mock import patch
+        tmp = Path(self.tmp) / 'source'
+        (tmp / 'thumbs').mkdir(parents=True)
+        Image.new('RGBA', (1024, 1024), 'red').save(tmp / '01-x-young.png')
+        original = (tmp / '01-x-young.png').read_bytes()
+        (tmp / 'thumbs' / 'gone.webp').write_bytes(b'stale')
+        target = 'aquarium.management.commands.build_icon_thumbnails'
+        with patch(f'{target}.icon_dir', return_value=tmp), patch(f'{target}.thumbnail_dir', return_value=tmp / 'thumbs'):
+            call_command('build_icon_thumbnails', stdout=io.StringIO())
+            first = (tmp / 'thumbs' / '01-x-young.webp').stat().st_mtime
+            call_command('build_icon_thumbnails', stdout=io.StringIO())
+        with Image.open(tmp / 'thumbs' / '01-x-young.webp') as thumb:
+            self.assertEqual(thumb.size, (256, 256))
+        self.assertEqual((tmp / '01-x-young.png').read_bytes(), original)
+        self.assertEqual((tmp / 'thumbs' / '01-x-young.webp').stat().st_mtime, first)
+        self.assertFalse((tmp / 'thumbs' / 'gone.webp').exists())
+
+
+def _contrast(foreground, background):
+    def luminance(color):
+        channels = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        linear = [c / 12.92 if c <= .03928 else ((c + .055) / 1.055) ** 2.4 for c in channels]
+        return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2]
+    lighter, darker = sorted((luminance(foreground), luminance(background)), reverse=True)
+    return (lighter + .05) / (darker + .05)
+
+
+class MatchMyIconTests(TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        override = override_settings(MEDIA_ROOT=self.tmp)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.tank = Tank.objects.create(name='Main', capacity_is_manual=True, is_primary=True, theme='icon', icon_choice='01-dragon-mage-young')
+
+    def test_every_character_makes_a_readable_palette(self):
+        problems = []
+        palettes = set()
+        for character in character_icons():
+            for stem in (character['young'], character['old']):
+                self.tank.icon_choice = stem
+                AppSettings.load()
+                AppSettings.objects.filter(pk=1).update(enable_old_version_icons=True)
+                palette = self.tank.icon_palette()
+                if palette is None:
+                    problems.append(f'{stem}: no colours')
+                    continue
+                palettes.add(palette['cyan']['500'])
+                background = palette['slate']['900']
+                for name, color in (('accent', palette['cyan']['400']), ('second', palette['blue']['400'])):
+                    if _contrast(color, background) < 4.5:
+                        problems.append(f'{stem}: {name} {color} on {background}')
+        self.assertEqual(problems, [])
+        self.assertGreater(len(palettes), 8)  # they really differ between icons
+
+    def test_page_uses_the_icon_colors(self):
+        page = self.client.get('/')
+        palette = self.tank.icon_palette()
+        self.assertContains(page, palette['cyan']['500'])
+        self.assertEqual(page.context['theme_background'], palette['slate']['950'])
+
+    def test_surprise_me_falls_back(self):
+        Tank.objects.filter(pk=self.tank.pk).update(icon_choice='')
+        page = self.client.get('/')
+        self.assertEqual(page.context['theme_colors_json'], '{}')
+        self.assertContains(self.client.get(reverse('system_theme')), 'Match my icon')
+
+    def test_upload_colors_are_read(self):
+        buf = io.BytesIO()
+        Image.new('RGB', (32, 32), (220, 30, 30)).save(buf, 'PNG')
+        self.client.post(reverse('system_theme'), {'theme': 'icon', 'icon_choice': '', 'custom_icon': SimpleUploadedFile('red.png', buf.getvalue(), 'image/png')})
+        self.tank.refresh_from_db()
+        accent = self.tank.icon_palette()['cyan']['500']
+        red, green, blue = (int(accent[i:i + 2], 16) for i in (1, 3, 5))
+        self.assertGreater(red, green + 60)
+        self.assertGreater(red, blue + 60)
+
+    def test_grey_image_falls_back_and_missing_file_is_safe(self):
+        path = Path(self.tmp) / 'grey.png'
+        Image.new('RGB', (32, 32), (128, 128, 128)).save(path)
+        self.assertIsNone(icons.colors_from_file(path))
+        self.assertIsNone(icons.colors_from_file(Path(self.tmp) / 'nope.png'))
+        Tank.objects.filter(pk=self.tank.pk).update(icon_choice='custom')
+        self.tank.refresh_from_db()
+        self.assertIsNone(self.tank.icon_palette())
+        self.assertEqual(self.client.get('/').status_code, 200)
 
 
 class SystemLookTests(TestCase):
@@ -1242,11 +1537,11 @@ class SystemLookTests(TestCase):
         return self.client.post(reverse('system_theme'), data, follow=True)
 
     def test_each_system_has_its_own_look(self):
-        self.save(theme='kelp', icon_choice='dragon')
+        self.save(theme='kelp', icon_choice='01-dragon-mage-young')
         page = self.client.get('/')
         self.assertContains(page, '#10b981')
-        self.assertContains(page, 'nudibranch/dragon.svg')
-        self.assertEqual(page.context['system_icon_url'], '/static/icons/nudibranch/dragon.svg')
+        self.assertContains(page, '01-dragon-mage-young')
+        self.assertIn('01-dragon-mage-young', page.context['system_icon_url'])
         self.client.post(reverse('system_select'), {'tank': self.qt.pk})
         page = self.client.get('/')
         self.assertNotContains(page, '#10b981')
@@ -1277,7 +1572,7 @@ class SystemLookTests(TestCase):
 
     def test_page_lists_all_choices(self):
         page = self.client.get(reverse('system_theme'))
-        for text in ('Kelp Forest', 'Coral Reef', 'Surprise me', 'Mecha Robot', 'Or add your own'):
+        for text in ('Kelp Forest', 'Coral Reef', 'Surprise me', 'Dragon Mage', 'Or add your own'):
             self.assertContains(page, text)
 
 
@@ -1297,26 +1592,128 @@ class CostSwitchTests(TestCase):
             'description': 'x', 'amount': '5', 'spent_on': timezone.localdate().isoformat(), 'category': 'other'})
         self.assertEqual(CostEntry.objects.count(), 0)
 
-    def test_price_fields_hidden_until_enabled(self):
+    def test_planning_prices_always_available(self):
         plan = PlannedSystem.objects.create(name='P', volume_gallons=10, capacity_is_manual=True)
-        urls = [reverse('wishlist'), reverse('plan_detail', args=[plan.pk]), reverse('plan_create')]
-        for url in urls:
-            self.assertNotContains(self.client.get(url), 'Price each', msg_prefix=url)
-        self.assertNotContains(self.client.get(reverse('plan_create')), 'budget')
-        self.switch(True)
-        for url in urls[:2]:
+        for url in (reverse('wishlist'), reverse('plan_detail', args=[plan.pk])):
             self.assertContains(self.client.get(url), 'Price each', msg_prefix=url)
         self.assertContains(self.client.get(reverse('plan_create')), 'budget')
+        self.client.post(reverse('wishlist_add_livestock'), {'species': self.fish.pk, 'quantity': 2, 'priority': 'want', 'est_price': '50'})
+        self.assertEqual(WishlistItem.objects.get().est_price, Decimal('50'))
+        self.assertContains(self.client.get(reverse('wishlist')), '100.00')
+        self.client.post(reverse('plan_add_equipment', args=[plan.pk]), {
+            'gear-name': 'Pump', 'gear-category': 'other', 'gear-quantity': 1, 'gear-unit_cost': '70'})
+        self.assertContains(self.client.get(reverse('plan_detail', args=[plan.pk])), '70.00')
 
-    def test_prices_posted_while_off_are_ignored(self):
-        self.client.post(reverse('wishlist_add_livestock'), {'species': self.fish.pk, 'quantity': 1, 'priority': 'want', 'est_price': '50'})
-        self.assertIsNone(WishlistItem.objects.get().est_price)
-
-    def test_no_ledger_entries_while_off(self):
+    def test_planning_prices_do_not_count_until_moved_to_a_tank(self):
+        self.switch(True)
         item = WishlistItem.objects.create(species=self.fish, name='F', est_price=Decimal('25'))
-        self.client.post(reverse('wishlist_bought', args=[item.pk]), {'tank': self.tank.pk})
+        plan = PlannedSystem.objects.create(name='P', existing_tank=self.tank)
+        PlannedItem.objects.create(plan=plan, kind='equipment', name='Heater', category='heater', unit_cost=Decimal('40'))
+        total = lambda: self.client.get(reverse('the_damage')).context['total']
+        self.assertEqual(total(), 0.0)
         self.assertEqual(CostEntry.objects.count(), 0)
-        self.assertEqual(Animal.objects.count(), 1)
+        self.client.post(reverse('wishlist_to_plan', args=[item.pk]), {'plan': plan.pk})
+        self.assertEqual(total(), 0.0)
+        self.client.post(reverse('plan_track', args=[plan.pk]))
+        self.assertEqual(total(), 65.0)
+
+    def test_tracked_paid_fields_stay_behind_the_fire(self):
+        self.assertNotContains(self.client.get(reverse('animal_create')), 'name="paid"')
+        self.assertNotContains(self.client.get(reverse('equipment')), 'name="paid"')
+        self.switch(True)
+        self.assertContains(self.client.get(reverse('animal_create')), 'name="paid"')
+
+    def test_priced_purchase_while_out_is_hidden_then_counted(self):
+        self.switch(True)
+        item = WishlistItem.objects.create(species=self.fish, name='F', est_price=Decimal('25'))
+        self.switch(False)
+        self.client.post(reverse('wishlist_bought', args=[item.pk]), {'tank': self.tank.pk})
+        self.assertEqual(Animal.objects.get().paid, Decimal('25'))
+        self.assertNotContains(self.client.get(reverse('the_damage')), 'Confess a purchase')
+        self.assertNotContains(self.client.get(reverse('livestock')), 'Paid $')
+        self.switch(True)
+        self.assertEqual(self.client.get(reverse('the_damage')).context['total'], 25.0)
+        self.assertContains(self.client.get(reverse('livestock')), 'Paid $25.00')
+
+    def test_messages_promise_nothing_is_erased(self):
+        self.assertContains(self.client.get(reverse('the_damage')), "your $ values won't be erased")
+        self.switch(True)
+        page = self.client.get(reverse('the_damage'))
+        self.assertContains(page, "Your $ values won't be erased")
+        self.assertContains(page, 'will NOT be erased')
+        CostEntry.objects.create(description='Secret', amount=Decimal('9'), tank=self.tank)
+        CostEntry.objects.create(description='Also', amount=Decimal('1'), tank=self.tank)
+        response = self.client.post(reverse('damage_switch'), {}, follow=True)
+        self.assertContains(response, 'hidden, not erased')
+        self.assertContains(response, 'Your 2 saved $ values are hidden, not erased')
+        self.assertNotContains(response, 'Secret')
+
+    def test_ledger_cannot_change_while_out(self):
+        self.switch(True)
+        entry = CostEntry.objects.create(description='Secret', amount=Decimal('9'), tank=self.tank)
+        self.switch(False)
+        self.client.post(reverse('cost_delete', args=[entry.pk]))
+        self.client.post(reverse('cost_edit', args=[entry.pk]), {'description': 'x', 'amount': '1', 'spent_on': '2026-01-01', 'category': 'other'})
+        entry.refresh_from_db()
+        self.assertEqual((entry.description, entry.amount), ('Secret', Decimal('9')))
+
+    def test_every_value_survives_being_put_out_and_edited(self):
+        """Each kind of $ value, through everything you can do to its record while prices are hidden."""
+        self.switch(True)
+        fish = Animal.objects.create(name='Tang', tank=self.tank, paid=Decimal('80'))
+        pump = Equipment.objects.create(name='Pump', tank=self.tank, category='other', paid=Decimal('200'))
+        manual = CostEntry.objects.create(description='Rock', amount=Decimal('60'), tank=self.tank, category='rock')
+        wanted_animal = WishlistItem.objects.create(species=self.fish, name='F', est_price=Decimal('25'))
+        wanted_gear = WishlistItem.objects.create(kind='equipment', name='Light', category='lighting', est_price=Decimal('300'))
+        plan = PlannedSystem.objects.create(name='P', volume_gallons=30, capacity_is_manual=True, budget=Decimal('999'))
+        planned = PlannedItem.objects.create(plan=plan, kind='equipment', name='Heater', category='heater', unit_cost=Decimal('40'))
+        settings_before = AppSettings.load().electricity_rate
+
+        self.switch(False)
+        self.client.post(reverse('animal_edit', args=[fish.pk]), {'name': 'Renamed Tang', 'count': 2, 'status': 'healthy', 'tank': self.tank.pk})
+        self.client.post(reverse('equipment_edit', args=[pump.pk]), {
+            'location': f'tank:{self.tank.pk}', 'name': 'Renamed Pump', 'category': 'other', 'power_setting_percent': 100,
+            'flow_derate_percent': 0, 'maintenance_interval_days': 90, 'status': 'operational'})
+        self.client.post(reverse('equipment_power', args=[pump.pk]), {'power': 50})
+        self.client.post(reverse('service_equipment', args=[pump.pk]))
+        self.client.post(reverse('wishlist_edit', args=[wanted_animal.pk]), {'species': self.fish.pk, 'quantity': 1, 'priority': 'must', 'est_price': '25'})
+        self.client.post(reverse('wishlist_edit', args=[wanted_gear.pk]), {'name': 'New Light', 'category': 'lighting', 'quantity': 1, 'priority': 'must', 'est_price': '300'})
+        self.client.post(reverse('plan_edit', args=[plan.pk]), {
+            'name': 'Renamed Plan', 'goal': 'mixed', 'dimension_unit': 'in', 'fill_percent': 90, 'capacity_is_manual': 'on',
+            'volume_gallons': 30, 'sump_gallons': 0, 'budget': '999'})
+        self.client.post(reverse('app_settings'), {'electricity_rate': '0.2', 'currency_symbol': '$', 'auto_backup_days': 7, 'auto_backup_keep': 4})
+        self.client.post(reverse('wishlist_to_plan', args=[wanted_gear.pk]), {'plan': plan.pk})
+        call_command('seed_reef_data', stdout=io.StringIO())
+        self.assertFalse(AppSettings.load().costs_enabled)
+        self.assertNotEqual(AppSettings.load().electricity_rate, settings_before)
+
+        self.switch(True)
+        for obj in (fish, pump, manual, wanted_animal, wanted_gear, plan, planned):
+            obj.refresh_from_db()
+        self.assertEqual(fish.name, 'Renamed Tang')
+        self.assertEqual(fish.paid, Decimal('80'))
+        self.assertEqual(pump.name, 'Renamed Pump')
+        self.assertEqual(pump.paid, Decimal('200'))
+        self.assertEqual(manual.amount, Decimal('60'))
+        self.assertEqual(wanted_animal.est_price, Decimal('25'))
+        self.assertEqual(wanted_gear.est_price, Decimal('300'))
+        self.assertEqual(wanted_gear.planned_item.unit_cost, Decimal('300'))
+        self.assertEqual(plan.name, 'Renamed Plan')
+        self.assertEqual(plan.budget, Decimal('999'))
+        self.assertEqual(planned.unit_cost, Decimal('40'))
+        self.assertEqual(fish.cost_entry.amount, Decimal('80'))
+        self.assertEqual(pump.cost_entry.amount, Decimal('200'))
+        self.assertEqual(self.client.get(reverse('the_damage')).context['total'], 340.0)
+        self.assertContains(self.client.get(reverse('wishlist')), '25.00')
+
+    def test_plan_tracked_while_out_reaches_ledger_after(self):
+        self.switch(True)
+        plan = PlannedSystem.objects.create(name='P', existing_tank=self.tank)
+        PlannedItem.objects.create(plan=plan, kind='equipment', name='Heater', category='heater', unit_cost=Decimal('40'))
+        self.switch(False)
+        self.client.post(reverse('plan_track', args=[plan.pk]))
+        self.switch(True)
+        self.assertEqual(self.client.get(reverse('the_damage')).context['total'], 40.0)
 
     def test_putting_it_out_hides_but_keeps_everything(self):
         self.switch(True)
@@ -1325,13 +1722,16 @@ class CostSwitchTests(TestCase):
         self.assertContains(self.client.get(reverse('wishlist')), '25.00')
         self.assertContains(self.client.get(reverse('the_damage')), 'Secret')
         self.switch(False)
-        self.assertNotContains(self.client.get(reverse('wishlist')), '25.00')
+        self.assertContains(self.client.get(reverse('wishlist')), '25.00')  # planning prices stay visible
         self.assertNotContains(self.client.get(reverse('the_damage')), 'Secret')
         self.assertRedirects(self.client.get(reverse('cost_edit', args=[entry.pk])), reverse('the_damage'))
-        # Editing while hidden must not wipe the stored price.
-        self.client.post(reverse('wishlist_edit', args=[item.pk]), {'species': self.fish.pk, 'quantity': 3, 'priority': 'want'})
-        item.refresh_from_db()
-        self.assertEqual((item.quantity, item.est_price), (3, Decimal('25')))
+        # Editing a tracked record while hidden must not wipe what was paid.
+        pump = Equipment.objects.create(name='Pump', tank=self.tank, paid=Decimal('7'))
+        self.client.post(reverse('equipment_edit', args=[pump.pk]), {
+            'location': f'tank:{self.tank.pk}', 'name': 'Renamed', 'category': 'other', 'power_setting_percent': 100,
+            'flow_derate_percent': 0, 'maintenance_interval_days': 90, 'status': 'operational'})
+        pump.refresh_from_db()
+        self.assertEqual((pump.name, pump.paid), ('Renamed', Decimal('7')))
         self.switch(True)
         self.assertContains(self.client.get(reverse('the_damage')), 'Secret')
 

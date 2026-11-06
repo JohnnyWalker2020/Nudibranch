@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ project.name }} | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <a href="{% url 'planner' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" aria-label="Back">←</a>
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-tight">{{ project.name }}</h1>
+        <p class="text-xs text-slate-400">Everything here is still a plan. Nothing becomes real until you track that one system.</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{% url 'project_edit' project.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Edit project</a>
+      <a href="{% url 'plan_create' %}?project={{ project.id }}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">+ New system</a>
+    </div>
+  </div>
+
+  {% if project.notes %}<p class="text-sm text-slate-300 whitespace-pre-line">{{ project.notes }}</p>{% endif %}
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Systems</span>
+      <p class="text-2xl font-black text-white">{{ rows|length }}</p>
+      <p class="text-[11px] text-slate-500">{{ totals.tracked }} already tracking</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Total water</span>
+      <p class="text-2xl font-black text-white">{{ totals.gallons|floatformat:1 }} <span class="text-sm text-slate-400">gal</span></p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Total cost</span>
+      <p class="text-2xl font-black {% if totals.over_budget %}text-rose-400{% else %}text-white{% endif %}">{{ currency }}{{ totals.cost|floatformat:2 }}</p>
+      <p class="text-[11px] text-slate-500">{% if project.budget is not None %}of {{ currency }}{{ project.budget|floatformat:2 }} budget{% else %}No budget set{% endif %}</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] uppercase font-bold text-slate-500">Power per month</span>
+      <p class="text-2xl font-black text-amber-400">{{ currency }}{{ totals.power|floatformat:2 }}</p>
+      <p class="text-[11px] text-slate-500">Estimate</p>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-slate-800">
+          <th class="p-3 text-left text-[10px] uppercase text-slate-500">Compare</th>
+          {% for row in rows %}
+          <th class="p-3 text-left min-w-40 align-top">
+            <a href="{% url 'plan_detail' row.plan.id %}" class="font-bold text-white hover:text-cyan-400">{{ row.plan.name }}</a>
+            {% if row.plan.tracked_tank %}<span class="block mt-1 w-fit text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Tracking</span>{% endif %}
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody class="text-slate-300">
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Goal</td>{% for row in rows %}<td class="p-3">{{ row.plan.get_goal_display }}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Water</td>{% for row in rows %}<td class="p-3">{{ row.a.system_gallons }} gal</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Livestock lines</td>{% for row in rows %}<td class="p-3">{{ row.a.livestock|length }}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Equipment lines</td>{% for row in rows %}<td class="p-3">{{ row.a.gear|length }}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Cost</td>{% for row in rows %}<td class="p-3 font-semibold text-white">{{ currency }}{{ row.a.total_cost|floatformat:2 }}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Power per month</td>{% for row in rows %}<td class="p-3">{{ currency }}{{ row.a.cost_month_power|floatformat:2 }}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Return turnover</td>{% for row in rows %}<td class="p-3">{% if row.a.flow.return_turnover %}{{ row.a.flow.return_turnover }}x/hr{% else %}Not set{% endif %}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Fish load</td>{% for row in rows %}<td class="p-3">{% if row.a.bioload is not None %}{{ row.a.bioload }} in/gal{% else %}-{% endif %}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Stocking</td>{% for row in rows %}<td class="p-3 font-semibold {% if row.a.danger_count %}text-rose-400{% elif row.a.warning_count %}text-amber-400{% else %}text-emerald-400{% endif %}">{% if row.a.danger_count %}{{ row.a.danger_count }} serious{% elif row.a.warning_count %}{{ row.a.warning_count }} to check{% else %}No issues{% endif %}</td>{% endfor %}</tr>
+        <tr class="border-b border-slate-800/60"><td class="p-3 text-xs text-slate-500">Still to add</td>{% for row in rows %}<td class="p-3 text-xs">{% if row.a.missing %}{{ row.a.missing|join:", " }}{% else %}Nothing{% endif %}</td>{% endfor %}</tr>
+        <tr>
+          <td class="p-3"></td>
+          {% for row in rows %}
+          <td class="p-3 space-y-1.5">
+            {% if row.a.untracked_count or not row.plan.tracked_tank %}<a href="{% url 'plan_track' row.plan.id %}" class="block text-xs font-semibold text-emerald-300 hover:underline">Start tracking</a>{% endif %}
+            <form method="POST" action="{% url 'plan_duplicate' row.plan.id %}">{% csrf_token %}<button class="text-xs font-semibold text-cyan-400 hover:underline">Copy to try a variation</button></form>
+            <form method="POST" action="{% url 'project_remove_plan' project.id row.plan.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Take out of project</button></form>
+          </td>
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="py-12 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6">
+    <span class="text-4xl">🗺️</span>
+    <h3 class="mt-3 text-base font-bold text-white">No systems in this project yet</h3>
+    <p class="mt-1 text-xs text-slate-400">Add a new one, or bring in plans you already have.</p>
+  </div>
+  {% endif %}
+
+  {% if other_plans %}
+  <form method="POST" action="{% url 'project_add_plans' project.id %}" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+    {% csrf_token %}
+    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Add plans you already have</h2>
+    <div class="flex flex-wrap gap-x-5 gap-y-2">
+      {% for plan in other_plans %}<label class="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" name="plans" value="{{ plan.id }}" class="rounded"> {{ plan.name }}</label>{% endfor %}
+    </div>
+    <button class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-cyan-400">Add to project</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

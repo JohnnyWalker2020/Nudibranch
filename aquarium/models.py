@@ -12,8 +12,9 @@ from .calculators import (
     estimate_capacity_gallons, estimate_flow_gph, gph_to_lph, turnover_summary,
     pipe_volume_gallons, LITERS_PER_GAL, PIPE_SIZES,
 )
+from . import icons
 from . import schedule as sched
-from .themes import DEFAULT_THEME, THEME_CHOICES
+from .themes import DEFAULT_THEME, THEME_CHOICES, palette_from_colors
 
 WEEKDAYS = [(0, 'Mon'), (1, 'Tue'), (2, 'Wed'), (3, 'Thu'), (4, 'Fri'), (5, 'Sat'), (6, 'Sun')]
 PIPE_SIZE_CHOICES = [(key, f"{label} PVC") for key, (label, _id) in PIPE_SIZES.items()]
@@ -442,11 +443,10 @@ class Tank(DimensionedVessel):
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
     theme = models.CharField(max_length=20, choices=THEME_CHOICES, default=DEFAULT_THEME)
-    icon_choice = models.CharField(max_length=30, blank=True, help_text="A stock icon, 'custom', or blank for a random one")
+    icon_choice = models.CharField(max_length=60, blank=True, help_text="A character icon, 'custom', or blank for a random one")
     custom_icon = models.ImageField(upload_to='icons/', null=True, blank=True)
     is_archived = models.BooleanField(default=False, editable=False)
     archived_at = models.DateTimeField(null=True, blank=True, editable=False)
-    icon_before_archive = models.CharField(max_length=30, blank=True, editable=False)
 
     class Meta:
         ordering = ['-is_primary', 'name']
@@ -456,10 +456,28 @@ class Tank(DimensionedVessel):
 
     @property
     def icon_url(self):
-        """The icon to show for this system, or '' to let the page pick a random stock one."""
+        """The icon to show for this system, or '' to let the page pick a random young one."""
+        # Your own upload never changes, retired or not.
         if self.icon_choice == 'custom':
             return self.custom_icon.url if self.custom_icon else ''
-        return f"/static/icons/nudibranch/{self.icon_choice}.svg" if self.icon_choice else ''
+        return icons.url_for_stem(self._icon_stem())
+
+    def _icon_stem(self):
+        app_settings = AppSettings.load()
+        aged = self.is_archived and not app_settings.disable_icon_aging
+        if not self.icon_choice:
+            return icons.retired_default_stem(self.pk) if aged else ''
+        return icons.display_stem(self.icon_choice, aged=aged, old_allowed=app_settings.enable_old_version_icons)
+
+    def icon_palette(self):
+        """Page colours taken from the icon being shown, or None (a random icon has no lasting colours)."""
+        if self.icon_choice == 'custom':
+            path = self.custom_icon.path if self.custom_icon else None
+        else:
+            stem = self._icon_stem()
+            path = icons.file_for_stem(stem) if stem else None
+        colors = icons.colors_from_file(path) if path else None
+        return palette_from_colors(*colors) if colors else None
 
     @property
     def sump_gallons(self):
@@ -1002,6 +1020,10 @@ class AppSettings(models.Model):
     currency_symbol = models.CharField(max_length=4, default='$')
     costs_enabled = models.BooleanField(default=False, editable=False,
                                         help_text="Prices stay hidden until this is turned on in The Damage")
+    disable_icon_aging = models.BooleanField(
+        default=False, help_text="Retired systems keep their young icon instead of switching to the old version")
+    enable_old_version_icons = models.BooleanField(
+        default=False, help_text="Lets you pick the old version of a character for any system")
     auto_backup_days = models.PositiveIntegerField(default=7, help_text="Make a backup every N days (0 = off)")
     auto_backup_keep = models.PositiveIntegerField(default=4, help_text="How many automatic backups to keep")
     worker_last_seen = models.DateTimeField(null=True, blank=True, editable=False)
@@ -1234,6 +1256,20 @@ class FillTimer(models.Model):
 # System planner
 # ==========================================
 
+class PlanProject(models.Model):
+    """A group of planned systems to compare and budget together. Nothing in it is tracked until each plan is."""
+    name = models.CharField(max_length=100)
+    budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Budget for all its systems together")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class PlannedSystem(DimensionedVessel):
     """A draft system (or a stocking plan for an existing tank) that can be turned into tracked records."""
     GOAL_CHOICES = [
@@ -1245,6 +1281,8 @@ class PlannedSystem(DimensionedVessel):
         ('nano', 'Nano reef'),
     ]
     name = models.CharField(max_length=100)
+    project = models.ForeignKey(PlanProject, on_delete=models.SET_NULL, null=True, blank=True, related_name='plans',
+                                help_text="Group this with other planned systems to compare them and total them up")
     goal = models.CharField(max_length=10, choices=GOAL_CHOICES, default='mixed')
     existing_tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='plans',
                                       help_text="Planning additions to a tank you already track? Choose it here")

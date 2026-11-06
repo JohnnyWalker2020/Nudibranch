@@ -1,8 +1,11 @@
+import json
+
 from .active import get_active_tank
 from .alerts import compute_alert_state
 from .forms import QuickParameterLogForm
+from .icons import FALLBACK_ICON, fallback_url, random_pool
 from .models import AppSettings, Tank
-from .themes import DEFAULT_THEME, background_color, theme_colors_json
+from .themes import DEFAULT_THEME, ICON_THEME, background_color, theme_colors_json
 
 
 def alerts_processor(request):
@@ -46,15 +49,19 @@ def system_processor(request):
             alerts = compute_alert_state(tank=tank)['total_alerts'] if current_count > 1 and not tank.is_archived else 0
             systems.append({'tank': tank, 'alerts': alerts})
         theme = active.theme if active else DEFAULT_THEME
+        palette = active.icon_palette() if active and theme == ICON_THEME else None
         return {
             'active_tank': active,
             'systems': systems,
-            'theme_colors_json': theme_colors_json(theme),
-            'theme_background': background_color(theme),
+            'theme_colors_json': json.dumps(palette) if palette else theme_colors_json(theme),
+            'theme_background': palette['slate']['950'] if palette else background_color(theme),
             'system_icon_url': active.icon_url if active else '',
+            'fallback_icon_url': fallback_url(),
+            'random_icons': random_pool(),
             'costs_enabled': settings_obj.costs_enabled,
             'currency_symbol': settings_obj.currency_symbol,
         }
     except Exception:
         # Fallback during initial migrations.
-        return {'active_tank': None, 'systems': [], 'theme_colors_json': '{}', 'theme_background': '#0f172a', 'system_icon_url': '', 'costs_enabled': False}
+        return {'active_tank': None, 'systems': [], 'theme_colors_json': '{}', 'theme_background': '#0f172a', 'system_icon_url': '', 'costs_enabled': False,
+                'fallback_icon_url': FALLBACK_ICON, 'random_icons': []}

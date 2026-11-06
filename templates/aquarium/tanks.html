@@ -67,7 +67,7 @@
     {% for tank in retired_tanks %}
     <div class="p-3 px-4 flex items-center justify-between gap-3">
       <div class="flex items-center gap-3 min-w-0">
-        {% if tank.icon_url %}<img src="{{ tank.icon_url }}" alt="" class="w-10 h-10 rounded-xl object-cover shrink-0">{% endif %}
+        {% if tank.icon_url %}<img src="{{ tank.icon_url }}" alt="" loading="lazy" class="w-10 h-10 rounded-xl object-cover shrink-0">{% endif %}
         <div class="min-w-0">
           <a href="{% url 'tank_detail' tank.id %}" class="text-sm font-semibold text-white hover:text-cyan-400 truncate block">{{ tank.name }}</a>
           <p class="text-[11px] text-slate-500">Retired {{ tank.archived_at|date:"M j, Y" }}. To see its history, pick it in the System menu at the top.</p>

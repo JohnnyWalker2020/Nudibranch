@@ -18,14 +18,15 @@ from django.views.decorators.http import require_POST
 
 from . import backups, events, fill, planner, power, retire, timelapse, wishlist
 from .active import COOKIE_MAX_AGE, COOKIE_NAME, get_active_tank
-from .themes import RETIRED_ICONS, STOCK_ICONS, THEMES
+from .icons import character_icons, young_version
+from .themes import THEMES
 from .forms_tools import (
-    AnimalPhotoForm, AppSettingsForm, CostEntryForm, PlannedEquipmentForm, PlannedLivestockForm, PlannedSystemForm,
+    AnimalPhotoForm, AppSettingsForm, CostEntryForm, PlanProjectForm, PlannedEquipmentForm, PlannedLivestockForm, PlannedSystemForm,
     QuarantineEntryForm, QuarantinePlanForm, ROSystemForm, SystemThemeForm, WebhookEndpointForm, WishlistEquipmentForm,
     WishlistLivestockForm,
 )
 from .models import (
-    Animal, AnimalPhoto, AppSettings, CostEntry, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
+    Animal, AnimalPhoto, AppSettings, CostEntry, PlanProject, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
     QuarantineEntry, ROSystem, SpeciesCatalog, Tank, TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint,
     WishlistItem, in_system,
 )
@@ -59,6 +60,7 @@ def system_theme_view(request):
     if tank is None:
         messages.info(request, "Add a tank first, then you can choose its look.")
         return redirect('tank_create')
+    app_settings = AppSettings.load()
     form = SystemThemeForm(instance=tank)
     if request.method == 'POST':
         previous_icon = tank.custom_icon.name if tank.custom_icon else ''
@@ -72,7 +74,12 @@ def system_theme_view(request):
         tank.refresh_from_db()
         _flash_form_errors(request, form)
     return render(request, 'aquarium/system_theme.html', {
-        'form': form, 'themes': THEMES, 'stock_icons': STOCK_ICONS, 'retired_icons': RETIRED_ICONS, 'active_tank': tank,
+        'form': form, 'themes': THEMES, 'active_tank': tank,
+        'characters': character_icons(),
+        'icon_palette': tank.icon_palette(),
+        'old_icons_enabled': app_settings.enable_old_version_icons,
+        'selected_icon': tank.icon_choice if app_settings.enable_old_version_icons else young_version(tank.icon_choice),
+        'aging_shown': tank.is_archived and not app_settings.disable_icon_aging and tank.icon_choice != 'custom',
     })
 
 
@@ -156,7 +163,9 @@ def _spending_points(entries, start, end):
 def the_damage_view(request):
     active = get_active_tank(request)
     if not AppSettings.load().costs_enabled:
-        return render(request, 'aquarium/the_damage.html')
+        return render(request, 'aquarium/the_damage.html', {
+            'saved_values': CostEntry.objects.count(),
+        })
 
     # ?tank=all or ?tank=<id>, defaulting to the selected system.
     tank_param = request.GET.get('tank') or ('all' if request.GET.get('all') else '')
@@ -239,9 +248,9 @@ def damage_switch_view(request):
     AppSettings.load()
     AppSettings.objects.filter(pk=1).update(costs_enabled=enabled)
     if enabled:
-        messages.success(request, "It's lit. You can now enter prices on the wishlist and in plans.")
+        messages.success(request, "It's lit. You can now enter what you paid on your livestock and equipment.")
     else:
-        messages.info(request, "Fire's out. Prices are hidden, and everything you entered is kept for next time.")
+        messages.info(request, "Fire's out. Your $ values are hidden, not erased. Light the match any time to bring them all back.")
     return redirect('the_damage')
 
 
@@ -253,7 +262,9 @@ def cost_edit_view(request, entry_id):
 
 @require_POST
 def cost_delete_view(request, entry_id):
-    CostEntry.objects.filter(pk=entry_id).delete()
+    # While the fire is out, nothing in the ledger can be changed.
+    if AppSettings.load().costs_enabled:
+        CostEntry.objects.filter(pk=entry_id).delete()
     return redirect('the_damage')
 
 
@@ -277,7 +288,7 @@ def tools_view(request):
 def app_settings_view(request):
     obj = AppSettings.load()
     return _edit_object(request, AppSettings, AppSettingsForm, obj.pk, title='App Settings',
-                        subtitle='Electricity price and automatic backups', back_url=reverse('tools'))
+                        subtitle='Electricity price, automatic backups and icons', back_url=reverse('tools'))
 
 
 # ==========================================
@@ -722,9 +733,73 @@ def fill_calc_api(request):
 # ==========================================
 
 def planner_list_view(request):
-    plans = list(PlannedSystem.objects.select_related('existing_tank', 'tracked_tank').prefetch_related('items'))
+    plans = list(PlannedSystem.objects.select_related('existing_tank', 'tracked_tank', 'project').prefetch_related('items'))
     rows = [{'plan': plan, 'analysis': planner.analyze(plan)} for plan in plans]
-    return render(request, 'aquarium/planner_list.html', {'rows': rows})
+    projects = []
+    for project in PlanProject.objects.all():
+        _, totals = planner.summarize_project(project)
+        projects.append({'project': project, 'count': project.plans.count(), 'totals': totals})
+    return render(request, 'aquarium/planner_list.html', {
+        'rows': rows, 'projects': projects, 'currency': AppSettings.load().currency_symbol,
+    })
+
+
+def project_create_view(request):
+    if request.method == 'POST':
+        form = PlanProjectForm(request.POST)
+        if form.is_valid():
+            project = form.save()
+            return redirect('project_detail', project_id=project.pk)
+    else:
+        form = PlanProjectForm()
+    return _form_page(request, form, 'New Project', reverse('planner'),
+                      'Plan several systems together, and compare them, before any of them are real')
+
+
+def project_detail_view(request, project_id):
+    project = get_object_or_404(PlanProject, pk=project_id)
+    rows, totals = planner.summarize_project(project)
+    return render(request, 'aquarium/planner_project.html', {
+        'project': project,
+        'rows': rows,
+        'totals': totals,
+        'currency': AppSettings.load().currency_symbol,
+        'other_plans': PlannedSystem.objects.exclude(project=project),
+    })
+
+
+def project_edit_view(request, project_id):
+    return _edit_object(request, PlanProject, PlanProjectForm, project_id, title='Edit Project',
+                        back_url=reverse('project_detail', args=[project_id]),
+                        delete_url=reverse('project_delete', args=[project_id]))
+
+
+def project_delete_view(request, project_id):
+    project = get_object_or_404(PlanProject, pk=project_id)
+    return _delete_object(request, PlanProject, project_id, label=project.name, back_url=reverse('planner'),
+                          warning='Only the project is deleted. Its plans are kept, and anything being tracked stays.')
+
+
+@require_POST
+def project_add_plans_view(request, project_id):
+    project = get_object_or_404(PlanProject, pk=project_id)
+    chosen = [pk for pk in (_to_int(raw, None) for raw in request.POST.getlist('plans')) if pk]
+    PlannedSystem.objects.filter(pk__in=chosen).update(project=project)
+    return redirect('project_detail', project_id=project.pk)
+
+
+@require_POST
+def project_remove_plan_view(request, project_id, plan_id):
+    PlannedSystem.objects.filter(pk=plan_id, project_id=project_id).update(project=None)
+    return redirect('project_detail', project_id=project_id)
+
+
+@require_POST
+def plan_duplicate_view(request, plan_id):
+    plan = get_object_or_404(PlannedSystem, pk=plan_id)
+    copy = planner.duplicate_plan(plan)
+    messages.success(request, f"Made {copy.name}. Change anything you like, and the original stays as it was.")
+    return redirect('plan_detail', plan_id=copy.pk)
 
 
 def plan_create_view(request):
@@ -735,11 +810,14 @@ def plan_create_view(request):
             return redirect('plan_detail', plan_id=plan.pk)
     else:
         initial = {}
+        project = PlanProject.objects.filter(pk=_to_int(request.GET.get('project'), None)).first()
+        if project:
+            initial['project'] = project
         tank_id = _to_int(request.GET.get('tank'), None)
         if tank_id:
             tank = Tank.objects.filter(pk=tank_id).first()
             if tank:
-                initial = {'existing_tank': tank, 'name': f"Stocking plan for {tank.name}"}
+                initial.update({'existing_tank': tank, 'name': f"Stocking plan for {tank.name}"})
         form = PlannedSystemForm(initial=initial)
     return _form_page(request, form, 'New System Plan', reverse('planner'),
                       'Sketch a system, or plan additions to a tank you already have')

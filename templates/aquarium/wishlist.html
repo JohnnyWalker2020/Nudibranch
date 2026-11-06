@@ -17,7 +17,7 @@
     </div>
   </div>
 
-  {% if items and costs_enabled %}
+  {% if items %}
   <div class="grid grid-cols-2 gap-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">On your list</span><p class="text-2xl font-black text-white">{{ items|length }}</p></div>
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Estimated total</span><p class="text-2xl font-black text-amber-400">{{ currency }}{{ total|floatformat:2 }}</p>{% if unpriced %}<p class="text-[11px] text-slate-500">{{ unpriced }} without a price</p>{% endif %}</div>
@@ -43,7 +43,7 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300">
-        {% if item.est_price and costs_enabled %}<span class="font-semibold text-amber-400">{{ currency }}{{ item.total_price|floatformat:2 }}</span>{% endif %}
+        {% if item.est_price %}<span class="font-semibold text-amber-400">{{ currency }}{{ item.total_price|floatformat:2 }}</span>{% endif %}
         {% if item.link %}<a href="{{ item.link }}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline">View link ↗</a>{% endif %}
         {% if item.species %}<span class="text-slate-500">{{ item.species.care_level }}{% if item.species.min_tank_gallons %} · {{ item.species.min_tank_gallons }}+ gal{% endif %}</span>{% endif %}
       </div>
@@ -108,9 +108,9 @@
       {% csrf_token %}
       <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Add livestock</h2>
       <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Species</label>{{ livestock_form.species }}</div>
-      <div class="grid {% if costs_enabled %}grid-cols-3{% else %}grid-cols-2{% endif %} gap-2">
+      <div class="grid grid-cols-3 gap-2">
         <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ livestock_form.quantity }}</div>
-        {% if costs_enabled %}<div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ livestock_form.est_price }}</div>{% endif %}
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ livestock_form.est_price }}</div>
         <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Priority</label>{{ livestock_form.priority }}</div>
       </div>
       <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Check against tank</label>{{ livestock_form.tank }}</div>
@@ -126,9 +126,9 @@
         <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Name</label>{{ equipment_form.name }}</div>
         <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Type</label>{{ equipment_form.category }}</div>
       </div>
-      <div class="grid {% if costs_enabled %}grid-cols-3{% else %}grid-cols-2{% endif %} gap-2">
+      <div class="grid grid-cols-3 gap-2">
         <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ equipment_form.quantity }}</div>
-        {% if costs_enabled %}<div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ equipment_form.est_price }}</div>{% endif %}
+        <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ equipment_form.est_price }}</div>
         <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Priority</label>{{ equipment_form.priority }}</div>
       </div>
       <div class="grid grid-cols-2 gap-2">

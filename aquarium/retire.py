@@ -1,18 +1,11 @@
-"""Archiving a system: keeps all its data, stops its alerts and jobs, and gives it a retiree icon."""
+"""
+Retiring a system: keeps all its data and stops its alerts and jobs. Its icon switches to the old
+version when it's displayed (see Tank.icon_url), so nothing needs undoing when it comes back.
+"""
 from django.db import transaction
 from django.utils import timezone
 
 from .models import Tank
-from .themes import RETIRED_ICONS
-
-
-def retired_icon_for(tank):
-    """Picks from the retiree set, always the same one for a given system."""
-    return RETIRED_ICONS[tank.pk % len(RETIRED_ICONS)][0]
-
-
-def is_retired_icon(choice):
-    return choice in {key for key, _ in RETIRED_ICONS}
 
 
 def _promote_new_primary():
@@ -29,10 +22,8 @@ def archive_system(tank):
         return
     tank.is_archived = True
     tank.archived_at = timezone.now()
-    tank.icon_before_archive = tank.icon_choice
-    tank.icon_choice = retired_icon_for(tank)
     tank.is_primary = False
-    tank.save(update_fields=['is_archived', 'archived_at', 'icon_before_archive', 'icon_choice', 'is_primary'])
+    tank.save(update_fields=['is_archived', 'archived_at', 'is_primary'])
     _promote_new_primary()
 
 
@@ -42,9 +33,5 @@ def restore_system(tank):
         return
     tank.is_archived = False
     tank.archived_at = None
-    # Keep an icon the user picked while it was retired, unless it's still from the retiree set.
-    if is_retired_icon(tank.icon_choice):
-        tank.icon_choice = tank.icon_before_archive
-    tank.icon_before_archive = ''
     tank.is_primary = not Tank.objects.filter(is_archived=False, is_primary=True).exists()
-    tank.save(update_fields=['is_archived', 'archived_at', 'icon_before_archive', 'icon_choice', 'is_primary'])
+    tank.save(update_fields=['is_archived', 'archived_at', 'is_primary'])

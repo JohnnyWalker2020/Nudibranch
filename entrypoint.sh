@@ -4,6 +4,9 @@ set -e
 echo "Applying database migrations..."
 python manage.py migrate --noinput
 
+echo "Preparing icons..."
+python manage.py build_icon_thumbnails || true
+
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 

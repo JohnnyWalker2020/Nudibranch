@@ -13,10 +13,26 @@
     </div>
     <div class="flex items-center gap-2">
       <a href="{% url 'wishlist' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs text-center">💜 Wishlist</a>
+      <a href="{% url 'project_create' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs text-center">+ New project</a>
       <a href="{% url 'plan_create' %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl text-center">+ New plan</a>
     </div>
   </div>
 
+  {% if projects %}
+  <div class="space-y-2">
+    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Projects</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for item in projects %}
+      <a href="{% url 'project_detail' item.project.id %}" class="block bg-gradient-to-br from-slate-900 to-cyan-950/40 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-5 transition-all space-y-1">
+        <h3 class="text-base font-bold text-white">📁 {{ item.project.name }}</h3>
+        <p class="text-xs text-slate-400">{{ item.count }} system{{ item.count|pluralize }} · {{ item.totals.gallons|floatformat:1 }} gal · {{ currency }}{{ item.totals.cost|floatformat:2 }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if rows %}<h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">All plans</h2>{% endif %}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for row in rows %}
     <a href="{% url 'plan_detail' row.plan.id %}" class="block bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-5 transition-all space-y-2">
@@ -24,8 +40,9 @@
         <h3 class="text-base font-bold text-white">{{ row.plan.name }}</h3>
         {% if row.plan.tracked_tank %}<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Tracking</span>{% endif %}
       </div>
+      {% if row.plan.project %}<p class="text-[11px] font-semibold text-cyan-400">📁 {{ row.plan.project.name }}</p>{% endif %}
       <p class="text-xs text-slate-400">{{ row.plan.get_goal_display }} · {% if row.plan.existing_tank %}{{ row.plan.existing_tank.name }}{% else %}{{ row.analysis.system_gallons }} gal system{% endif %}</p>
-      <p class="text-xs text-slate-400">{{ row.analysis.livestock|length }} livestock line{{ row.analysis.livestock|length|pluralize }}, {{ row.analysis.gear|length }} equipment line{{ row.analysis.gear|length|pluralize }}{% if row.analysis.total_cost and costs_enabled %} · {{ row.analysis.currency }}{{ row.analysis.total_cost|floatformat:2 }}{% endif %}</p>
+      <p class="text-xs text-slate-400">{{ row.analysis.livestock|length }} livestock line{{ row.analysis.livestock|length|pluralize }}, {{ row.analysis.gear|length }} equipment line{{ row.analysis.gear|length|pluralize }}{% if row.analysis.total_cost %} · {{ row.analysis.currency }}{{ row.analysis.total_cost|floatformat:2 }}{% endif %}</p>
       <p class="text-xs font-semibold {% if row.analysis.danger_count %}text-rose-400{% elif row.analysis.warning_count %}text-amber-400{% else %}text-emerald-400{% endif %}">
         {% if row.analysis.danger_count %}{{ row.analysis.danger_count }} serious issue{{ row.analysis.danger_count|pluralize }}{% elif row.analysis.warning_count %}{{ row.analysis.warning_count }} thing{{ row.analysis.warning_count|pluralize }} to check{% else %}No stocking issues found{% endif %}
       </p>

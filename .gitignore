@@ -16,6 +16,7 @@ data/
 # Static and media
 media/
 staticfiles/
+static/icons/nudibranch/thumbs/
 
 # IDE
 .idea/

@@ -62,8 +62,15 @@
 
   {% if not costs_enabled %}
   <div class="damage-card rounded-3xl p-8 text-center space-y-4">
+    {% if saved_values %}
+    <p class="text-sm text-orange-100">The fire is out, but the embers are safe. 🪵</p>
+    <p class="text-xs font-semibold text-amber-300">Your {{ saved_values }} saved $ value{{ saved_values|pluralize }} {{ saved_values|pluralize:"is,are" }} hidden, not erased. Light the match and {{ saved_values|pluralize:"it comes,they all come" }} back.</p>
+    {% else %}
     <p class="text-sm text-orange-100">Right now, Nudibranch doesn't know what any of this costs. That's a very peaceful way to keep a reef.</p>
-    <p class="text-xs text-orange-200/70">Light the match and you can enter prices on the wishlist and in plans, log what you've spent, and see the running total here. You can put it out again later, and nothing you've entered is lost.</p>
+    <p class="text-xs text-orange-200/70">Light the match and you can enter what you paid on your livestock and equipment, log what you've spent, and see the running total here.</p>
+    <p class="text-xs font-semibold text-amber-300">If you put the fire out later, your $ values won't be erased. They're just hidden until you light it again.</p>
+    {% endif %}
+    <p class="text-[11px] text-orange-200/60">Prices in the Planner and Wishlist are always visible. They only count here once an item moves into an active tank.</p>
     <form method="POST" action="{% url 'damage_switch' %}">
       {% csrf_token %}
       <input type="hidden" name="enabled" value="1">
@@ -162,10 +169,12 @@
     {% endfor %}
   </div>
 
-  <p class="text-center text-[11px] text-orange-200/50">Whatever you enter as "what you paid" on livestock and equipment lands here on its own, and so do priced wishlist and plan purchases.</p>
-  <form method="POST" action="{% url 'damage_switch' %}" class="text-center" onsubmit="return confirm('Put out the fire? Prices disappear from the app until you light it again, but nothing is deleted.')">
+  <p class="text-center text-[11px] text-orange-200/50">Whatever you enter as "what you paid" on livestock and equipment lands here on its own. Wishlist and plan prices land here when an item moves into an active tank.</p>
+  <form method="POST" action="{% url 'damage_switch' %}" class="text-center" onsubmit="return confirm('Put out the fire? Your $ values will NOT be erased. Your spending is hidden until you light it again. Planner and Wishlist prices stay visible.')">
     {% csrf_token %}
-    <button class="text-xs font-semibold text-orange-200/60 hover:text-white">🧯 Put out the fire and hide all prices</button>
+    <button class="text-xs font-semibold text-orange-200/60 hover:text-white">🧯 Put out the fire and hide your spending</button>
+    <p class="mt-1 text-[11px] font-semibold text-amber-300/90">Your $ values won't be erased. They're just hidden until you light it again.</p>
+    <p class="text-[11px] text-orange-200/50">Prices in the Planner and Wishlist stay visible either way.</p>
   </form>
   {% endif %}
 </div>

@@ -1,25 +1,6 @@
 """Per-system colour schemes. The pages use Tailwind's cyan, blue and slate classes, so a theme swaps those palettes."""
+import colorsys
 import json
-
-STOCK_ICONS = [
-    ('cyberpunk', 'Cyberpunk'),
-    ('dragon', 'Dragon'),
-    ('kpop_hunter', 'K-Pop Demon Hunter'),
-    ('medieval_knight', 'Medieval Knight'),
-    ('ninja_turtle', 'Ninja Turtle'),
-    ('robot', 'Mecha Robot'),
-    ('superhero', 'Superhero'),
-    ('unicorn', 'Unicorn'),
-    ('witch', 'Sorcerer Witch'),
-]
-
-# PLACEHOLDER art. To swap in final icons, replace static/icons/nudibranch/retired_*.svg, keeping the names.
-RETIRED_ICONS = [
-    ('retired_grandpa', 'Grandpa'),
-    ('retired_grandma', 'Grandma'),
-    ('retired_cane', 'Out for a Stroll'),
-    ('retired_rocker', 'Rocking Chair'),
-]
 
 _ORANGE = {'50': '#fff7ed', '100': '#ffedd5', '200': '#fed7aa', '300': '#fdba74', '400': '#fb923c', '500': '#f97316',
            '600': '#ea580c', '700': '#c2410c', '800': '#9a3412', '900': '#7c2d12', '950': '#431407'}
@@ -55,7 +36,31 @@ THEMES = {
         'cyan': _AMBER, 'blue': _RED, 'slate': _slate('#4a4230', '#332d20', '#211d14', '#14110a')}},
 }
 DEFAULT_THEME = 'ocean'
-THEME_CHOICES = [(key, theme['name']) for key, theme in THEMES.items()]
+ICON_THEME = 'icon'
+THEME_CHOICES = [(key, theme['name']) for key, theme in THEMES.items()] + [(ICON_THEME, 'Match my icon')]
+
+# Fixed lightness steps, so any colour from any icon stays readable on the dark pages.
+_SCALE = {'50': .97, '100': .93, '200': .86, '300': .77, '400': .67, '500': .55, '600': .45,
+          '700': .37, '800': .30, '900': .24, '950': .14}
+_BACKGROUND = {'700': .25, '800': .17, '900': .105, '950': .06}
+
+
+def _hex(hue, lightness, saturation):
+    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return f'#{round(red * 255):02x}{round(green * 255):02x}{round(blue * 255):02x}'
+
+
+def palette_from_colors(primary, secondary):
+    """Page colours from two (hue, saturation) pairs: an accent, a second accent and a tinted dark background."""
+    def scale(hue, saturation):
+        saturation = min(.95, max(.6, saturation))
+        return {step: _hex(hue, lightness, saturation) for step, lightness in _SCALE.items()}
+
+    return {
+        'cyan': scale(*primary),
+        'blue': scale(*secondary),
+        'slate': {step: _hex(primary[0], lightness, .28) for step, lightness in _BACKGROUND.items()},
+    }
 
 
 def theme_colors_json(key):
