@@ -2724,6 +2724,68 @@ class LightAndParTests(TestCase):
         self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), 'dimensions</a> to see a PAR estimate')
 
 
+class ExtraDosingTests(TestCase):
+    LABEL = {'label_ml': 10, 'label_raise': 1, 'label_gallons': 100, 'gallons': 50}
+
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=50, capacity_is_manual=True, is_primary=True)
+
+    def estimate(self, **params):
+        return self.client.get(reverse('dose_calc_api'), params)
+
+    def test_label_maths_for_each_new_option(self):
+        # 10 ml raises 1 ppm in 100 gal, so raising 2 ppm in 50 gal takes 10 ml.
+        for code in ('nitrate', 'phosphate', 'potassium', 'iodine', 'strontium'):
+            data = self.estimate(parameter=code, current=1, target=3, max_daily=100, **self.LABEL).json()
+            self.assertEqual(data['correction_ml'], 10, code)
+            self.assertIsNone(data['correction_grams'], code)
+            self.assertEqual(data['mode'], 'label')
+
+    def test_label_dose_scales_up_and_down_with_the_tank(self):
+        # A bigger tank needs more product, and a smaller one less.
+        common = {'parameter': 'alkalinity', 'current': 8, 'target': 9, 'max_daily': 10, 'label_ml': 10, 'label_raise': 1, 'label_gallons': 100}
+        self.assertEqual(self.estimate(gallons=200, **common).json()['correction_ml'], 20)
+        self.assertEqual(self.estimate(gallons=100, **common).json()['correction_ml'], 10)
+        self.assertEqual(self.estimate(gallons=25, **common).json()['correction_ml'], 2.5)
+
+    def test_small_doses_are_spread_over_days(self):
+        data = self.estimate(parameter='phosphate', current=0.01, target=0.06, **self.LABEL).json()
+        self.assertEqual(data['correction_days'], 3)
+        self.assertEqual(data['correction_per_day_raise'], 0.017)
+
+    def test_they_need_a_label(self):
+        response = self.estimate(parameter='iodine', current=0.02, target=0.06, gallons=50)
+        self.assertEqual(response.status_code, 400)
+
+    def test_chemicals_are_not_offered_for_the_wrong_parameter(self):
+        response = self.estimate(parameter='potassium', chemical='baking_soda', current=380, target=400, gallons=50)
+        self.assertEqual(response.status_code, 400)
+
+    def test_above_target_says_not_to_dose(self):
+        data = self.estimate(parameter='nitrate', current=20, target=10, **self.LABEL).json()
+        self.assertFalse(data['needs_raise'])
+        self.assertIn("Don't dose", ' '.join(data['warnings']))
+
+    def test_page_data(self):
+        ParameterType.objects.update_or_create(code='nitrate', defaults={'name': 'Nitrate', 'unit': 'ppm', 'min_ideal': 2, 'max_ideal': 12})
+        ParameterType.objects.filter(code__in=['iodine', 'potassium', 'strontium']).delete()
+        data = self.client.get(reverse('dosing')).context['dose_data']['parameters']
+        self.assertEqual(set(data) >= {'alkalinity', 'nitrate', 'phosphate', 'potassium', 'iodine', 'strontium'}, True)
+        self.assertEqual(data['nitrate']['target'], 7)
+        self.assertEqual(data['iodine']['target'], 0.06)
+        self.assertFalse(data['iodine']['available'])
+        self.assertTrue(data['iodine']['label_only'])
+        self.assertFalse(data['alkalinity']['label_only'])
+        self.assertTrue(data['iodine']['note'])
+
+    def test_tracked_in_ppb_is_converted(self):
+        iodine, _ = ParameterType.objects.update_or_create(code='iodine', defaults={'name': 'Iodine', 'unit': 'ppb', 'min_ideal': 40, 'max_ideal': 80})
+        ParameterLog.objects.create(parameter_type=iodine, tank=self.tank, value=30)
+        entry = self.client.get(reverse('dosing')).context['dose_data']['parameters']['iodine']
+        self.assertEqual(entry['current'], 0.03)
+        self.assertEqual(entry['target'], 0.06)
+
+
 class TankLookTests(TestCase):
     def setUp(self):
         self.main = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True, theme='ocean', icon_choice='03-robot-young')

@@ -1014,7 +1014,6 @@ def webcam_delete_view(request, cam_id):
 
 def _dose_context(tank):
     """Latest readings, targets and consumption per dosable parameter, in dKH / ppm."""
-    canonical_units = {'alkalinity': 'dKH', 'calcium': 'ppm', 'magnesium': 'ppm'}
     context = {}
     since = timezone.now() - timedelta(days=14)
 
@@ -1023,12 +1022,13 @@ def _dose_context(tank):
         ptype = by_code.get(code)
         if ptype:
             ptype = ptype.for_system(tank)
-        canon = canonical_units[code]
+        canon = info['unit']
         entry = {
             'code': code, 'name': info['name'], 'unit': canon,
             'decimals': info['decimals'], 'available': ptype is not None,
             'max_daily': MAX_DAILY_RAISE[code],
-            'current': None, 'measured_at': None, 'target': None,
+            'label_only': info.get('label_only', False), 'note': info.get('note', ''),
+            'current': None, 'measured_at': None, 'target': None if ptype else info.get('typical'),
             'ideal_min': None, 'ideal_max': None, 'daily_change': None, 'display_unit': canon,
         }
         if ptype:

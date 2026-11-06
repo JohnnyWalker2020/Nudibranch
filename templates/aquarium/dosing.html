@@ -43,6 +43,7 @@
     <div>
       <h2 class="text-lg font-black text-white">Dose Estimator</h2>
       <p class="text-xs text-slate-400">Fields fill from your latest logs, parameter targets and tank size. Overwrite any of them.</p>
+      <p id="est-param-note" class="hidden mt-2 text-xs font-semibold text-amber-300"></p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -183,9 +184,14 @@
     ['est-unit-1', 'est-unit-2', 'est-unit-3'].forEach(id => $(id).textContent = '(' + u + ')');
     document.querySelectorAll('.est-unit-text').forEach(e => e.textContent = u);
     $('est-current').value = p.current !== null ? p.current : '';
-    $('est-current-note').textContent = p.current !== null ? 'Last test ' + p.measured_at + (p.display_unit !== u ? ' (converted from ' + p.display_unit + ')' : '') : 'No test logged yet';
+    $('est-current-note').textContent = p.current !== null ? 'Last test ' + p.measured_at + (p.display_unit !== u ? ' (converted from ' + p.display_unit + ')' : '') : (p.available ? 'No test logged yet' : 'Enter your test result');
     $('est-target').value = p.target !== null ? p.target : '';
-    $('est-target-note').textContent = p.target !== null ? 'Middle of your ideal range ' + p.ideal_min + '–' + p.ideal_max : '';
+    $('est-target-note').textContent = p.target === null ? '' : (p.ideal_min !== null ? 'Middle of your ideal range ' + p.ideal_min + '–' + p.ideal_max : 'About natural seawater. Change it to suit.');
+    $('est-param-note').textContent = p.note;
+    $('est-param-note').classList.toggle('hidden', !p.note);
+    // These have no chemical worked out here, so they use the product's own label.
+    setMode(p.label_only ? 'label' : 'dry');  // this resets the buttons' classes, so it goes first
+    $('mode-dry').classList.toggle('hidden', p.label_only);
     if (p.daily_change !== null && p.daily_change < 0) {
       $('est-loss').value = Math.abs(p.daily_change);
       $('est-loss-note').textContent = 'From your last 14 days of logs (only valid if not dosing)';
@@ -236,11 +242,12 @@
 
     const u = data.unit, out = $('est-result');
     let html = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">';
-    html += card('Change needed', (data.delta > 0 ? '+' : '') + fmt(data.delta, 2) + ' ' + u, fmt(data.system_gallons, 1) + ' gal / ' + fmt(data.system_liters, 0) + ' L');
+    const places = n => Math.abs(n) < 1 ? 3 : 2;  // iodine and phosphate move in tiny steps
+    html += card('Change needed', (data.delta > 0 ? '+' : '') + fmt(data.delta, places(data.delta)) + ' ' + u, fmt(data.system_gallons, 1) + ' gal / ' + fmt(data.system_liters, 0) + ' L');
     if (data.needs_raise) {
       if (data.correction_grams !== null) html += card('Total powder', fmt(data.correction_grams, 1) + ' g', 'one-off correction');
       if (data.correction_ml !== null) html += card('Total liquid', fmt(data.correction_ml, 0) + ' ml', 'one-off correction');
-      html += card('Spread over', data.correction_days + ' day' + (data.correction_days > 1 ? 's' : ''), '+' + fmt(data.correction_per_day_raise, 2) + ' ' + u + '/day');
+      html += card('Spread over', data.correction_days + ' day' + (data.correction_days > 1 ? 's' : ''), '+' + fmt(data.correction_per_day_raise, places(data.correction_per_day_raise)) + ' ' + u + '/day');
       if (data.correction_days > 1) {
         if (data.correction_per_day_grams !== null) html += card('Per day (powder)', fmt(data.correction_per_day_grams, 1) + ' g', '');
         if (data.correction_per_day_ml !== null) html += card('Per day (liquid)', fmt(data.correction_per_day_ml, 0) + ' ml', '');
@@ -249,7 +256,7 @@
     html += '</div>';
     if (data.daily_loss > 0) {
       html += '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">' +
-        card('Daily consumption', fmt(data.daily_loss, 2) + ' ' + u, 'estimated') +
+        card('Daily consumption', fmt(data.daily_loss, places(data.daily_loss)) + ' ' + u, 'estimated') +
         (data.maintenance_grams_per_day !== null ? card('Maintenance powder', fmt(data.maintenance_grams_per_day, 1) + ' g/day', 'to hold level') : '') +
         (data.maintenance_ml_per_day !== null ? card('Maintenance liquid', fmt(data.maintenance_ml_per_day, 0) + ' ml/day', 'to hold level') : '') + '</div>';
     }

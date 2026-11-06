@@ -300,12 +300,29 @@ MAX_DAILY_RAISE = {
     'alkalinity': 1.4,   # dKH / day
     'calcium': 20.0,     # ppm / day
     'magnesium': 50.0,   # ppm / day
+    'nitrate': 2.0,      # ppm / day
+    'phosphate': 0.02,   # ppm / day
+    'potassium': 10.0,   # ppm / day
+    'iodine': 0.01,      # ppm / day
+    'strontium': 1.0,    # ppm / day
 }
 
 DOSE_PARAMETERS = {
     'alkalinity': {'name': 'Alkalinity', 'unit': 'dKH', 'decimals': 2},
     'calcium': {'name': 'Calcium', 'unit': 'ppm', 'decimals': 1},
     'magnesium': {'name': 'Magnesium', 'unit': 'ppm', 'decimals': 0},
+    # These use the product's own label rather than chemistry worked out here. `typical` is roughly natural
+    # seawater, offered as a target only when the parameter isn't being tracked with its own range.
+    'nitrate': {'name': 'Nitrate', 'unit': 'ppm', 'decimals': 1, 'label_only': True,
+                'note': "Usually only needed in very clean tanks where nitrate reads near zero."},
+    'phosphate': {'name': 'Phosphate', 'unit': 'ppm', 'decimals': 3, 'label_only': True,
+                  'note': "Usually only needed where phosphate reads near zero. It's easy to overshoot, so dose small amounts."},
+    'potassium': {'name': 'Potassium', 'unit': 'ppm', 'decimals': 0, 'label_only': True, 'typical': 400,
+                  'note': "Test before dosing. Salt mixes and water changes often keep this close to normal."},
+    'iodine': {'name': 'Iodine', 'unit': 'ppm', 'decimals': 3, 'label_only': True, 'typical': 0.06,
+               'note': "Hard to test accurately at home, and too much can harm livestock. Many keepers rely on water changes instead."},
+    'strontium': {'name': 'Strontium', 'unit': 'ppm', 'decimals': 1, 'label_only': True, 'typical': 8,
+                  'note': "Hard to test accurately at home. Only dose if a test shows it's low."},
 }
 
 # Molar masses (g/mol). Amount needed is computed from stoichiometry, not from brand recipes.
@@ -398,7 +415,7 @@ def dose_estimate(parameter, chemical_key, current, target, system_gallons,
     g_per_unit = None
     if label_ml and label_raise and label_gallons:
         # commercial product: label_ml raises label_raise units in label_gallons of water
-        ml_per_unit = float(label_ml) * (float(label_gallons) / gallons) / float(label_raise)
+        ml_per_unit = float(label_ml) * (gallons / float(label_gallons)) / float(label_raise)
         result['mode'] = 'label'
     elif chemical_key:
         if chemical_key not in DOSE_CHEMICALS:
