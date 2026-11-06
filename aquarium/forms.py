@@ -220,9 +220,12 @@ class CostGatedMixin:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if not AppSettings.load().costs_enabled:
-            for name in self.cost_fields:
+        app_settings = AppSettings.load()
+        for name in self.cost_fields:
+            if not app_settings.costs_enabled:
                 self.fields.pop(name, None)
+            elif name in self.fields:
+                self.fields[name].label = f"{self.fields[name].label} ({app_settings.currency_symbol})"
 
 
 class AnimalForm(CostGatedMixin, forms.ModelForm):
@@ -349,16 +352,74 @@ VESSEL_WIDGETS = {
 
 
 class TankForm(VesselFormMixin, forms.ModelForm):
+    new_substrate_product = forms.CharField(
+        required=False, max_length=120, label='Or add a new product',
+        widget=forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. CaribSea Arag-Alive Pink'}),
+    )
+
     class Meta:
         model = Tank
         fields = ['name', 'is_primary', 'dimension_unit', 'width', 'depth', 'height',
-                  'fill_percent', 'capacity_is_manual', 'volume_gallons', 'notes']
+                  'fill_percent', 'capacity_is_manual', 'volume_gallons', 'substrate_type', 'substrate_amount',
+                  'substrate_unit', 'substrate_product', 'live_rock_amount', 'live_rock_unit', 'notes']
         widgets = {
             **VESSEL_WIDGETS,
+            'substrate_type': forms.Select(attrs={'class': INPUT}),
+            'substrate_amount': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
+            'substrate_unit': forms.Select(attrs={'class': INPUT, 'aria-label': 'Substrate weight unit'}),
+            'substrate_product': forms.Select(attrs={'class': INPUT}),
+            'live_rock_amount': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
+            'live_rock_unit': forms.Select(attrs={'class': INPUT, 'aria-label': 'Live rock weight unit'}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. 120g Display Tank'}),
             'is_primary': forms.CheckboxInput(attrs={'class': CHECKBOX}),
             'notes': forms.Textarea(attrs={'class': TEXTAREA, 'rows': 2}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['substrate_type'].choices = [('', 'Not set')] + Tank.SUBSTRATE_TYPES
+        self.fields['substrate_product'].queryset = Equipment.objects.filter(category='substrate').order_by('name')
+        self.fields['substrate_product'].empty_label = 'None'
+        self.fields['substrate_unit'].required = False
+        self.fields['live_rock_unit'].required = False
+
+    def clean_substrate_amount(self):
+        return self._clean_weight('substrate_amount')
+
+    def clean_live_rock_amount(self):
+        return self._clean_weight('live_rock_amount')
+
+    def _clean_weight(self, field):
+        value = self.cleaned_data.get(field)
+        if value is not None and value < 0:
+            raise forms.ValidationError("This can't be negative.")
+        return value
+
+    def clean_substrate_unit(self):
+        return self.cleaned_data.get('substrate_unit') or 'lb'
+
+    def clean_live_rock_unit(self):
+        return self.cleaned_data.get('live_rock_unit') or 'lb'
+
+    def clean(self):
+        cleaned = super().clean()
+        # A bare bottom tank has no sand to weigh or link.
+        if cleaned.get('substrate_type') == 'bare':
+            cleaned['substrate_amount'] = None
+            cleaned['substrate_product'] = None
+            cleaned['new_substrate_product'] = ''
+        return cleaned
+
+    def save(self, commit=True):
+        tank = super().save(commit)
+        name = (self.cleaned_data.get('new_substrate_product') or '').strip()
+        if name and commit:
+            product = Equipment.objects.filter(category='substrate', name__iexact=name).first()
+            if product is None:
+                product = Equipment.objects.create(name=name, category='substrate', tank=tank)
+            tank.substrate_product = product
+            tank.save(update_fields=['substrate_product'])
+        return tank
 
 
 class PlumbingRunForm(forms.ModelForm):

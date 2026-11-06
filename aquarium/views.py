@@ -11,11 +11,12 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.http import url_has_allowed_host_and_scheme, urlencode
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .active import default_tank, get_active_tank
+from .alert_history import alert_summary
 from .alerts import compute_alert_state
 from .compatibility import warnings_for_addition
 from .calculators import (
@@ -1520,13 +1521,15 @@ def water_change_calc_api(request):
         brand = request.GET.get('brand', 'tropic_marin_pro')
         salinity = float(request.GET.get('salinity', 1.026))
         salinity_unit = request.GET.get('salinity_unit', 'sg').lower()
+        start_salinity = float(request.GET.get('start_salinity') or 0)
 
         result = calculate_salt_mix(
             volume=volume,
             volume_unit=volume_unit,
             brand_key=brand,
             target_salinity=salinity,
-            salinity_unit=salinity_unit
+            salinity_unit=salinity_unit,
+            start_salinity=start_salinity
         )
         return JsonResponse(result)
     except Exception as e:
@@ -1559,6 +1562,24 @@ def water_change_delete_view(request, wc_id):
 # Alerts & Notifications Center
 # ==========================================
 
+ALERT_SEVERITIES = ('critical', 'warning', 'info')
+ALERT_STATUSES = ('active', 'resolved')
+
+
+def _alerts_matching(state, severity):
+    """The active alert lists for one severity. These match the severities the notifications use."""
+    if not severity:
+        return {}
+    parameters = [i for i in state['out_of_range_params'] if ('critical' if i['critical'] else 'warning') == severity]
+    return {
+        'out_of_range_params': parameters,
+        'low_reservoirs': state['low_reservoirs'] if severity == 'warning' else [],
+        'sick_animals': state['sick_animals'] if severity == 'warning' else [],
+        'due_routines': state['due_routines'] if severity == 'info' else [],
+        'due_equipment': state['due_equipment'] if severity == 'info' else [],
+    }
+
+
 def notifications_view(request):
     """Alerts & Notifications Center with health scoring and community resources."""
     state = compute_alert_state(request)
@@ -1588,8 +1609,29 @@ def notifications_view(request):
          'url': 'https://www.reef2reef.com/'},
     ]
 
+    severity = request.GET.get('severity', '')
+    status = request.GET.get('status', '')
+    if severity not in ALERT_SEVERITIES:
+        severity = ''
+    if status not in ALERT_STATUSES:
+        status = ''
+
+    # The filters only change this page's lists. `state` is shared with the alert badge, so it's left whole.
     context = dict(state)
+    context.update(_alerts_matching(state, severity))
+    context['shown_alerts'] = sum(len(context[name]) for name in ('out_of_range_params', 'low_reservoirs', 'due_routines', 'due_equipment', 'sick_animals'))
     context['r2r_forums'] = r2r_forums
+    context['history'] = alert_summary(get_active_tank(request), severity)
+    context['show_active'] = status != 'resolved'
+    context['show_resolved'] = status != 'active'
+    context['severity_filters'] = [
+        {'label': label, 'active': severity == value, 'query': urlencode({k: v for k, v in (('severity', value), ('status', status)) if v})}
+        for value, label in (('', 'All'), ('critical', 'Critical'), ('warning', 'Warning'), ('info', 'Reminder'))
+    ]
+    context['status_filters'] = [
+        {'label': label, 'active': status == value, 'query': urlencode({k: v for k, v in (('severity', severity), ('status', value)) if v})}
+        for value, label in (('', 'All'), ('active', 'Active'), ('resolved', 'Resolved'))
+    ]
     return render(request, 'aquarium/notifications.html', context)
 
 

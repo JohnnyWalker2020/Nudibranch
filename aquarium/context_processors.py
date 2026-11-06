@@ -57,7 +57,7 @@ def system_processor(request):
             'theme_background': palette['slate']['950'] if palette else background_color(theme),
             'system_icon_url': active.icon_url if active else '',
             'fallback_icon_url': fallback_url(),
-            'random_icons': random_pool(),
+            'random_icons': random_pool() if settings_obj.enable_random_icons else [],
             'costs_enabled': settings_obj.costs_enabled,
             'currency_symbol': settings_obj.currency_symbol,
         }

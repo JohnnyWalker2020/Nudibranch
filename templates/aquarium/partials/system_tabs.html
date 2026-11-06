@@ -1,9 +1,11 @@
 <!-- Sub-navigation shared by the Tanks / Equipment / Dosing / Routines pages. Pass active="tanks|equipment|dosing|routines" -->
-<div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-slate-900/60 border border-slate-800/80 rounded-2xl p-1.5">
+<div class="flex flex-wrap md:flex-nowrap items-center gap-1.5 md:overflow-x-auto no-scrollbar bg-slate-900/60 border border-slate-800/80 rounded-2xl p-1.5">
   <a href="{% url 'tanks' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors {% if active == 'tanks' %}bg-cyan-500 text-slate-950{% else %}text-slate-400 hover:text-white{% endif %}">🏛️ Tanks &amp; Sumps</a>
   <a href="{% url 'equipment' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors {% if active == 'equipment' %}bg-cyan-500 text-slate-950{% else %}text-slate-400 hover:text-white{% endif %}">⚙️ Equipment</a>
   <a href="{% url 'dosing' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors {% if active == 'dosing' %}bg-cyan-500 text-slate-950{% else %}text-slate-400 hover:text-white{% endif %}">🧪 Dosing &amp; ATO</a>
   <a href="{% url 'routines' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors {% if active == 'routines' %}bg-cyan-500 text-slate-950{% else %}text-slate-400 hover:text-white{% endif %}">📋 Routines</a>
+  <a href="{% url 'routines' %}#salt-calculator" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors text-slate-400 hover:text-white">🧂 Salt Mix</a>
+  <a href="{% url 'dosing' %}#dose-estimator" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors text-slate-400 hover:text-white">🧮 Dose Estimator</a>
   <a href="{% url 'planner' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors {% if active == 'planner' %}bg-cyan-500 text-slate-950{% else %}text-slate-400 hover:text-white{% endif %}">🗺️ Planner</a>
   <a href="{% url 'wishlist' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors {% if active == 'wishlist' %}bg-cyan-500 text-slate-950{% else %}text-slate-400 hover:text-white{% endif %}">💜 Wishlist</a>
   <a href="{% url 'timers' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors {% if active == 'timers' %}bg-cyan-500 text-slate-950{% else %}text-slate-400 hover:text-white{% endif %}">⏱️ Fill Timers</a>

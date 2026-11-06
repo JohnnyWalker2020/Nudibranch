@@ -1,5 +1,23 @@
 # Nudibranch: change summary
 
+## Round 8 (2026-11-06)
+
+Apply with `docker compose up -d --build`; migrations 0022 to 0024 run on start.
+
+- **Substrate and live rock**: a tank can record its substrate type and amount, link a substrate product from your equipment, and record its
+  live rock. Weights can be in lb or kg, and the tank page shows both. There's a new Substrate equipment type with no service reminders.
+- **Calculators easier to find**: tabs and Tools cards open the salt calculator and Dose Estimator directly, and the page tabs now wrap on phones instead of running off-screen.
+  The salt calculator also takes a starting salinity, default 0, and only counts the salt still needed.
+- **Icon and colours from each tank**: the tank page and its edit page open that tank's look, and the Tanks list shows each tank's icon.
+- **Bottom navigation**: the System button is now Tanks, with a tank icon in place of the gear.
+- **The Damage**: an option to count retired systems, which are now left out of All systems unless you tick it. A currency choice sets the symbol
+  everywhere prices appear, without converting amounts. A confession can be tied to a piece of equipment, which sets what you paid on it, and more sins to suggest.
+- **Demo readings**: `python manage.py seed_demo_readings` adds 90 days of made-up water tests for trying out the charts and alerts, and `--remove` takes them out.
+- **Alert history**: the Alerts page now has a Resolved section and metrics, with filters for severity and status. Choose how many days to keep them under Tools > Settings: 7 by default, up to 30.
+- **Estimate disclaimers**: the salt calculator and Dose Estimator now say their results are estimates to confirm independently.
+- **Random icons are off by default**: a system with no chosen icon keeps a lasting one. Turn **Enable random icons** on under Tools > Settings to bring them back.
+- **Removed the palette button** beside the system menu. Use **Icon & colours** on a tank's page, or **System Look** under Tools.
+
 ## Round 7 (2026-11-06)
 
 Security update. Copy `.env.example` to `.env` and fill it in before running `docker compose up -d --build`.

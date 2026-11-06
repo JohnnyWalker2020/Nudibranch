@@ -19,6 +19,7 @@ from datetime import datetime, time, timedelta
 
 from django.utils import timezone
 
+from .alert_history import prune_alert_history, record_alert_history
 from .alerts import compute_alert_state, log_buckets
 from .models import (
     AppSettings, Animal, EventState, FillTimer, MaintenanceRoutine, ParameterType, WebhookDelivery,
@@ -47,8 +48,10 @@ DELIVERY_RETENTION = timedelta(days=30)
 NTFY_PRIORITY = {'critical': '5', 'warning': '4', 'info': '3'}
 
 
-def _condition(key, event_type, severity, title, message, **data):
-    return {'key': key, 'type': event_type, 'severity': severity, 'title': title, 'message': message, 'data': data}
+def _condition(key, event_type, severity, title, message, *, system_id=None, subject='', issue=None, **data):
+    """`issue` identifies the problem for the alert history, when `key` changes as it gets worse."""
+    return {'key': key, 'type': event_type, 'severity': severity, 'title': title, 'message': message, 'data': data,
+            'system_id': system_id, 'subject': subject or title, 'issue': issue or key}
 
 
 def collect_conditions(now=None):
@@ -69,6 +72,7 @@ def collect_conditions(now=None):
             f"param:{param.pk}:{tank_id}:{log.status}:{severity}", event_type, severity,
             f"{prefix}{param.name} is {label}: {log.formatted_value} {param.unit}",
             f"Target range is {param.formatted_min_ideal} to {param.formatted_max_ideal} {param.unit}.",
+            system_id=tank.pk if tank else None, subject=param.name, issue=f"param:{param.pk}:{tank_id}:{log.status}",
             parameter=param.code, value=float(log.value), unit=param.unit, status=log.status,
             tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
             min_ideal=float(param.min_ideal), max_ideal=float(param.max_ideal),
@@ -84,6 +88,7 @@ def collect_conditions(now=None):
                     f"stale:{param.pk}:{tank.pk if tank else 0}:{latest.pk}", 'parameter.stale', 'warning',
                     f"{prefix}No new {param.name} readings",
                     f"Nothing logged for over {param.stale_after_hours} hours. Check the probe.",
+                    system_id=tank.pk if tank else None, subject=f"{param.name} probe",
                     parameter=param.code, last_measured_at=latest.measured_at.isoformat(),
                     tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
                 ))
@@ -92,25 +97,27 @@ def collect_conditions(now=None):
         found.append(_condition(
             f"reservoir:{res.pk}", 'reservoir.low', 'warning', f"{res.name} is running low",
             f"{res.percent_remaining}% left" + (f", about {res.days_remaining} days" if res.days_remaining is not None else "") + ".",
+            system_id=res.tank_id, subject=res.name,
             reservoir=res.name, percent_remaining=res.percent_remaining, days_remaining=res.days_remaining,
         ))
 
     for routine in state['due_routines']:
         found.append(_condition(
             f"routine:{routine.pk}:{routine.next_due_date}", 'routine.due', 'info', f"{routine.title} is due",
-            f"Due {routine.next_due_date}.", routine=routine.title, routine_id=routine.pk, due=str(routine.next_due_date),
+            f"Due {routine.next_due_date}.", system_id=routine.tank_id, subject=routine.title,
+            routine=routine.title, routine_id=routine.pk, due=str(routine.next_due_date),
         ))
 
     for eq in state['due_equipment']:
         found.append(_condition(
             f"equipment:{eq.pk}:{eq.last_serviced_date}", 'equipment.service_due', 'info', f"{eq.name} needs service",
-            "Its service interval has passed.", equipment=eq.name, category=eq.category,
+            "Its service interval has passed.", system_id=eq.tank_id, subject=eq.name, equipment=eq.name, category=eq.category,
         ))
 
     for animal in state['sick_animals']:
         found.append(_condition(
             f"animal:{animal.pk}:{animal.status}", 'animal.attention', 'warning', f"{animal.name}: {animal.get_status_display()}",
-            "This animal is flagged for attention.", animal=animal.name, status=animal.status,
+            "This animal is flagged for attention.", system_id=animal.tank_id, subject=animal.name, animal=animal.name, status=animal.status,
         ))
 
     for animal in not_retired(Animal.objects.filter(status='quarantine')).exclude(quarantine_started__isnull=True):
@@ -148,7 +155,8 @@ def sync_conditions(now=None):
     """Fires conditions that have just become true and forgets those that stayed clear."""
     now = now or timezone.now()
     settings_obj = AppSettings.load()
-    current = {c['key']: c for c in collect_conditions(now)}
+    conditions = collect_conditions(now)
+    current = {c['key']: c for c in conditions}
     known = {s.key: s for s in EventState.objects.exclude(event_type__in=ONE_SHOT_TYPES)}
     fired = 0
 
@@ -173,6 +181,7 @@ def sync_conditions(now=None):
 
     if not settings_obj.events_baselined:
         AppSettings.objects.filter(pk=settings_obj.pk).update(events_baselined=True)
+    record_alert_history(conditions, now)
     return fired
 
 
@@ -312,3 +321,4 @@ def deliver_due(now=None, limit=50):
 def prune(now=None):
     now = now or timezone.now()
     WebhookDelivery.objects.filter(created_at__lt=now - DELIVERY_RETENTION).delete()
+    prune_alert_history(now)

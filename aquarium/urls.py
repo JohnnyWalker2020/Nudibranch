@@ -94,8 +94,10 @@ urlpatterns = [
     path('tanks/<int:tank_id>/archive/', tools.tank_archive_view, name='tank_archive'),
     path('tanks/<int:tank_id>/restore/', tools.tank_restore_view, name='tank_restore'),
     path('system/look/', tools.system_theme_view, name='system_theme'),
+    path('tanks/<int:tank_id>/look/', tools.tank_look_view, name='tank_look'),
     path('the-damage/', tools.the_damage_view, name='the_damage'),
     path('the-damage/switch/', tools.damage_switch_view, name='damage_switch'),
+    path('the-damage/currency/', tools.damage_currency_view, name='damage_currency'),
     path('the-damage/<int:entry_id>/edit/', tools.cost_edit_view, name='cost_edit'),
     path('the-damage/<int:entry_id>/delete/', tools.cost_delete_view, name='cost_delete'),
 

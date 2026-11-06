@@ -86,6 +86,12 @@ def retired_default_stem(pk):
     return characters[pk % len(characters)]['old'] if characters else ''
 
 
+def default_stem(pk):
+    """The lasting icon for a system with no chosen character, while random icons are off."""
+    characters = character_icons()
+    return characters[(pk or 0) % len(characters)]['young'] if characters else ''
+
+
 def url_for_stem(stem):
     return _url_for(stem) if stem else ''
 
@@ -143,7 +149,7 @@ def young_version(choice):
 
 
 def random_pool():
-    """What "Surprise me" picks from. Only young versions."""
+    """What random icons pick from, when that setting is on. Only young versions."""
     return [{'path': c['young_url'], 'style': c['label']} for c in character_icons()]
 
 

@@ -29,15 +29,32 @@
     </div>
   </div>
 
+  <!-- Filters -->
+  <div class="flex flex-wrap items-center gap-x-5 gap-y-2 bg-slate-900 border border-slate-800 rounded-2xl p-3">
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-[10px] uppercase font-bold text-slate-500 mr-1">Severity</span>
+      {% for f in severity_filters %}<a href="?{{ f.query }}" class="px-3 py-1 rounded-lg text-xs font-semibold {% if f.active %}bg-cyan-500 text-slate-950{% else %}bg-slate-950 text-slate-400 hover:text-white{% endif %}">{{ f.label }}</a>{% endfor %}
+    </div>
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-[10px] uppercase font-bold text-slate-500 mr-1">Status</span>
+      {% for f in status_filters %}<a href="?{{ f.query }}" class="px-3 py-1 rounded-lg text-xs font-semibold {% if f.active %}bg-cyan-500 text-slate-950{% else %}bg-slate-950 text-slate-400 hover:text-white{% endif %}">{{ f.label }}</a>{% endfor %}
+    </div>
+  </div>
+
+  {% if show_active %}
   <!-- Active alerts -->
   <div class="space-y-4">
-    <h2 class="text-base font-bold text-white">⚠️ Active Action Items ({{ total_alerts }})</h2>
+    <h2 class="text-base font-bold text-white">⚠️ Active Action Items ({{ shown_alerts }})</h2>
 
     {% if total_alerts == 0 %}
       <div class="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-2">
         <span class="text-5xl">🌊</span>
         <h3 class="text-base font-bold text-emerald-400">All Systems Nominal</h3>
         <p class="text-xs text-slate-400 max-w-md mx-auto">No out-of-range parameters, reservoirs are stocked, and maintenance is up to date.</p>
+      </div>
+    {% elif shown_alerts == 0 %}
+      <div class="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+        <p class="text-xs text-slate-400">No active alerts at this severity.</p>
       </div>
     {% else %}
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -150,6 +167,45 @@
       </div>
     {% endif %}
   </div>
+  {% endif %}
+
+  {% if show_resolved %}
+  <!-- Resolved alerts -->
+  <div class="space-y-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <h2 class="text-base font-bold text-white">✅ Resolved ({{ history.resolved_count }})</h2>
+      <p class="text-[11px] text-slate-500">Kept for {{ history.days }} day{{ history.days|pluralize }}. <a href="{% url 'app_settings' %}" class="text-cyan-400 hover:underline">Change this in Settings</a></p>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
+      {% for record in history.resolved %}
+      <div class="p-4 flex items-start gap-3">
+        <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 {% if record.severity == 'critical' %}bg-rose-500{% elif record.severity == 'warning' %}bg-amber-400{% else %}bg-cyan-400{% endif %}" aria-hidden="true"></span>
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-white">{{ record.title }}</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">{% if record.resolution == 'retired' %}Ended when the system retired{% else %}Resolved{% endif %} {{ record.resolved_at|date:"M j, g:i A" }} · lasted {{ record.duration_label }} · {{ record.severity|title }}</p>
+        </div>
+      </div>
+      {% empty %}
+      <p class="p-8 text-center text-xs text-slate-400">Nothing resolved in the last {{ history.days }} day{{ history.days|pluralize }}{% if request.GET.severity %} at this severity{% endif %}.</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if history.metrics %}
+  <!-- Metrics -->
+  <div class="space-y-4">
+    <h2 class="text-base font-bold text-white">📊 Last {{ history.days }} Day{{ history.days|pluralize }}</h2>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Alerts</span><span class="text-xl font-black text-white">{{ history.metrics.total }}</span><span class="text-[11px] text-slate-500 block">{{ history.metrics.open }} active · {{ history.metrics.fixed }} resolved</span></div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Reached critical</span><span class="text-xl font-black {% if history.metrics.critical %}text-rose-400{% else %}text-white{% endif %}">{{ history.metrics.critical }}</span></div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Average time to resolve</span><span class="text-sm font-bold text-white">{{ history.metrics.average|default:"Nothing resolved yet" }}</span>{% if history.metrics.longest %}<span class="text-[11px] text-slate-500 block">Longest: {{ history.metrics.longest }}</span>{% endif %}</div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Most frequent</span>{% if history.metrics.most_frequent_times > 1 %}<span class="text-sm font-bold text-white break-words">{{ history.metrics.most_frequent }}</span><span class="text-[11px] text-slate-500 block">{{ history.metrics.most_frequent_times }} times</span>{% else %}<span class="text-sm font-bold text-white">Nothing has repeated</span>{% endif %}</div>
+    </div>
+    <p class="text-[11px] text-slate-500">Resolve times are most meaningful with automatic probes. With manual tests, a problem counts as resolved when you log a new test, so the time includes how long you took to re-test.</p>
+  </div>
+  {% endif %}
 
   <!-- Reef2Reef hub -->
   <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5">

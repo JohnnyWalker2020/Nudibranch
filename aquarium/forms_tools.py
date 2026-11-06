@@ -1,13 +1,16 @@
 """Forms for the tools section: planner, webhooks, timers, quarantine, timeline and settings."""
+import random
 from urllib.parse import urlsplit
 
 from django import forms
+from django.db import transaction
+from django.db.models import Q
 
 from .events import EVENT_TYPES
 from .icons import character_icons
 from .forms import CHECKBOX, INPUT, TEXTAREA
 from .models import (
-    AnimalPhoto, AppSettings, CostEntry, Equipment, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem,
+    AnimalPhoto, AppSettings, CostEntry, Equipment, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, currency_choices,
     SpeciesCatalog, Tank, WebhookEndpoint, WishlistItem,
 )
 
@@ -66,7 +69,40 @@ class SystemThemeForm(forms.ModelForm):
         return super().save(commit)
 
 
+SIN_DESCRIPTIONS = [
+    'One more coral, I promise',
+    'It was on sale, so I basically made money',
+    'A frag the size of a grain of rice',
+    'The pump I "needed"',
+    'Overnight shipping for one snail',
+    'A light that cost more than my first car',
+    '"Just browsing," they said',
+    'Emergency livestock (there was no emergency)',
+    'Impulse zoa. No regrets. Some regrets.',
+    'Salt. Again. Somehow.',
+    'An upgrade to the upgrade',
+    'Not telling anyone at home about this one',
+    'It followed me home from the fish store',
+    'Research. Strictly for research.',
+]
+
+
+class EquipmentPriceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        label = obj.name
+        if obj.tank:
+            label += f' · {obj.tank.name}'
+        if obj.paid is not None:
+            label += f' · paid {AppSettings.load().currency_symbol}{obj.paid:.2f}'
+        return label
+
+
 class CostEntryForm(StyledFormMixin, forms.ModelForm):
+    equipment = EquipmentPriceField(
+        queryset=Equipment.objects.none(), required=False, empty_label='Not tied to any equipment', label='Which equipment',
+        help_text="Sets what you paid on that equipment. If it already has a price, this replaces it.",
+    )
+
     class Meta:
         model = CostEntry
         fields = ['description', 'amount', 'spent_on', 'category', 'tank']
@@ -80,13 +116,79 @@ class CostEntryForm(StyledFormMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['tank'].empty_label = 'Not tied to one system'
+        self.fields['description'].required = False
+        self.fields['description'].widget.attrs['placeholder'] = f'e.g. {random.choice(SIN_DESCRIPTIONS)}'
+        self.replaced_price = None
+        self.linked_equipment_id = self.instance.equipment_id
+        if self.instance.animal_id:
+            # This line belongs to an animal, so it can't belong to equipment as well.
+            self.fields.pop('equipment')
+        else:
+            current = Q(tank__isnull=True) | Q(tank__is_archived=False)
+            if self.linked_equipment_id:
+                current |= Q(pk=self.linked_equipment_id)
+                self.fields['equipment'].initial = self.linked_equipment_id
+            self.fields['equipment'].queryset = Equipment.objects.filter(current).select_related('tank').order_by('name')
+
+    def clean_amount(self):
+        amount = self.cleaned_data['amount']
+        if amount < 0:
+            raise forms.ValidationError("Nice try. Refunds aren't sins.")
+        return amount
+
+    def clean(self):
+        cleaned = super().clean()
+        if not cleaned.get('description'):
+            equipment = cleaned.get('equipment')
+            if equipment:
+                cleaned['description'] = equipment.name[:150]
+            elif 'description' not in self.errors:
+                self.add_error('description', 'Every sin needs a name. What was it?')
+        return cleaned
+
+    def save(self, commit=True):
+        entry = super().save(commit=False)
+        if 'equipment' not in self.fields:
+            if commit:
+                entry.save()
+            return entry
+        equipment = self.cleaned_data.get('equipment')
+        entry.equipment = equipment
+        if equipment:
+            entry.tank = equipment.tank or entry.tank
+            if entry.category == 'other':
+                entry.category = 'equipment'
+        if commit:
+            with transaction.atomic():
+                if equipment:
+                    previous = CostEntry.objects.filter(equipment=equipment).exclude(pk=entry.pk).first()
+                    if previous:
+                        self.replaced_price = previous.amount
+                        previous.delete()
+                entry.save()
+                if self.linked_equipment_id and (not equipment or equipment.pk != self.linked_equipment_id):
+                    Equipment.objects.filter(pk=self.linked_equipment_id).update(paid=None)
+        return entry
 
 
 class AppSettingsForm(StyledFormMixin, forms.ModelForm):
+    currency_symbol = forms.ChoiceField(label='Currency', help_text="Only changes the symbol shown. Amounts aren't converted.")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['currency_symbol'].choices = currency_choices(self.instance.currency_symbol)
+        days = self.fields['resolved_alert_days']
+        days.required = False
+        days.widget.attrs.update(min=1, max=30)
+
+    def clean_resolved_alert_days(self):
+        days = self.cleaned_data.get('resolved_alert_days')
+        return self.instance.resolved_alert_days if days is None else days
+
     class Meta:
         model = AppSettings
         fields = ['electricity_rate', 'currency_symbol', 'auto_backup_days', 'auto_backup_keep',
-                  'disable_icon_aging', 'enable_old_version_icons']
+                  'disable_icon_aging', 'enable_old_version_icons', 'enable_random_icons', 'resolved_alert_days']
 
 
 class WebhookEndpointForm(StyledFormMixin, forms.ModelForm):

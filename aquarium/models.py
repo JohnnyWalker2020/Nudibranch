@@ -2,6 +2,7 @@ import copy
 import urllib.parse
 from datetime import timedelta
 
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
@@ -436,15 +437,36 @@ class DimensionedVessel(models.Model):
         super().save(*args, **kwargs)
 
 
+KG_PER_LB = 0.45359237
+
+
 class Tank(DimensionedVessel):
     """Represents an aquarium system (e.g. Main Display, Frag Tank, Quarantine)."""
+    WEIGHT_UNITS = [('lb', 'lb'), ('kg', 'kg')]
+    SUBSTRATE_TYPES = [
+        ('bare', 'Bare bottom'),
+        ('live_sand', 'Live sand'),
+        ('aragonite', 'Dry aragonite sand'),
+        ('crushed_coral', 'Crushed coral'),
+        ('reef_rubble', 'Rubble'),
+        ('mud', 'Mineral mud'),
+        ('other', 'Other'),
+    ]
     name = models.CharField(max_length=100, default="Main Display Tank")
     is_primary = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
     theme = models.CharField(max_length=20, choices=THEME_CHOICES, default=DEFAULT_THEME)
-    icon_choice = models.CharField(max_length=60, blank=True, help_text="A character icon, 'custom', or blank for a random one")
+    icon_choice = models.CharField(max_length=60, blank=True, help_text="A character icon, 'custom', or blank for the default")
     custom_icon = models.ImageField(upload_to='icons/', null=True, blank=True)
+    substrate_type = models.CharField(max_length=20, choices=SUBSTRATE_TYPES, blank=True)
+    substrate_amount = models.DecimalField(max_digits=8, decimal_places=1, null=True, blank=True)
+    substrate_unit = models.CharField(max_length=2, choices=WEIGHT_UNITS, default='lb')
+    substrate_product = models.ForeignKey('Equipment', on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='substrate_for_tanks',
+                                          help_text="The product it is, from your equipment list")
+    live_rock_amount = models.DecimalField(max_digits=8, decimal_places=1, null=True, blank=True)
+    live_rock_unit = models.CharField(max_length=2, choices=WEIGHT_UNITS, default='lb')
     is_archived = models.BooleanField(default=False, editable=False)
     archived_at = models.DateTimeField(null=True, blank=True, editable=False)
 
@@ -454,9 +476,26 @@ class Tank(DimensionedVessel):
     def __str__(self):
         return f"{self.name} ({self.volume_gallons} gal)"
 
+    @staticmethod
+    def _weight_label(amount, unit):
+        """'50 lb (22.7 kg)': what was entered, then the other unit. '' when nothing's entered."""
+        if amount is None:
+            return ''
+        value = float(amount)
+        other = f"{value * KG_PER_LB:.1f} kg" if unit == 'lb' else f"{value / KG_PER_LB:.1f} lb"
+        return f"{value:g} {unit} ({other})"
+
+    @property
+    def substrate_amount_label(self):
+        return self._weight_label(self.substrate_amount, self.substrate_unit)
+
+    @property
+    def live_rock_label(self):
+        return self._weight_label(self.live_rock_amount, self.live_rock_unit)
+
     @property
     def icon_url(self):
-        """The icon to show for this system, or '' to let the page pick a random young one."""
+        """The icon to show for this system, or '' if the page should pick one (random icons, or a missing upload)."""
         # Your own upload never changes, retired or not.
         if self.icon_choice == 'custom':
             return self.custom_icon.url if self.custom_icon else ''
@@ -465,9 +504,14 @@ class Tank(DimensionedVessel):
     def _icon_stem(self):
         app_settings = AppSettings.load()
         aged = self.is_archived and not app_settings.disable_icon_aging
-        if not self.icon_choice:
-            return icons.retired_default_stem(self.pk) if aged else ''
-        return icons.display_stem(self.icon_choice, aged=aged, old_allowed=app_settings.enable_old_version_icons)
+        stem = ''
+        if self.icon_choice:
+            stem = icons.display_stem(self.icon_choice, aged=aged, old_allowed=app_settings.enable_old_version_icons)
+        if stem:
+            return stem
+        if aged:
+            return icons.retired_default_stem(self.pk)
+        return '' if app_settings.enable_random_icons else icons.default_stem(self.pk)
 
     def icon_palette(self):
         """Page colours taken from the icon being shown, or None (a random icon has no lasting colours)."""
@@ -669,6 +713,7 @@ class Equipment(models.Model):
         ('dosing', '🧪 Dosing Pump'),
         ('ato', '💧 Auto Top-Off (ATO) Unit'),
         ('feeder', '🍤 Auto Feeder'),
+        ('substrate', '🏖️ Substrate'),
         ('filtration', '🧽 Filtration & Media Reactor'),
         ('monitoring', '📊 Monitor / Controller (Apex, ReefBot)'),
         ('other', '⚙️ Other Equipment'),
@@ -681,6 +726,7 @@ class Equipment(models.Model):
     ]
 
     FLOW_CATEGORIES = ('return_pump', 'wavemaker')
+    NO_SERVICE_CATEGORIES = ('substrate',)  # sand doesn't get cleaned on a schedule
 
     tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipment')
     sump = models.ForeignKey(Sump, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipment',
@@ -761,9 +807,13 @@ class Equipment(models.Model):
         return self.last_serviced_date or self.installed_date
 
     @property
+    def needs_service(self):
+        return self.category not in self.NO_SERVICE_CATEGORIES
+
+    @property
     def is_service_due(self):
         """True if the equipment needs its routine cleaning/service."""
-        if self.status == 'offline':
+        if self.status == 'offline' or not self.needs_service:
             return False
         if self.status == 'maintenance_due':
             return True
@@ -1013,6 +1063,30 @@ class DashboardWidget(models.Model):
 # App-wide settings
 # ==========================================
 
+# Stored as the symbol itself, which is what the pages show. Choosing one never converts any amounts.
+CURRENCIES = [
+    ('$', '$ US dollar'),
+    ('€', '€ Euro'),
+    ('£', '£ British pound'),
+    ('CA$', 'CA$ Canadian dollar'),
+    ('A$', 'A$ Australian dollar'),
+    ('NZ$', 'NZ$ New Zealand dollar'),
+    ('¥', '¥ Japanese yen'),
+    ('₹', '₹ Indian rupee'),
+    ('R$', 'R$ Brazilian real'),
+    ('MX$', 'MX$ Mexican peso'),
+    ('kr', 'kr Krona / krone'),
+    ('CHF', 'CHF Swiss franc'),
+]
+
+
+def currency_choices(current=None):
+    """The list above, keeping a symbol someone typed in before this became a list."""
+    if current and current not in dict(CURRENCIES):
+        return [(current, f'{current} (your own)')] + CURRENCIES
+    return list(CURRENCIES)
+
+
 class AppSettings(models.Model):
     """Single row of app-wide settings and background worker bookkeeping."""
     electricity_rate = models.DecimalField(max_digits=6, decimal_places=4, default=0.15,
@@ -1024,6 +1098,11 @@ class AppSettings(models.Model):
         default=False, help_text="Retired systems keep their young icon instead of switching to the old version")
     enable_old_version_icons = models.BooleanField(
         default=False, help_text="Lets you pick the old version of a character for any system")
+    enable_random_icons = models.BooleanField(
+        default=False, help_text="Systems with no chosen icon show a different character on every page")
+    resolved_alert_days = models.PositiveSmallIntegerField(
+        'Days to keep resolved alerts', default=7, validators=[MinValueValidator(1), MaxValueValidator(30)],
+        help_text="How long resolved alerts and their metrics stay on the Alerts page (1 to 30)")
     auto_backup_days = models.PositiveIntegerField(default=7, help_text="Make a backup every N days (0 = off)")
     auto_backup_keep = models.PositiveIntegerField(default=4, help_text="How many automatic backups to keep")
     worker_last_seen = models.DateTimeField(null=True, blank=True, editable=False)
@@ -1201,6 +1280,46 @@ class EventState(models.Model):
 
     def __str__(self):
         return self.key
+
+
+class AlertRecord(models.Model):
+    """One problem from when it started until it was resolved, for the history on the Alerts page."""
+    SYSTEM_RETIRED = 'retired'
+
+    issue_key = models.CharField(max_length=120, db_index=True)
+    event_type = models.CharField(max_length=40)
+    severity = models.CharField(max_length=10, help_text="The worst it got")
+    tank = models.ForeignKey('Tank', on_delete=models.CASCADE, null=True, blank=True, related_name='alert_records')
+    subject = models.CharField(max_length=120)
+    title = models.CharField(max_length=200)
+    message = models.CharField(max_length=300, blank=True)
+    started_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    resolution = models.CharField(max_length=20, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def duration(self):
+        return (self.resolved_at or timezone.now()) - self.started_at
+
+    @property
+    def duration_label(self):
+        return self.describe(self.duration)
+
+    @staticmethod
+    def describe(span):
+        minutes = int(span.total_seconds() // 60)
+        if minutes < 1:
+            return 'under a minute'
+        days, minutes = divmod(minutes, 1440)
+        hours, minutes = divmod(minutes, 60)
+        parts = [(days, 'day'), (hours, 'hour')] if days else [(hours, 'hour'), (minutes, 'minute')]
+        return ', '.join(f"{count} {name}{'s' if count != 1 else ''}" for count, name in parts if count)
 
 
 # ==========================================
@@ -1393,20 +1512,25 @@ class CostEntry(models.Model):
         return f"{self.description}: {self.amount}"
 
 
-def _sync_paid_entry(instance, link, category, description, day):
-    """Keeps the ledger line for an animal's or equipment's "what you paid" matching it."""
+def _sync_paid_entry(instance, link, category, description, day, keep_details=False):
+    """
+    Keeps the ledger line for an animal's or equipment's "what you paid" matching it.
+    keep_details leaves an existing line's wording, category and date alone, so a confession stays as written.
+    """
     entry = CostEntry.objects.filter(**{link: instance}).first()
     if instance.paid is None:
         if entry:
             entry.delete()
         return
-    if entry is None:
+    is_new = entry is None
+    if is_new:
         entry = CostEntry(**{link: instance}, spent_on=day or timezone.localdate())
-    elif day:
+    elif day and not keep_details:
         entry.spent_on = day
     entry.tank = instance.tank
-    entry.category = category
-    entry.description = description[:150]
+    if is_new or not keep_details:
+        entry.category = category
+        entry.description = description[:150]
     entry.amount = instance.paid
     entry.save()
 
@@ -1421,7 +1545,7 @@ def _animal_saved(sender, instance, raw=False, **kwargs):
 @receiver(post_save, sender=Equipment)
 def _equipment_saved(sender, instance, raw=False, **kwargs):
     if not raw:
-        _sync_paid_entry(instance, 'equipment', 'equipment', instance.name, instance.installed_date)
+        _sync_paid_entry(instance, 'equipment', 'equipment', instance.name, instance.installed_date, keep_details=True)
 
 
 def _linked_record_querysets(entry):

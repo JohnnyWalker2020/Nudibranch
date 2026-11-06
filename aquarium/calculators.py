@@ -58,12 +58,14 @@ def calculate_salt_mix(
     brand_key: str = 'tropic_marin_pro',
     target_salinity: float = 1.026,
     salinity_unit: str = 'sg',
-    gallons: float = None
+    gallons: float = None,
+    start_salinity: float = 0.0
 ):
     """
     Calculates salt mix amount (grams, ounces, lbs, and cups) needed for a water change.
     Supports volume in Gallons or Liters, and Salinity in Specific Gravity (SG) or ppt.
-    Base target is 1.026 SG (35 ppt).
+    Base target is 1.026 SG (35 ppt). start_salinity is what the water already measures, in the
+    same unit as the target; 0 means fresh water, and only the difference is added as salt.
     """
     # Backward compatibility if gallons passed as positional/keyword
     if gallons is not None:
@@ -94,6 +96,14 @@ def calculate_salt_mix(
     # Scale factor against standard 1.026 SG
     scale_factor = (sg_val - 1.0) / 0.026 if sg_val > 1.0 else 1.0
 
+    # Salt already in the water, on the same scale. Never below fresh water.
+    if s_unit == 'ppt':
+        start_scale = max(start_salinity, 0.0) / 35.0
+    else:
+        start_scale = (start_salinity - 1.0) / 0.026 if start_salinity > 1.0 else 0.0
+    already_at_target = start_scale > 0 and start_scale >= scale_factor
+    scale_factor = max(scale_factor - start_scale, 0.0)
+
     grams_total = gal_equiv * recipe['grams_per_gallon'] * scale_factor
     ounces_total = grams_total / 28.3495
     lbs_total = grams_total / 453.592
@@ -107,6 +117,8 @@ def calculate_salt_mix(
         'liters': round(liters_equiv, 2),
         'target_salinity': target_salinity,
         'salinity_unit': salinity_unit,
+        'start_salinity': start_salinity,
+        'already_at_target': already_at_target,
         'sg': round(sg_val, 3),
         'ppt': round(ppt_val, 1),
         'grams': round(grams_total, 1),

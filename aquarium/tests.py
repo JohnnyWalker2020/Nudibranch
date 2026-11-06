@@ -12,19 +12,20 @@ from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
+from .alert_history import alert_summary
 from .alerts import compute_alert_state
 from . import icons
 from .icons import character_icons
 from . import backups, compatibility, events, fill, planner, power, timelapse
 from .models import (
-    Animal, AnimalPhoto, AppSettings, CostEntry, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
-    ParameterLog, ParameterType, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
+    AlertRecord, Animal, AnimalPhoto, AppSettings, CostEntry, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
+    ParameterLog, ParameterType, Sump, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
     TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint, WishlistItem,
 )
 
@@ -1360,6 +1361,7 @@ class CharacterIconTests(TestCase):
         self.assertEqual(self.main.icon_choice, '03-robot-young')
 
     def test_surprise_me_only_uses_young(self):
+        self.settings_on(enable_random_icons=True)
         pool = self.client.get('/').context['random_icons']
         self.assertEqual(len(pool), 26)
         self.assertTrue(all('-young' in item['path'] for item in pool))
@@ -1415,6 +1417,7 @@ class CharacterIconTests(TestCase):
         self.assertNotContains(self.client.get(reverse('system_theme')), 'This system is retired')
 
     def test_surprise_me_retired_gets_a_lasting_old_icon(self):
+        self.settings_on(enable_random_icons=True)
         self.assertEqual(self.other.icon_url, '')
         self.retire(self.other)
         first = self.other.icon_url
@@ -1433,10 +1436,46 @@ class CharacterIconTests(TestCase):
         saved = AppSettings.load()
         self.assertTrue(saved.disable_icon_aging and saved.enable_old_version_icons)
 
-    def test_removed_icon_falls_back_to_random(self):
+    def test_removed_icon_falls_back_to_the_default(self):
         Tank.objects.filter(pk=self.main.pk).update(icon_choice='gone-young')
         self.main.refresh_from_db()
+        self.assertIn(icons.default_stem(self.main.pk), self.main.icon_url)
+        self.settings_on(enable_random_icons=True)
         self.assertEqual(self.main.icon_url, '')
+
+    def test_random_icons_are_off_by_default(self):
+        self.assertFalse(AppSettings.load().enable_random_icons)
+        first = self.other.icon_url
+        self.assertIn(icons.default_stem(self.other.pk), first)
+        self.assertEqual(Tank.objects.get(pk=self.other.pk).icon_url, first)
+        page = self.client.get('/')
+        self.assertEqual(page.context['random_icons'], [])
+        self.assertEqual(page.context['system_icon_url'], self.main.icon_url)
+        look = self.client.get(reverse('system_theme'))
+        self.assertNotContains(look, 'Surprise me')
+        self.assertContains(look, 'Default')
+
+    def test_tanks_with_no_icon_get_different_defaults(self):
+        third = Tank.objects.create(name='Third', capacity_is_manual=True)
+        self.assertNotEqual(self.other.icon_url, third.icon_url)
+
+    def test_match_my_icon_works_with_the_default_icon(self):
+        self.assertIsNotNone(self.other.icon_palette())
+
+    def test_random_icons_setting_brings_them_back(self):
+        page = self.client.get(reverse('app_settings'))
+        self.assertContains(page, 'Enable random icons')
+        self.client.post(reverse('app_settings'), {
+            'electricity_rate': '0.15', 'currency_symbol': '$', 'auto_backup_days': 7, 'auto_backup_keep': 4,
+            'enable_random_icons': 'on'})
+        self.assertTrue(AppSettings.load().enable_random_icons)
+        self.assertEqual(self.other.icon_url, '')
+        self.assertEqual(len(self.client.get('/').context['random_icons']), 26)
+        self.client.get(reverse('tank_look', args=[self.other.pk]))
+        self.assertContains(self.client.get(reverse('system_theme')), 'Surprise me')
+
+    def test_no_look_button_beside_the_system_menu(self):
+        self.assertNotContains(self.client.get('/'), 'Colours and icon for this system')
 
     def test_thumbnails_are_small_and_leave_originals_alone(self):
         from unittest.mock import patch
@@ -1502,6 +1541,8 @@ class MatchMyIconTests(TestCase):
         self.assertEqual(page.context['theme_background'], palette['slate']['950'])
 
     def test_surprise_me_falls_back(self):
+        AppSettings.load()
+        AppSettings.objects.filter(pk=1).update(enable_random_icons=True)
         Tank.objects.filter(pk=self.tank.pk).update(icon_choice='')
         page = self.client.get('/')
         self.assertEqual(page.context['theme_colors_json'], '{}')
@@ -1619,6 +1660,596 @@ class SignInTests(TestCase):
         self.assertTrue(response['HX-Redirect'].startswith('/login/'))
 
 
+class DamageExtrasTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)
+        self.old = Tank.objects.create(name='Old', volume_gallons=25, capacity_is_manual=True, is_archived=True)
+        self.pump = Equipment.objects.create(name='Pump', category='pump', tank=self.tank)
+        AppSettings.load()
+        AppSettings.objects.filter(pk=1).update(costs_enabled=True)
+
+    def confess(self, **extra):
+        data = {'description': 'One more', 'amount': '100', 'spent_on': '2026-11-01', 'category': 'other', 'tank': self.tank.pk}
+        data.update(extra)
+        return self.client.post(reverse('the_damage'), data)
+
+    def test_retired_systems_are_an_option(self):
+        CostEntry.objects.create(description='Now', amount=Decimal('10'), tank=self.tank)
+        CostEntry.objects.create(description='Then', amount=Decimal('5'), tank=self.old)
+        CostEntry.objects.create(description='Loose', amount=Decimal('1'))
+        without = self.client.get(reverse('the_damage'), {'tank': 'all'})
+        self.assertEqual(without.context['total'], 11)
+        self.assertEqual(without.context['per_gallon'], 11 / 75)
+        included = self.client.get(reverse('the_damage'), {'tank': 'all', 'retired': '1'})
+        self.assertEqual(included.context['total'], 16)
+        self.assertEqual(included.context['per_gallon'], 16 / 100)
+        self.assertIn('retired=1', included.context['presets'][0]['query'])
+        self.assertContains(without, 'Include retired systems')
+
+    def test_a_retired_system_can_still_be_viewed_alone(self):
+        CostEntry.objects.create(description='Then', amount=Decimal('5'), tank=self.old)
+        self.assertEqual(self.client.get(reverse('the_damage'), {'tank': self.old.pk}).context['total'], 5)
+
+    def test_currency_shows_wherever_prices_do(self):
+        Equipment.objects.filter(pk=self.pump.pk).update(paid=Decimal('40'))
+        self.client.post(reverse('damage_currency'), {'currency': '€', 'next': reverse('the_damage')})
+        self.assertEqual(AppSettings.load().currency_symbol, '€')
+        self.assertContains(self.client.get(reverse('equipment')), '€40.00')
+        page = self.client.get(reverse('the_damage'))
+        self.assertContains(page, 'Cost (€)')
+        self.assertEqual(Equipment.objects.get(pk=self.pump.pk).paid, Decimal('40'))
+        self.assertContains(self.client.get(reverse('equipment_edit', args=[self.pump.pk])), 'What you paid (€)')
+
+    def test_currency_picker_does_not_clash_with_the_chart_data(self):
+        CostEntry.objects.create(description='Now', amount=Decimal('10'), tank=self.tank)
+        page = self.client.get(reverse('the_damage')).content.decode()
+        self.assertEqual(page.count('id="damage-currency"'), 1)
+        self.assertIn('<script id="damage-currency"', page)
+
+    def test_fire_out_text_uses_the_currency(self):
+        self.client.post(reverse('damage_currency'), {'currency': '£'})
+        page = self.client.post(reverse('damage_switch'), {'enabled': '0'}, follow=True)
+        self.assertContains(page, 'Your £ values')
+        self.assertNotContains(page, '$ value')
+
+    def test_unknown_currency_is_refused_and_custom_is_kept(self):
+        self.client.post(reverse('damage_currency'), {'currency': 'GOLD'})
+        self.assertEqual(AppSettings.load().currency_symbol, '$')
+        AppSettings.objects.filter(pk=1).update(currency_symbol='Ƀ')
+        self.assertContains(self.client.get(reverse('app_settings')), 'Ƀ (your own)')
+        self.client.post(reverse('damage_currency'), {'currency': 'Ƀ'})
+        self.assertEqual(AppSettings.load().currency_symbol, 'Ƀ')
+
+    def test_settings_page_offers_the_currency_list(self):
+        self.client.post(reverse('app_settings'), {
+            'electricity_rate': '0.15', 'currency_symbol': 'CA$', 'auto_backup_days': 7, 'auto_backup_keep': 4})
+        self.assertEqual(AppSettings.load().currency_symbol, 'CA$')
+
+    def test_confession_sets_the_equipment_price(self):
+        other = Tank.objects.create(name='Other', volume_gallons=10, capacity_is_manual=True)
+        self.confess(description='The pump I needed', equipment=self.pump.pk, tank=other.pk)
+        entry = CostEntry.objects.get()
+        self.pump.refresh_from_db()
+        self.assertEqual(self.pump.paid, Decimal('100'))
+        self.assertEqual(entry.equipment, self.pump)
+        self.assertEqual(entry.tank, self.tank)
+        self.assertEqual(entry.category, 'equipment')
+        self.assertEqual(entry.description, 'The pump I needed')
+
+    def test_equipment_page_price_updates_the_confession(self):
+        self.confess(description='The pump I needed', equipment=self.pump.pk, spent_on='2026-10-01')
+        pump = Equipment.objects.get(pk=self.pump.pk)
+        pump.paid = Decimal('150')
+        pump.save()
+        entry = CostEntry.objects.get()
+        self.assertEqual(entry.amount, Decimal('150'))
+        self.assertEqual(entry.description, 'The pump I needed')
+        self.assertEqual(str(entry.spent_on), '2026-10-01')
+
+    def test_price_from_equipment_page_counts_in_the_total(self):
+        pump = Equipment.objects.get(pk=self.pump.pk)
+        pump.paid = Decimal('75')
+        pump.save()
+        self.assertEqual(self.client.get(reverse('the_damage')).context['total'], 75)
+        self.assertContains(self.client.get(reverse('the_damage')), 'value="%d"' % self.pump.pk)
+
+    def test_no_double_counting_when_confessing_again(self):
+        self.confess(equipment=self.pump.pk)
+        page = self.client.post(reverse('the_damage'), {
+            'description': 'Again', 'amount': '250', 'spent_on': '2026-11-02', 'category': 'other',
+            'tank': self.tank.pk, 'equipment': self.pump.pk}, follow=True)
+        self.assertEqual(CostEntry.objects.count(), 1)
+        self.assertEqual(Equipment.objects.get(pk=self.pump.pk).paid, Decimal('250'))
+        self.assertEqual(page.context['total'], 250)
+        self.assertContains(page, 'This replaced the $100.00 already on Pump')
+
+    def test_name_defaults_to_the_equipment(self):
+        self.confess(description='', equipment=self.pump.pk)
+        self.assertEqual(CostEntry.objects.get().description, 'Pump')
+        CostEntry.objects.all().delete()
+        self.confess(description='')
+        self.assertEqual(CostEntry.objects.count(), 0)
+
+    def test_negative_cost_is_refused(self):
+        self.confess(amount='-5')
+        self.assertEqual(CostEntry.objects.count(), 0)
+
+    def test_unlinking_on_edit_clears_the_price(self):
+        self.confess(equipment=self.pump.pk)
+        entry = CostEntry.objects.get()
+        self.client.post(reverse('cost_edit', args=[entry.pk]), {
+            'description': 'One more', 'amount': '100', 'spent_on': '2026-11-01', 'category': 'equipment', 'tank': self.tank.pk, 'equipment': ''})
+        self.assertIsNone(Equipment.objects.get(pk=self.pump.pk).paid)
+        self.assertEqual(CostEntry.objects.get().amount, Decimal('100'))
+
+    def test_moving_the_link_moves_the_price(self):
+        light = Equipment.objects.create(name='Light', category='lighting', tank=self.tank)
+        self.confess(equipment=self.pump.pk)
+        entry = CostEntry.objects.get()
+        self.client.post(reverse('cost_edit', args=[entry.pk]), {
+            'description': 'One more', 'amount': '100', 'spent_on': '2026-11-01', 'category': 'equipment', 'tank': self.tank.pk, 'equipment': light.pk})
+        self.assertIsNone(Equipment.objects.get(pk=self.pump.pk).paid)
+        self.assertEqual(Equipment.objects.get(pk=light.pk).paid, Decimal('100'))
+
+    def test_livestock_lines_stay_with_their_animal(self):
+        animal = Animal.objects.create(name='Clown', tank=self.tank, paid=Decimal('30'))
+        entry = CostEntry.objects.get(animal=animal)
+        form_page = self.client.get(reverse('cost_edit', args=[entry.pk]))
+        self.assertNotIn('equipment', form_page.context['form'].fields)
+        self.client.post(reverse('cost_edit', args=[entry.pk]), {
+            'description': 'Clown', 'amount': '35', 'spent_on': '2026-11-01', 'category': 'livestock', 'tank': self.tank.pk})
+        self.assertEqual(Animal.objects.get(pk=animal.pk).paid, Decimal('35'))
+
+    def test_retired_equipment_is_not_offered(self):
+        Equipment.objects.create(name='Old pump', category='pump', tank=self.old)
+        names = [e.name for e in self.client.get(reverse('the_damage')).context['form'].fields['equipment'].queryset]
+        self.assertEqual(names, ['Pump'])
+
+    def test_price_stays_hidden_while_the_fire_is_out(self):
+        self.confess(equipment=self.pump.pk)
+        self.client.post(reverse('damage_switch'), {'enabled': '0'})
+        self.assertNotContains(self.client.get(reverse('equipment')), 'Paid $100')
+        self.assertEqual(Equipment.objects.get(pk=self.pump.pk).paid, Decimal('100'))
+
+    def test_sins_are_suggested(self):
+        from .forms_tools import SIN_DESCRIPTIONS
+        self.assertGreaterEqual(len(SIN_DESCRIPTIONS), 10)
+        placeholder = self.client.get(reverse('the_damage')).context['form'].fields['description'].widget.attrs['placeholder']
+        self.assertTrue(any(sin in placeholder for sin in SIN_DESCRIPTIONS))
+
+
+class DemoReadingsTests(TestCase):
+    def setUp(self):
+        if not ParameterType.objects.filter(code='alkalinity').exists():
+            call_command('seed_reef_data', stdout=io.StringIO())
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)
+
+    def run_it(self, **options):
+        call_command('seed_demo_readings', stdout=io.StringIO(), **options)
+
+    def statuses(self, tank=None):
+        logs = list(ParameterLog.objects.filter(tank=tank or self.tank))
+        return [log.status for log in logs]
+
+    def test_most_readings_are_in_range_with_a_few_outliers(self):
+        self.run_it()
+        statuses = self.statuses()
+        self.assertGreater(len(statuses), 300)
+        outliers = sum(1 for status in statuses if status != 'optimal')
+        self.assertGreater(outliers, 5)
+        self.assertLess(outliers / len(statuses), .1)
+
+    def test_it_sets_off_a_warning_and_a_critical_alert(self):
+        self.run_it()
+        state = compute_alert_state(tank=self.tank)
+        alerts = {item['param'].code: item['critical'] for item in state['out_of_range_params']}
+        self.assertEqual(alerts, {'alkalinity': True, 'phosphate': False})
+
+    def test_past_problems_have_a_reason_and_have_recovered(self):
+        self.run_it()
+        temperature = ParameterLog.objects.filter(tank=self.tank, parameter_type__code='temperature')
+        self.assertTrue(temperature.filter(notes='Demo data: heater stuck on').exists())
+        self.assertEqual(temperature.first().status, 'optimal')
+
+    def test_nothing_is_in_the_future_or_before_the_start(self):
+        self.run_it(days=30)
+        now = timezone.now()
+        for log in ParameterLog.objects.filter(tank=self.tank):
+            self.assertLess(log.measured_at, now)
+            self.assertGreater(log.measured_at, now - timedelta(days=30))
+
+    def test_running_again_replaces_and_remove_keeps_real_readings(self):
+        alk = ParameterType.objects.get(code='alkalinity')
+        mine = ParameterLog.objects.create(parameter_type=alk, tank=self.tank, value=Decimal('8.5'), notes='Salifert')
+        self.run_it()
+        first = ParameterLog.objects.filter(tank=self.tank).count()
+        self.run_it()
+        self.assertEqual(ParameterLog.objects.filter(tank=self.tank).count(), first)
+        self.run_it(remove=True)
+        self.assertEqual(list(ParameterLog.objects.filter(tank=self.tank)), [mine])
+
+    def test_works_in_whatever_units_the_ranges_use(self):
+        ParameterType.objects.filter(code='temperature').update(
+            unit='°C', low_limit=24, min_ideal=25, max_ideal=26, high_limit=27.5)
+        ParameterType.objects.filter(code='salinity').update(unit='SG', min_ideal='1.024', max_ideal='1.027', decimal_places=3)
+        self.run_it()
+        temps = ParameterLog.objects.filter(tank=self.tank, parameter_type__code='temperature')
+        self.assertTrue(all(20 < log.value < 30 for log in temps))
+        salinity = ParameterLog.objects.filter(tank=self.tank, parameter_type__code='salinity')
+        self.assertTrue(all(Decimal('1.02') < log.value < Decimal('1.03') for log in salinity))
+
+    def test_uses_a_systems_own_targets(self):
+        from .models import ParameterTarget
+        alk = ParameterType.objects.get(code='alkalinity')
+        ParameterTarget.objects.create(tank=self.tank, parameter_type=alk, min_ideal=10, max_ideal=11)
+        self.run_it()
+        normal = ParameterLog.objects.filter(tank=self.tank, parameter_type=alk, notes='Demo data')
+        self.assertTrue(all(10 <= log.value <= 11 for log in normal))
+
+    def test_parameter_with_no_limits_or_special_timing(self):
+        ParameterType.objects.create(name='Iodine', code='iodine', unit='ppb', min_ideal=50, max_ideal=70, decimal_places=0)
+        self.run_it()
+        self.assertTrue(ParameterLog.objects.filter(tank=self.tank, parameter_type__code='iodine').exists())
+
+    def test_retired_systems_are_left_alone_unless_named(self):
+        old = Tank.objects.create(name='Old', volume_gallons=10, capacity_is_manual=True, is_archived=True)
+        self.run_it()
+        self.assertFalse(ParameterLog.objects.filter(tank=old).exists())
+        self.run_it(tank='old')
+        self.assertTrue(ParameterLog.objects.filter(tank=old).exists())
+
+    def test_unknown_system_is_an_error(self):
+        with self.assertRaises(CommandError):
+            self.run_it(tank='nope')
+
+    def test_charts_and_pages_cope_with_it(self):
+        self.run_it()
+        for name in ('dashboard', 'parameters', 'notifications'):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+
+
+class AlertHistoryTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)
+        self.other = Tank.objects.create(name='Other', volume_gallons=10, capacity_is_manual=True)
+        self.alk, _ = ParameterType.objects.update_or_create(code='alkalinity', defaults={
+            'name': 'Alkalinity', 'unit': 'dKH', 'low_limit': 7, 'min_ideal': 8, 'max_ideal': 9, 'high_limit': 11})
+        self.start = timezone.now() - timedelta(days=2)
+
+    def reading(self, value, at, tank=None):
+        return ParameterLog.objects.create(parameter_type=self.alk, tank=tank or self.tank, value=Decimal(str(value)), measured_at=at)
+
+    def sync(self, at):
+        events.sync_conditions(at)
+
+    def resolved_episode(self, tank=None, minutes=120):
+        self.reading(7.5, self.start, tank)
+        self.sync(self.start)
+        fixed = self.start + timedelta(minutes=minutes)
+        self.reading(8.5, fixed, tank)
+        self.sync(fixed)
+        return fixed
+
+    def test_records_start_and_resolve(self):
+        fixed = self.resolved_episode()
+        record = AlertRecord.objects.get(subject='Alkalinity')
+        self.assertEqual(record.tank, self.tank)
+        self.assertEqual((record.started_at, record.resolved_at), (self.start, fixed))
+        self.assertEqual(record.duration_label, '2 hours')
+
+    def test_getting_worse_stays_one_record_at_its_worst(self):
+        self.reading(7.5, self.start)
+        self.sync(self.start)
+        self.reading(6.5, self.start + timedelta(hours=1))
+        self.sync(self.start + timedelta(hours=1))
+        self.reading(7.5, self.start + timedelta(hours=2))
+        self.sync(self.start + timedelta(hours=2))
+        record = AlertRecord.objects.get(subject='Alkalinity')
+        self.assertEqual(record.severity, 'critical')
+        self.assertIsNone(record.resolved_at)
+
+    def test_hovering_probe_keeps_one_record_but_a_later_return_is_new(self):
+        fixed = self.resolved_episode()
+        self.reading(7.5, fixed + timedelta(minutes=5))
+        self.sync(fixed + timedelta(minutes=5))
+        record = AlertRecord.objects.get(subject='Alkalinity')
+        self.assertIsNone(record.resolved_at)
+        self.reading(8.5, fixed + timedelta(minutes=10))
+        self.sync(fixed + timedelta(minutes=10))
+        self.reading(7.5, fixed + timedelta(hours=3))
+        self.sync(fixed + timedelta(hours=3))
+        self.assertEqual(AlertRecord.objects.filter(subject='Alkalinity').count(), 2)
+
+    def test_retention_defaults_to_seven_and_is_applied(self):
+        self.assertEqual(AppSettings.load().resolved_alert_days, 7)
+        fixed = self.resolved_episode()
+        self.assertEqual(alert_summary(self.tank, now=fixed + timedelta(days=6))['resolved_count'], 1)
+        self.assertEqual(alert_summary(self.tank, now=fixed + timedelta(days=8))['resolved_count'], 0)
+        events.prune(fixed + timedelta(days=6))
+        self.assertEqual(AlertRecord.objects.count(), 1)
+        events.prune(fixed + timedelta(days=8))
+        self.assertEqual(AlertRecord.objects.count(), 0)
+
+    def test_open_alerts_are_never_pruned(self):
+        self.reading(7.5, self.start)
+        self.sync(self.start)
+        events.prune(self.start + timedelta(days=60))
+        self.assertEqual(AlertRecord.objects.count(), 1)
+
+    def test_setting_limits(self):
+        base = {'electricity_rate': '0.15', 'currency_symbol': '$', 'auto_backup_days': 7, 'auto_backup_keep': 4}
+        self.client.post(reverse('app_settings'), {**base, 'resolved_alert_days': 30})
+        self.assertEqual(AppSettings.load().resolved_alert_days, 30)
+        for bad in (31, 0):
+            self.client.post(reverse('app_settings'), {**base, 'resolved_alert_days': bad})
+            self.assertEqual(AppSettings.load().resolved_alert_days, 30)
+        self.assertContains(self.client.get(reverse('app_settings')), 'Days to keep resolved alerts')
+
+    def test_metrics(self):
+        self.resolved_episode(minutes=60)
+        later = self.start + timedelta(hours=10)
+        self.reading(6.5, later)
+        self.sync(later)
+        self.reading(8.5, later + timedelta(hours=3))
+        self.sync(later + timedelta(hours=3))
+        metrics = alert_summary(self.tank)['metrics']
+        self.assertEqual((metrics['total'], metrics['fixed'], metrics['open'], metrics['critical']), (2, 2, 0, 1))
+        self.assertEqual(metrics['average'], '2 hours')
+        self.assertEqual(metrics['longest'], '3 hours')
+        self.assertEqual((metrics['most_frequent'], metrics['most_frequent_times']), ('Alkalinity', 2))
+
+    def test_most_frequent_only_shows_a_real_repeat(self):
+        self.resolved_episode()
+        self.assertContains(self.client.get(reverse('notifications')), 'Nothing has repeated')
+
+    def test_no_history_means_no_metrics(self):
+        self.assertIsNone(alert_summary(self.tank)['metrics'])
+        self.assertNotContains(self.client.get(reverse('notifications')), 'Average time to resolve')
+
+    def test_history_is_per_system(self):
+        self.resolved_episode(tank=self.other)
+        self.assertEqual(alert_summary(self.tank)['resolved_count'], 0)
+        self.assertEqual(alert_summary(self.other)['resolved_count'], 1)
+
+    def test_retiring_is_not_counted_as_fixed(self):
+        self.reading(7.5, self.start)
+        self.sync(self.start)
+        self.tank.is_archived = True
+        self.tank.save()
+        self.sync(self.start + timedelta(hours=1))
+        self.assertEqual(AlertRecord.objects.get(subject='Alkalinity').resolution, 'retired')
+        metrics = alert_summary(self.tank)['metrics']
+        self.assertEqual(metrics['fixed'], 0)
+        self.assertIsNone(metrics['average'])
+
+    def test_other_kinds_of_alert_are_recorded_with_their_system(self):
+        animal = Animal.objects.create(name='Clown', tank=self.other, status='monitoring')
+        self.sync(self.start)
+        record = AlertRecord.objects.get(subject='Clown')
+        self.assertEqual((record.tank, record.severity), (self.other, 'warning'))
+        Animal.objects.filter(pk=animal.pk).update(status='healthy')
+        self.sync(self.start + timedelta(hours=1))
+        self.assertIsNotNone(AlertRecord.objects.get(subject='Clown').resolved_at)
+
+    def page(self, **query):
+        return self.client.get(reverse('notifications'), query)
+
+    def test_page_shows_resolved_with_status_filter(self):
+        self.resolved_episode()
+        self.reading(6.5, timezone.now())
+        self.sync(timezone.now())
+        everything = self.page()
+        self.assertContains(everything, 'Active Action Items')
+        self.assertContains(everything, 'Resolved (1)')
+        active = self.page(status='active')
+        self.assertContains(active, 'Active Action Items')
+        self.assertNotContains(active, 'Resolved (')
+        resolved = self.page(status='resolved')
+        self.assertNotContains(resolved, 'Active Action Items')
+        self.assertContains(resolved, 'Resolved (1)')
+
+    def test_severity_filter_applies_to_both_lists(self):
+        self.resolved_episode()
+        self.reading(6.5, timezone.now())
+        critical = self.page(severity='critical')
+        self.assertContains(critical, 'Active Action Items (1)')
+        self.assertContains(critical, 'Resolved (0)')
+        warning = self.page(severity='warning')
+        self.assertContains(warning, 'Active Action Items (0)')
+        self.assertContains(warning, 'No active alerts at this severity')
+        self.assertContains(warning, 'Resolved (1)')
+
+    def test_filters_keep_each_other_and_leave_the_badge_alone(self):
+        self.reading(6.5, timezone.now())
+        page = self.page(severity='warning', status='active')
+        queries = [f['query'] for f in page.context['severity_filters']]
+        self.assertIn('severity=critical&status=active', queries)
+        self.assertEqual(page.context['global_total_alerts'], 1)
+
+    def test_unknown_filters_are_ignored(self):
+        self.reading(6.5, timezone.now())
+        self.assertContains(self.page(severity='spicy', status='nope'), 'Active Action Items (1)')
+
+
+class TankLookTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True, theme='ocean', icon_choice='03-robot-young')
+        self.second = Tank.objects.create(name='Second', volume_gallons=20, theme='ocean', icon_choice='')
+
+    def test_look_belongs_to_the_tank_not_the_account(self):
+        users = get_user_model()
+        self.client.force_login(users.objects.create_user('first'))
+        self.client.get(reverse('tank_look', args=[self.second.pk]))
+        self.client.post(reverse('system_theme'), {'theme': 'icon', 'icon_choice': '03-robot-young'})
+        self.second.refresh_from_db()
+        self.main.refresh_from_db()
+        self.assertEqual(self.second.theme, 'icon')
+        self.assertEqual(self.main.theme, 'ocean')
+
+        viewer = Client()
+        viewer.force_login(users.objects.create_user('other'))
+        viewer.get(reverse('tank_look', args=[self.second.pk]))
+        page = viewer.get(reverse('system_theme'))
+        self.assertEqual(page.context['active_tank'], self.second)
+        self.assertEqual(page.context['system_icon_url'], self.second.icon_url)
+        self.assertTrue(self.second.icon_url)
+
+    def test_tank_page_opens_that_tanks_look(self):
+        url = reverse('tank_look', args=[self.second.pk])
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.second.pk])), url)
+        self.assertRedirects(self.client.get(url), reverse('system_theme'))
+        self.assertEqual(self.client.get(reverse('system_theme')).context['active_tank'], self.second)
+
+    def test_edit_page_links_to_the_look_only_for_a_saved_tank(self):
+        url = reverse('tank_look', args=[self.main.pk])
+        self.assertContains(self.client.get(reverse('tank_edit', args=[self.main.pk])), url)
+        self.assertNotContains(self.client.get(reverse('tank_create')), 'Icon &amp; colours')
+
+    def test_bottom_navigation_says_tanks(self):
+        page = self.client.get(reverse('dashboard'))
+        self.assertContains(page, '<span class="text-[10px] font-semibold">Tanks</span>')
+        self.assertNotContains(page, '<span class="text-[10px] font-semibold">System</span>')
+    def test_unknown_tank_is_not_found(self):
+        self.assertEqual(self.client.get(reverse('tank_look', args=[9999])).status_code, 404)
+
+    def test_tanks_list_shows_each_icon(self):
+        self.assertContains(self.client.get(reverse('tanks')), self.main.icon_url)
+
+
+class SaltCalculatorTests(TestCase):
+    def setUp(self):
+        Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+
+    def mix(self, **params):
+        query = {'volume': 10, 'volume_unit': 'gal', 'brand': 'tropic_marin_pro', 'salinity': 1.026, 'salinity_unit': 'sg'}
+        query.update(params)
+        return self.client.get(reverse('water_change_calc_api'), query).json()
+
+    def test_reachable_from_tabs_and_tools(self):
+        target = reverse('routines') + '#salt-calculator'
+        self.assertContains(self.client.get(reverse('tanks')), target)
+        self.assertContains(self.client.get(reverse('tools')), target)
+        self.assertContains(self.client.get(reverse('routines')), 'id="salt-calculator"')
+
+    def test_calculators_say_they_are_estimates_to_confirm(self):
+        for name in ('routines', 'dosing'):
+            page = self.client.get(reverse(name))
+            self.assertContains(page, 'Estimate only.')
+            self.assertContains(page, 'confirm')
+            self.assertContains(page, 'independently')
+    def test_dose_estimator_reachable_from_tabs_and_tools(self):
+        target = reverse('dosing') + '#dose-estimator'
+        self.assertContains(self.client.get(reverse('tanks')), target)
+        self.assertContains(self.client.get(reverse('tools')), target)
+        self.assertContains(self.client.get(reverse('dosing')), 'id="dose-estimator"')
+
+    def test_starting_salinity_defaults_to_fresh_water(self):
+        fresh = self.mix()
+        self.assertEqual(fresh['grams'], 1480.0)
+        self.assertEqual(self.mix(start_salinity=0)['grams'], 1480.0)
+        self.assertEqual(self.mix(start_salinity='')['grams'], 1480.0)
+        self.assertFalse(fresh['already_at_target'])
+
+    def test_only_the_missing_salt_is_counted(self):
+        self.assertEqual(self.mix(start_salinity=1.013)['grams'], 740.0)
+        self.assertEqual(self.mix(salinity=35, salinity_unit='ppt', start_salinity=17.5)['grams'], 740.0)
+
+    def test_water_already_at_target_needs_no_salt(self):
+        for start in (1.026, 1.030):
+            result = self.mix(start_salinity=start)
+            self.assertEqual((result['grams'], result['cups']), (0.0, 0.0))
+            self.assertTrue(result['already_at_target'])
+
+    def test_negative_start_counts_as_fresh(self):
+        self.assertEqual(self.mix(salinity=35, salinity_unit='ppt', start_salinity=-5)['grams'], 1480.0)
+
+    def test_bad_start_is_rejected(self):
+        response = self.client.get(reverse('water_change_calc_api'), {'start_salinity': 'salty'})
+        self.assertEqual(response.status_code, 400)
+
+
+class SubstrateTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)
+
+    def post(self, **extra):
+        data = {'name': 'Main', 'is_primary': 'on', 'dimension_unit': 'in', 'fill_percent': 90,
+                'capacity_is_manual': 'on', 'volume_gallons': 75}
+        data.update(extra)
+        response = self.client.post(reverse('tank_edit', args=[self.tank.pk]), data)
+        self.tank.refresh_from_db()
+        return response
+
+    def test_saves_and_shows_both_units(self):
+        response = self.post(substrate_type='live_sand', substrate_amount='50', substrate_unit='lb',
+                             live_rock_amount='40', live_rock_unit='kg')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.tank.substrate_amount_label, '50 lb (22.7 kg)')
+        self.assertEqual(self.tank.live_rock_label, '40 kg (88.2 lb)')
+        page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        self.assertContains(page, 'Live sand')
+        self.assertContains(page, '50 lb (22.7 kg)')
+        self.assertContains(page, '40 kg (88.2 lb)')
+
+    def test_new_product_is_added_to_equipment_and_reused(self):
+        self.post(substrate_type='live_sand', new_substrate_product='CaribSea Arag-Alive Pink')
+        product = self.tank.substrate_product
+        self.assertEqual((product.name, product.category, product.tank), ('CaribSea Arag-Alive Pink', 'substrate', self.tank))
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), 'CaribSea Arag-Alive Pink')
+        self.post(substrate_type='live_sand', new_substrate_product='caribsea arag-alive pink')
+        self.assertEqual(Equipment.objects.filter(category='substrate').count(), 1)
+
+    def test_pick_existing_product_and_only_substrate_is_offered(self):
+        sand = Equipment.objects.create(name='Sand', category='substrate')
+        pump = Equipment.objects.create(name='Pump', category='return_pump')
+        form_choices = self.client.get(reverse('tank_edit', args=[self.tank.pk])).context['form'].fields['substrate_product'].queryset
+        self.assertEqual(list(form_choices), [sand])
+        self.post(substrate_type='aragonite', substrate_product=sand.pk)
+        self.assertEqual(self.tank.substrate_product, sand)
+        response = self.post(substrate_type='aragonite', substrate_product=pump.pk)
+        self.assertEqual(response.status_code, 200)
+
+    def test_bare_bottom_clears_sand_details(self):
+        sand = Equipment.objects.create(name='Sand', category='substrate')
+        self.post(substrate_type='bare', substrate_amount='50', substrate_product=sand.pk, new_substrate_product='Other', live_rock_amount='10')
+        self.assertIsNone(self.tank.substrate_amount)
+        self.assertIsNone(self.tank.substrate_product)
+        self.assertEqual(Equipment.objects.filter(category='substrate').count(), 1)
+        self.assertEqual(self.tank.live_rock_amount, Decimal('10'))
+
+    def test_negative_rejected_and_unit_defaults(self):
+        self.assertEqual(self.post(substrate_amount='-1').status_code, 200)
+        self.assertEqual(self.post(live_rock_amount='-1').status_code, 200)
+        self.assertEqual(self.post().status_code, 302)
+        self.assertEqual((self.tank.substrate_unit, self.tank.live_rock_unit), ('lb', 'lb'))
+
+    def test_deleting_the_product_keeps_the_tank_details(self):
+        self.post(substrate_type='live_sand', substrate_amount='50', new_substrate_product='Sand')
+        self.tank.substrate_product.delete()
+        self.tank.refresh_from_db()
+        self.assertIsNone(self.tank.substrate_product)
+        self.assertEqual(self.tank.substrate_amount, Decimal('50'))
+
+    def test_substrate_gets_no_service_reminders(self):
+        old_date = timezone.localdate() - timedelta(days=900)
+        sand = Equipment.objects.create(name='Sand', category='substrate', tank=self.tank, installed_date=old_date)
+        pump = Equipment.objects.create(name='Pump', category='return_pump', tank=self.tank, installed_date=old_date)
+        self.assertFalse(sand.is_service_due)
+        self.assertTrue(pump.is_service_due)
+        self.assertEqual(compute_alert_state(tank=self.tank)['due_equipment'], [pump])
+        page = self.client.get(reverse('equipment'), {'category': 'substrate'})
+        self.assertContains(page, 'Sand')
+        self.assertNotContains(page, 'Maintenance cycle')
+
+    def test_empty_profile_offers_to_add(self):
+        page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        self.assertContains(page, 'Add substrate')
+        self.assertContains(page, 'Add live rock')
+        form = self.client.get(reverse('tank_create'))
+        self.assertContains(form, 'Or add a new product')
+        self.assertEqual(self.client.get(reverse('sump_edit', args=[Sump.objects.create(tank=self.tank, capacity_is_manual=True).pk])).status_code, 200)
+
+
 class SystemLookTests(TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -1643,7 +2274,8 @@ class SystemLookTests(TestCase):
         self.client.post(reverse('system_select'), {'tank': self.qt.pk})
         page = self.client.get('/')
         self.assertNotContains(page, '#10b981')
-        self.assertEqual(page.context['system_icon_url'], '')
+        self.assertEqual(page.context['system_icon_url'], self.qt.icon_url)
+        self.assertNotIn('01-dragon-mage-young', page.context['system_icon_url'])
 
     def test_custom_icon_upload_and_replace(self):
         buf = io.BytesIO()
@@ -1670,7 +2302,7 @@ class SystemLookTests(TestCase):
 
     def test_page_lists_all_choices(self):
         page = self.client.get(reverse('system_theme'))
-        for text in ('Kelp Forest', 'Coral Reef', 'Surprise me', 'Dragon Mage', 'Or add your own'):
+        for text in ('Kelp Forest', 'Coral Reef', 'Default', 'Dragon Mage', 'Or add your own'):
             self.assertContains(page, text)
 
 

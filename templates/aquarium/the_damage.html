@@ -64,11 +64,11 @@
   <div class="damage-card rounded-3xl p-8 text-center space-y-4">
     {% if saved_values %}
     <p class="text-sm text-orange-100">The fire is out, but the embers are safe. 🪵</p>
-    <p class="text-xs font-semibold text-amber-300">Your {{ saved_values }} saved $ value{{ saved_values|pluralize }} {{ saved_values|pluralize:"is,are" }} hidden, not erased. Light the match and {{ saved_values|pluralize:"it comes,they all come" }} back.</p>
+    <p class="text-xs font-semibold text-amber-300">Your {{ saved_values }} saved {{ currency_symbol }} value{{ saved_values|pluralize }} {{ saved_values|pluralize:"is,are" }} hidden, not erased. Light the match and {{ saved_values|pluralize:"it comes,they all come" }} back.</p>
     {% else %}
     <p class="text-sm text-orange-100">Right now, Nudibranch doesn't know what any of this costs. That's a very peaceful way to keep a reef.</p>
     <p class="text-xs text-orange-200/70">Light the match and you can enter what you paid on your livestock and equipment, log what you've spent, and see the running total here.</p>
-    <p class="text-xs font-semibold text-amber-300">If you put the fire out later, your $ values won't be erased. They're just hidden until you light it again.</p>
+    <p class="text-xs font-semibold text-amber-300">If you put the fire out later, your {{ currency_symbol }} values won't be erased. They're just hidden until you light it again.</p>
     {% endif %}
     <p class="text-[11px] text-orange-200/60">Prices in the Planner and Wishlist are always visible. They only count here once an item moves into an active tank.</p>
     <form method="POST" action="{% url 'damage_switch' %}">
@@ -103,10 +103,31 @@
     <div class="flex flex-wrap gap-2">
       {% for preset in presets %}<a href="?{{ preset.query }}" class="px-3 py-1 rounded-lg text-xs font-semibold {% if preset.active %}bg-orange-500 text-black{% else %}bg-black/50 text-orange-200 hover:text-white{% endif %}">{{ preset.label }}</a>{% endfor %}
     </div>
+    {% if has_retired %}
+      {% if show_all %}
+      <label class="flex items-center gap-2 text-xs font-semibold text-orange-100 cursor-pointer">
+        <input type="checkbox" name="retired" value="1" onchange="this.form.submit()" class="w-4 h-4 accent-orange-500" {% if include_retired %}checked{% endif %}>
+        Include retired systems <span class="font-normal text-orange-200/60">The dead still cost money.</span>
+      </label>
+      {% else %}
+      <a href="?tank=all&amp;retired=1" class="inline-block text-xs font-semibold text-orange-200 hover:text-white underline underline-offset-2">Count every system, retired ones too</a>
+      {% endif %}
+    {% endif %}
+  </form>
+
+  <form method="POST" action="{% url 'damage_currency' %}" class="damage-card damage-field rounded-2xl p-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <label for="damage-currency-choice" class="text-[10px] font-bold uppercase text-orange-200/70">Bleeding in</label>
+    <select id="damage-currency-choice" name="currency" onchange="this.form.submit()" class="px-3 py-2 border rounded-xl text-white text-sm">
+      {% for value, label in currencies %}<option value="{{ value }}" {% if value == currency %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <noscript><button class="text-xs text-orange-200">Change</button></noscript>
+    <p class="text-[11px] text-orange-200/60">Only changes the symbol. Your amounts aren't converted.</p>
   </form>
 
   <div class="damage-card rounded-3xl p-6 text-center space-y-2">
-    <span class="text-[10px] uppercase font-bold text-orange-300/70">{% if show_all %}All systems{% else %}{{ selected_tank.name }}{% endif %}: {% if range_active %}sunk in this period{% else %}total sunk into saltwater{% endif %}</span>
+    <span class="text-[10px] uppercase font-bold text-orange-300/70">{% if show_all %}All systems{% if include_retired %}, retired too{% endif %}{% else %}{{ selected_tank.name }}{% endif %}: {% if range_active %}sunk in this period{% else %}total sunk into saltwater{% endif %}</span>
     <p class="damage-title text-5xl font-black">{{ currency }}{{ total|floatformat:2 }}</p>
     <p class="text-sm font-semibold text-amber-300">{{ verdict }}</p>
   </div>
@@ -142,10 +163,12 @@
     <h2 class="text-xs font-bold uppercase tracking-wider text-orange-300/80">Confess a purchase</h2>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">What was it</label>{{ form.description }}</div>
-      <div><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Cost</label>{{ form.amount }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Cost ({{ currency }})</label>{{ form.amount }}</div>
       <div><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Date</label>{{ form.spent_on }}</div>
       <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Category</label>{{ form.category }}</div>
       <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">System</label>{{ form.tank }}</div>
+      <div class="col-span-2 sm:col-span-4"><label for="{{ form.equipment.id_for_label }}" class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Which equipment <span class="normal-case font-normal text-orange-200/50">optional</span></label>{{ form.equipment }}
+        <p class="text-[11px] text-orange-200/50 mt-1">Sets what you paid on that equipment, and uses its system. If it already has a price, this replaces it. You can change it here or on the Equipment page.</p></div>
     </div>
     <button class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white text-sm font-bold">Throw it on the fire</button>
   </form>
@@ -156,7 +179,7 @@
     <div class="p-3 px-4 flex items-center justify-between gap-3">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-white truncate">{{ entry.description }}</p>
-        <p class="text-[11px] text-orange-200/60">{{ entry.spent_on|date:"M j, Y" }} · {{ entry.get_category_display }}{% if show_all and entry.tank %} · {{ entry.tank.name }}{% endif %}</p>
+        <p class="text-[11px] text-orange-200/60">{{ entry.spent_on|date:"M j, Y" }} · {{ entry.get_category_display }}{% if show_all and entry.tank %} · {{ entry.tank.name }}{% endif %}{% if entry.equipment %} · ⚙️ {{ entry.equipment.name }}{% endif %}</p>
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <span class="text-sm font-bold text-amber-400">{{ currency }}{{ entry.amount|floatformat:2 }}</span>
@@ -170,10 +193,10 @@
   </div>
 
   <p class="text-center text-[11px] text-orange-200/50">Whatever you enter as "what you paid" on livestock and equipment lands here on its own. Wishlist and plan prices land here when an item moves into an active tank.</p>
-  <form method="POST" action="{% url 'damage_switch' %}" class="text-center" onsubmit="return confirm('Put out the fire? Your $ values will NOT be erased. Your spending is hidden until you light it again. Planner and Wishlist prices stay visible.')">
+  <form method="POST" action="{% url 'damage_switch' %}" class="text-center" onsubmit="return confirm('Put out the fire? Your {{ currency_symbol|escapejs }} values will NOT be erased. Your spending is hidden until you light it again. Planner and Wishlist prices stay visible.')">
     {% csrf_token %}
     <button class="text-xs font-semibold text-orange-200/60 hover:text-white">🧯 Put out the fire and hide your spending</button>
-    <p class="mt-1 text-[11px] font-semibold text-amber-300/90">Your $ values won't be erased. They're just hidden until you light it again.</p>
+    <p class="mt-1 text-[11px] font-semibold text-amber-300/90">Your {{ currency_symbol }} values won't be erased. They're just hidden until you light it again.</p>
     <p class="text-[11px] text-orange-200/50">Prices in the Planner and Wishlist stay visible either way.</p>
   </form>
   {% endif %}
@@ -214,10 +237,10 @@
         c.arc(x + 22, y + 12, 7.5, 0, Math.PI * 2);
         c.fill();
         c.fillStyle = '#dcfce7';
-        c.font = 'bold 12px sans-serif';
+        c.font = (currency.length > 1 ? 'bold 8px' : 'bold 12px') + ' sans-serif';
         c.textAlign = 'center';
         c.textBaseline = 'middle';
-        c.fillText('$', x + 22, y + 12.5);
+        c.fillText(currency, x + 22, y + 12.5);
       }
       bill(2, 2);
       bill(50, 2);

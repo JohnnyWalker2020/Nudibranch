@@ -40,7 +40,7 @@
           </span>
         </label>
       </div>
-      <p class="text-[11px] text-slate-500">Match my icon uses the colours of the icon you've saved, and follows it if the icon changes. With "Surprise me", the icon keeps changing, so it uses Deep Ocean.</p>
+      <p class="text-[11px] text-slate-500">Match my icon uses the colours of the icon you've saved, and follows it if the icon changes.{% if random_enabled %} With "Surprise me", the icon keeps changing, so it uses Deep Ocean.{% endif %}</p>
     </section>
 
     <section class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3">
@@ -50,8 +50,13 @@
         <label class="cursor-pointer">
           <input type="radio" name="icon_choice" value="" class="peer sr-only" {% if not selected_icon %}checked{% endif %}>
           <span class="flex flex-col items-center gap-1.5 p-2 h-full rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400">
+            {% if random_enabled %}
             <span class="w-12 h-12 flex items-center justify-center text-2xl">🎲</span>
             <span class="text-[10px] font-semibold text-slate-300 text-center">Surprise me</span>
+            {% else %}
+            <img src="{{ default_icon_url }}" alt="" loading="lazy" class="w-12 h-12 rounded-xl object-cover">
+            <span class="text-[10px] font-semibold text-slate-300 text-center">Default</span>
+            {% endif %}
           </span>
         </label>
         {% for c in characters %}

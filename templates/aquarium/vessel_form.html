@@ -19,6 +19,17 @@
     {% endif %}
   </div>
 
+  {% if kind == 'tank' and form.instance.pk %}
+  <a href="{% url 'tank_look' form.instance.pk %}" class="flex items-center gap-3 bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-4 transition-colors">
+    {% if form.instance.icon_url %}<img src="{{ form.instance.icon_url }}" alt="" class="w-12 h-12 rounded-xl object-cover shrink-0">{% else %}<span class="w-12 h-12 flex items-center justify-center text-2xl shrink-0">🎨</span>{% endif %}
+    <span class="min-w-0 flex-1">
+      <span class="block text-sm font-bold text-white">Icon &amp; colours</span>
+      <span class="block text-xs text-slate-400">{% if form.instance.icon_url %}Change this tank's icon and colour scheme{% else %}Using a random icon. Pick one for this tank{% endif %}</span>
+    </span>
+    <span class="text-xs font-semibold text-cyan-400 shrink-0">Change</span>
+  </a>
+  {% endif %}
+
   <form method="POST" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl">
     {% csrf_token %}
 
@@ -89,6 +100,27 @@
     </div>
 
     {% if kind == 'tank' %}
+      <!-- Substrate & live rock -->
+      <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">Substrate</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label for="{{ form.substrate_type.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Type</label>{{ form.substrate_type }}</div>
+          <div>
+            <label for="{{ form.substrate_amount.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Amount</label>
+            <div class="flex gap-2"><div class="flex-1 min-w-0">{{ form.substrate_amount }}</div><div class="w-24 shrink-0">{{ form.substrate_unit }}</div></div>
+            {% for err in form.substrate_amount.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+          </div>
+          <div><label for="{{ form.substrate_product.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Product</label>{{ form.substrate_product }}</div>
+          <div><label for="{{ form.new_substrate_product.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">{{ form.new_substrate_product.label }}</label>{{ form.new_substrate_product }}</div>
+        </div>
+        <p class="text-[11px] text-slate-500">A new product is added to your equipment list under Substrate.</p>
+        <div class="pt-3 border-t border-slate-800">
+          <label for="{{ form.live_rock_amount.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">Live rock</label>
+          <div class="flex gap-2 sm:w-1/2"><div class="flex-1 min-w-0">{{ form.live_rock_amount }}</div><div class="w-24 shrink-0">{{ form.live_rock_unit }}</div></div>
+          {% for err in form.live_rock_amount.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+        </div>
+      </div>
+
       <p class="text-[11px] text-slate-500">Plumbing (pipe runs that add to the system volume) is managed on the tank page after saving.</p>
     {% endif %}
 

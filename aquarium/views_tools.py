@@ -20,7 +20,7 @@ from django.views.decorators.http import require_POST
 
 from . import backups, events, fill, planner, power, retire, timelapse, wishlist
 from .active import COOKIE_MAX_AGE, COOKIE_NAME, get_active_tank
-from .icons import character_icons, young_version
+from .icons import character_icons, default_stem, url_for_stem, young_version
 from .themes import THEMES
 from .forms_tools import (
     AnimalPhotoForm, AppSettingsForm, CostEntryForm, PlanProjectForm, PlannedEquipmentForm, PlannedLivestockForm, PlannedSystemForm,
@@ -28,7 +28,7 @@ from .forms_tools import (
     WishlistLivestockForm,
 )
 from .models import (
-    Animal, AnimalPhoto, AppSettings, CostEntry, PlanProject, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
+    Animal, AnimalPhoto, AppSettings, CostEntry, currency_choices, PlanProject, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
     QuarantineEntry, ROSystem, SpeciesCatalog, Tank, TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint,
     WishlistItem, in_system,
 )
@@ -81,6 +81,14 @@ def system_select_view(request):
     return response
 
 
+def tank_look_view(request, tank_id):
+    """Opens the look page for this tank, switching to it so the page shows its colours."""
+    tank = get_object_or_404(Tank, pk=tank_id)
+    response = redirect('system_theme')
+    response.set_cookie(COOKIE_NAME, str(tank.pk), max_age=COOKIE_MAX_AGE, samesite='Lax')
+    return response
+
+
 def system_theme_view(request):
     tank = get_active_tank(request)
     if tank is None:
@@ -104,6 +112,8 @@ def system_theme_view(request):
         'characters': character_icons(),
         'icon_palette': tank.icon_palette(),
         'old_icons_enabled': app_settings.enable_old_version_icons,
+        'random_enabled': app_settings.enable_random_icons,
+        'default_icon_url': url_for_stem(default_stem(tank.pk)),
         'selected_icon': tank.icon_choice if app_settings.enable_old_version_icons else young_version(tank.icon_choice),
         'aging_shown': tank.is_archived and not app_settings.disable_icon_aging and tank.icon_choice != 'custom',
     })
@@ -205,6 +215,8 @@ def the_damage_view(request):
         if form.is_valid():
             entry = form.save()
             messages.success(request, f"Added. No judgement. {entry.description} is on the fire.")
+            if form.replaced_price is not None:
+                messages.info(request, f"This replaced the {AppSettings.load().currency_symbol}{form.replaced_price:.2f} already on {entry.equipment.name}.")
             return redirect(request.get_full_path())
         _flash_form_errors(request, form)
 
@@ -213,9 +225,12 @@ def the_damage_view(request):
     if date_from and date_to and date_from > date_to:
         date_from, date_to = date_to, date_from
 
-    system_entries = CostEntry.objects.select_related('tank')
+    include_retired = show_all and request.GET.get('retired') == '1'
+    system_entries = CostEntry.objects.select_related('tank', 'equipment')
     if not show_all:
         system_entries = system_entries.filter(tank=tank)
+    elif not include_retired:
+        system_entries = system_entries.exclude(tank__is_archived=True)
     system_entries = list(system_entries)
     entries = [e for e in system_entries
                if (not date_from or e.spent_on >= date_from) and (not date_to or e.spent_on <= date_to)]
@@ -230,10 +245,14 @@ def the_damage_view(request):
         for key, value in sorted(grouped.items(), key=lambda item: -item[1])
     ]
 
-    gallons = sum(t.total_system_gallons for t in Tank.objects.filter(is_archived=False)) if show_all else tank.total_system_gallons
+    counted_tanks = Tank.objects.all() if include_retired else Tank.objects.filter(is_archived=False)
+    gallons = sum(t.total_system_gallons for t in counted_tanks) if show_all else tank.total_system_gallons
     first = date_from or min((e.spent_on for e in entries), default=None)
     last = min(date_to, today) if date_to else today
     system_query = {'tank': 'all' if show_all else tank.pk}
+    if include_retired:
+        system_query['retired'] = 1
+    app_settings = AppSettings.load()
     presets = [
         ('Last 30 days', {'from': (today - timedelta(days=30)).isoformat()}),
         ('Last 90 days', {'from': (today - timedelta(days=90)).isoformat()}),
@@ -249,7 +268,10 @@ def the_damage_view(request):
         'per_day': total / max(1, (last - first).days + 1) if first and total else None,
         'power_month': power.power_summary(tank)['cost_month'],
         'by_category': by_category,
-        'currency': AppSettings.load().currency_symbol,
+        'currency': app_settings.currency_symbol,
+        'currencies': currency_choices(app_settings.currency_symbol),
+        'include_retired': include_retired,
+        'has_retired': Tank.objects.filter(is_archived=True).exists(),
         'show_all': show_all,
         'selected_tank': tank,
         'systems_all': Tank.objects.order_by('is_archived', '-is_primary', 'name'),
@@ -276,8 +298,22 @@ def damage_switch_view(request):
     if enabled:
         messages.success(request, "It's lit. You can now enter what you paid on your livestock and equipment.")
     else:
-        messages.info(request, "Fire's out. Your $ values are hidden, not erased. Light the match any time to bring them all back.")
+        symbol = AppSettings.load().currency_symbol
+        messages.info(request, f"Fire's out. Your {symbol} values are hidden, not erased. Light the match any time to bring them all back.")
     return redirect('the_damage')
+
+
+@require_POST
+def damage_currency_view(request):
+    """Changes the symbol shown beside every price. The numbers themselves stay as they are."""
+    app_settings = AppSettings.load()
+    symbol = request.POST.get('currency', '')
+    if symbol in dict(currency_choices(app_settings.currency_symbol)):
+        AppSettings.objects.filter(pk=1).update(currency_symbol=symbol)
+        messages.success(request, f"You're now bleeding {symbol}. The numbers stay the same, only the symbol changes.")
+    else:
+        messages.error(request, "That's not a currency we know.")
+    return redirect(_safe_next(request, reverse('the_damage')))
 
 
 def cost_edit_view(request, entry_id):
@@ -314,7 +350,7 @@ def tools_view(request):
 def app_settings_view(request):
     obj = AppSettings.load()
     return _edit_object(request, AppSettings, AppSettingsForm, obj.pk, title='App Settings',
-                        subtitle='Electricity price, automatic backups and icons', back_url=reverse('tools'))
+                        subtitle='Electricity price, automatic backups, icons and alert history', back_url=reverse('tools'))
 
 
 # ==========================================

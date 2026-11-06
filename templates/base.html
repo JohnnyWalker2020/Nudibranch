@@ -101,7 +101,6 @@
           </select>
           <noscript><button class="text-xs text-cyan-400">Go</button></noscript>
         </form>
-        <a href="{% url 'system_theme' %}" title="Colours and icon for this system" aria-label="Colours and icon for this system" class="shrink-0 p-1 text-sm rounded-lg hover:bg-slate-800">🎨</a>
         <span class="hidden sm:inline text-[11px] text-slate-500 truncate">{{ active_tank.total_system_gallons }} gal system</span>
       </div>
     </div>
@@ -172,8 +171,8 @@
       </a>
       <!-- System hub: Tanks, Equipment, Dosing, Routines (sub-tabs shown on those pages) -->
       <a href="{% url 'tanks' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'tanks' or current == 'tank_detail' or current == 'equipment' or current == 'dosing' or current == 'routines' or current == 'tools' or current == 'power' or current == 'timers' or current == 'integrations' or current == 'backups' or current == 'quarantine_list' or current == 'quarantine_detail' or current == 'app_settings' or current == 'planner' or current == 'plan_detail' or current == 'plan_track' or current == 'wishlist' %}text-cyan-400{% else %}text-slate-400{% endif %}">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="2"/></svg>
-        <span class="text-[10px] font-semibold">System</span>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M3 9h18"/><circle cx="9" cy="15" r="1.5" stroke-width="1.5"/><circle cx="15" cy="13" r="1" stroke-width="1.5"/></svg>
+        <span class="text-[10px] font-semibold">Tanks</span>
       </a>
       <a href="{% url 'webcams' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'webcams' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
