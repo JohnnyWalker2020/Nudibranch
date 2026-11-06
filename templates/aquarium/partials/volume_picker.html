@@ -1,0 +1,16 @@
+<!-- Volume choice shared by the calculators. The system comes from the selector at the top of every page. -->
+<div id="{{ prefix }}-picker" class="grid grid-cols-2 gap-3">
+  <div>
+    <span class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Tank system</span>
+    <span class="block px-3 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-white text-sm truncate" title="Change it at the top of the page">{{ active_tank.name }}</span>
+  </div>
+  <div>
+    <label for="{{ prefix }}-scope" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Use volume of</label>
+    <select id="{{ prefix }}-scope" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+      <option value="system">Whole system</option>
+      <option value="display">Display tank only</option>
+      <option value="sump">Sump only</option>
+      <option value="custom">Custom volume</option>
+    </select>
+  </div>
+</div>

@@ -21,8 +21,8 @@
   <div class="space-y-2 pt-1">
     {% if tanks|length > 1 %}
     <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-      <span class="text-[10px] uppercase font-bold text-slate-500 px-1 shrink-0">Tank:</span>
-      <a href="{% url 'equipment' %}{% if selected_category %}?category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank_id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">All</a>
+      <span class="text-[10px] uppercase font-bold text-slate-500 px-1 shrink-0">Show:</span>
+      <a href="{% url 'equipment' %}?tank=all{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank_id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">All systems</a>
       {% for t in tanks %}
         <a href="{% url 'equipment' %}?tank={{ t.id }}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_tank_id == t.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">{{ t.name }}</a>
       {% endfor %}
@@ -31,9 +31,9 @@
 
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-        <a href="{% url 'equipment' %}{% if selected_tank_id %}?tank={{ selected_tank_id }}{% endif %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_category %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">All Gear</a>
+        <a href="{% url 'equipment' %}?tank={{ tank_param }}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_category %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">All Gear</a>
         {% for cat_key, cat_name in categories %}
-          <a href="{% url 'equipment' %}?category={{ cat_key }}{% if selected_tank_id %}&tank={{ selected_tank_id }}{% endif %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_category == cat_key %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">{{ cat_name }}</a>
+          <a href="{% url 'equipment' %}?category={{ cat_key }}&tank={{ tank_param }}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_category == cat_key %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">{{ cat_name }}</a>
         {% endfor %}
       </div>
       {% if total_watts > 0 %}

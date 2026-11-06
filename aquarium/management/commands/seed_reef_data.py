@@ -106,6 +106,12 @@ class Command(BaseCommand):
         self.stdout.write("Seeding popular species catalog...")
         self._seed_species(update_existing=options["update_species"])
 
+        # Sample data is only for a brand new install. Otherwise renaming or deleting the sample tank or
+        # gear would bring it back on every restart, creating phantom systems.
+        if Tank.objects.exists():
+            self.stdout.write("Seeding complete (existing systems left as they are).")
+            return
+
         self.stdout.write("Seeding default display tank...")
         default_tank, created = Tank.objects.get_or_create(
             name="Main Display Tank",

@@ -4,10 +4,11 @@ from urllib.parse import urlsplit
 from django import forms
 
 from .events import EVENT_TYPES
+from .themes import RETIRED_ICONS, STOCK_ICONS
 from .forms import CHECKBOX, INPUT, TEXTAREA
 from .models import (
-    AnimalPhoto, AppSettings, Equipment, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem,
-    SpeciesCatalog, WebhookEndpoint, WishlistItem,
+    AnimalPhoto, AppSettings, CostEntry, Equipment, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem,
+    SpeciesCatalog, Tank, WebhookEndpoint, WishlistItem,
 )
 
 
@@ -30,6 +31,48 @@ class StyledFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._style_fields()
+
+
+class SystemThemeForm(forms.ModelForm):
+    MAX_ICON_BYTES = 5 * 1024 * 1024
+    ALLOWED_FORMATS = ('PNG', 'JPEG', 'WEBP', 'GIF')
+    icon_choice = forms.ChoiceField(
+        required=False, choices=[('', 'Random'), ('custom', 'Your icon')] + STOCK_ICONS + RETIRED_ICONS)
+
+    class Meta:
+        model = Tank
+        fields = ['theme', 'icon_choice', 'custom_icon']
+
+    def clean_custom_icon(self):
+        upload = self.cleaned_data.get('custom_icon')
+        if upload and 'custom_icon' in self.files:
+            if upload.size > self.MAX_ICON_BYTES:
+                raise forms.ValidationError('That image is over 5 MB.')
+            if getattr(upload.image, 'format', None) not in self.ALLOWED_FORMATS:
+                raise forms.ValidationError('Use a PNG, JPG, WebP or GIF image.')
+        return upload
+
+    def save(self, commit=True):
+        # A new upload is obviously the icon they want.
+        if 'custom_icon' in self.files:
+            self.instance.icon_choice = 'custom'
+        return super().save(commit)
+
+
+class CostEntryForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = CostEntry
+        fields = ['description', 'amount', 'spent_on', 'category', 'tank']
+        labels = {'tank': 'System', 'spent_on': 'Date', 'amount': 'Cost', 'description': 'What was it'}
+        widgets = {
+            'description': forms.TextInput(attrs={'placeholder': 'e.g. One more coral, I promise'}),
+            'spent_on': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'amount': forms.NumberInput(attrs={'min': '0', 'step': '0.01', 'inputmode': 'decimal'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['tank'].empty_label = 'Not tied to one system'
 
 
 class AppSettingsForm(StyledFormMixin, forms.ModelForm):
@@ -126,6 +169,7 @@ class PlannedSystemForm(StyledFormMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['existing_tank'].empty_label = 'No, this is a new system'
+        self.fields['existing_tank'].queryset = Tank.objects.filter(is_archived=False)
 
 
 class PlannedLivestockForm(StyledFormMixin, forms.ModelForm):

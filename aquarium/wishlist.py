@@ -4,13 +4,14 @@ from django.utils import timezone
 
 from .compatibility import check_stock, tank_stock
 from .models import PlannedItem, Tank, WishlistItem
-from .planner import create_tracked_record
+from .planner import create_tracked_record, record_cost
 
 PRIORITY_ORDER = {'must': 0, 'want': 1, 'someday': 2}
 
 
 def primary_tank():
-    return Tank.objects.filter(is_primary=True).first() or Tank.objects.first()
+    current = Tank.objects.filter(is_archived=False)
+    return current.filter(is_primary=True).first() or current.first()
 
 
 def wanted_items():
@@ -19,12 +20,12 @@ def wanted_items():
     return sorted(items, key=lambda i: (PRIORITY_ORDER.get(i.priority, 9), i.name.lower()))
 
 
-def fit_summary(items):
+def fit_summary(items, default=None):
     """
     Adds .target_tank and .fit_warnings to each livestock item (what buying just that item would
     raise), and returns the extra issues from buying everything on the list for each tank.
     """
-    default = primary_tank()
+    default = default or primary_tank()
     by_tank = {}
     stock_cache = {}
     for item in items:
@@ -84,6 +85,7 @@ def mark_bought(item, tank, *, quarantine=False):
         tank, kind=item.kind, name=item.name, species=item.species, quantity=item.quantity,
         category=item.category, wattage=item.wattage, max_flow_gph=item.max_flow_gph, quarantine_fish=quarantine,
     )
+    record_cost(tank, item.kind, item.name, item.quantity, item.est_price)
     item.status = 'acquired'
     item.tank = tank
     item.acquired_at = timezone.now()

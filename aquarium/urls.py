@@ -9,6 +9,7 @@ urlpatterns = [
     path('parameters/new/', views.parameter_type_create_view, name='parameter_type_create'),
     path('parameters/<int:param_id>/settings/', views.parameter_settings_view, name='parameter_settings'),
     path('parameters/<int:param_id>/delete/', views.parameter_type_delete_view, name='parameter_type_delete'),
+    path('parameters/<int:param_id>/settings/reset-targets/', views.parameter_targets_reset_view, name='parameter_targets_reset'),
     path('parameters/quick-add/', views.quick_log_create, name='quick_log_create'),
     path('parameters/quick-measure/', views.quick_measure_create, name='quick_measure_create'),
     path('parameters/delete/<int:log_id>/', views.delete_log, name='delete_log'),
@@ -87,6 +88,15 @@ urlpatterns = [
 
     # Notifications & Alerts Center
     path('notifications/', views.notifications_view, name='notifications'),
+
+    # System selector, look and the hidden ledger
+    path('system/select/', tools.system_select_view, name='system_select'),
+    path('tanks/<int:tank_id>/archive/', tools.tank_archive_view, name='tank_archive'),
+    path('tanks/<int:tank_id>/restore/', tools.tank_restore_view, name='tank_restore'),
+    path('system/look/', tools.system_theme_view, name='system_theme'),
+    path('the-damage/', tools.the_damage_view, name='the_damage'),
+    path('the-damage/<int:entry_id>/edit/', tools.cost_edit_view, name='cost_edit'),
+    path('the-damage/<int:entry_id>/delete/', tools.cost_delete_view, name='cost_delete'),
 
     # Tools hub
     path('tools/', tools.tools_view, name='tools'),

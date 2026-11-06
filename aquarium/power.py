@@ -1,5 +1,5 @@
 """Electricity use and cost estimates from equipment wattage."""
-from .models import AppSettings, Equipment
+from .models import AppSettings, Equipment, not_retired
 
 DAYS_PER_MONTH = 30.44
 
@@ -46,6 +46,8 @@ def power_summary(tank=None):
     gear = Equipment.objects.select_related('tank').exclude(wattage__isnull=True).exclude(wattage=0)
     if tank is not None:
         gear = gear.filter(tank=tank)
+    else:
+        gear = not_retired(gear)
     rows = sorted((equipment_row(eq, rate) for eq in gear), key=lambda r: -r['kwh_day'])
     kwh_day = sum(r['kwh_day'] for r in rows)
     return {

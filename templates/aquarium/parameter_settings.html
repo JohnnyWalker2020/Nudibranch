@@ -15,7 +15,7 @@
         <div class="w-3.5 h-3.5 rounded-full" style="background-color: {{ parameter.color }}"></div>
         <h1 class="text-2xl font-black text-white tracking-tight">{{ parameter.name }} Settings</h1>
       </div>
-      <p class="text-xs text-slate-400">Configure measurement unit, decimal precision, and target ranges</p>
+      <p class="text-xs text-slate-400">The unit and decimals apply to every system. Target ranges can differ per system.</p>
     </div>
   </div>
 
@@ -65,7 +65,7 @@
     <!-- Ranges: low alert / optimal / high alert -->
     <div class="pt-4 border-t border-slate-800 space-y-3">
       <div>
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Ranges</label>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Ranges{% if active_tank %} for {{ active_tank.name }}{% endif %}</label>
         <p class="text-xs text-slate-500">Inside the optimal range = <span class="text-emerald-400">OPTIMAL</span>. Outside it = <span class="text-amber-400">LOW / HIGH</span>. At or past an alert limit = <span class="text-rose-400">CRITICAL</span>. Alert limits are optional.</p>
       </div>
 
@@ -96,6 +96,20 @@
         </div>
       </div>
 
+      {% if several_systems %}
+      <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">
+        <p class="text-xs text-slate-300">
+          {% if has_system_targets %}{{ active_tank.name }} has its own targets. The default is {{ default_min }} to {{ default_max }}.
+          {% else %}{{ active_tank.name }} is using the default targets. Changing them here gives it its own, and other systems won't change.{% endif %}
+        </p>
+        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input type="checkbox" name="apply_default" class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-cyan-500">
+          Also make these the default for systems without their own targets
+        </label>
+        {% if has_system_targets %}<button type="submit" form="reset-targets" class="text-xs font-semibold text-cyan-400 hover:underline">Go back to the default targets</button>{% endif %}
+      </div>
+      {% endif %}
+
       <!-- Live preview of the zones -->
       <div>
         <div class="flex h-3 rounded-full overflow-hidden border border-slate-800" aria-hidden="true">
@@ -124,7 +138,7 @@
           <div>
             <span class="text-xs font-bold text-white block">Convert previous entries automatically</span>
             <p class="text-[11px] text-slate-400 leading-relaxed mt-0.5">
-              Applies standard conversion formulas to all <strong class="text-cyan-400">{{ logs_count }}</strong> existing test logs in your database (e.g., °F ↔ °C, SG ↔ ppt, dKH ↔ meq/L ↔ ppm). Uncheck if you only want to change the label without altering past numbers.
+              Applies standard conversion formulas to all <strong class="text-cyan-400">{{ logs_count }}</strong> existing test logs across all your systems (e.g., °F ↔ °C, SG ↔ ppt, dKH ↔ meq/L ↔ ppm). Uncheck if you only want to change the label without altering past numbers.
             </p>
           </div>
         </label>
@@ -137,10 +151,11 @@
         Cancel
       </a>
       <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">
-        Save & Apply Unit
+        Save
       </button>
     </div>
   </form>
+  <form id="reset-targets" method="POST" action="{% url 'parameter_targets_reset' parameter.id %}" class="hidden">{% csrf_token %}</form>
 
 </div>
 

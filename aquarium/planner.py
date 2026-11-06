@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from .calculators import estimate_flow_gph, turnover_summary
 from .compatibility import ACTIVE_STATUSES, bioload, check_stock, tank_stock
-from .models import AnimalGroup, Animal, AppSettings, Equipment, Sump, Tank
+from .models import AnimalGroup, Animal, AppSettings, CostEntry, Equipment, Sump, Tank
 from .power import DAYS_PER_MONTH, TYPICAL_HOURS, daily_kwh, power_summary
 
 RETURN_HEAD_LOSS_PERCENT = 25  # planning assumption for head height and plumbing losses
@@ -121,6 +121,13 @@ def analyze(plan):
     }
 
 
+def record_cost(tank, kind, name, quantity, unit_price):
+    """Logs a purchase in the cost ledger when its price is known."""
+    if unit_price:
+        CostEntry.objects.create(tank=tank, category=kind if kind in ('livestock', 'equipment') else 'other',
+                                 description=f"{quantity}x {name}"[:150], amount=unit_price * quantity)
+
+
 def create_tracked_record(tank, *, kind, name, species=None, quantity=1, category='', wattage=None,
                           max_flow_gph=None, quarantine_fish=False):
     """Creates the real equipment or animal record for something planned or bought."""
@@ -159,7 +166,7 @@ def track_plan(plan, *, quarantine_fish=False):
             name=plan.name[:100], width=plan.width, depth=plan.depth, height=plan.height,
             dimension_unit=plan.dimension_unit, fill_percent=plan.fill_percent,
             capacity_is_manual=plan.capacity_is_manual, volume_gallons=plan.volume_gallons,
-            is_primary=not Tank.objects.exists(), notes=plan.notes,
+            is_primary=not Tank.objects.filter(is_archived=False, is_primary=True).exists(), notes=plan.notes,
         )
         if float(plan.sump_gallons or 0) > 0:
             Sump.objects.create(tank=tank, name='Sump', volume_gallons=plan.sump_gallons, capacity_is_manual=True)
@@ -170,6 +177,7 @@ def track_plan(plan, *, quarantine_fish=False):
             category=item.category, wattage=item.wattage, max_flow_gph=item.max_flow_gph,
             quarantine_fish=quarantine_fish,
         )
+        record_cost(tank, item.kind, item.name, item.quantity, item.unit_cost)
         item.tracked = True
         item.save(update_fields=['tracked'])
 

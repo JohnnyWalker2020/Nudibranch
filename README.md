@@ -118,6 +118,8 @@ GET /api/parameters/types/
 
 ---
 
+Readings can name a system with `"tank"` (ID or name), on each reading or once for a whole batch. Without it, they go to your primary tank.
+
 ### 2. Log a Single Parameter
 ```http
 POST /api/parameters/log/

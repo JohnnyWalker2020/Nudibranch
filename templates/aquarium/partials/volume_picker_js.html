@@ -1,0 +1,66 @@
+{{ volume_tank|json_script:"volume-tank" }}
+<script>
+  /*
+   * Connects the scope picker to a calculator's volume box, using the system selected at the top of
+   * the page. Typing in the box switches to "Custom volume" so a typed amount is never overwritten.
+   */
+  function volumePicker({ prefix, input, unitSelect, unit, scope = 'system', onChange = () => {} }) {
+    const LITERS_PER_GAL = 3.78541;
+    const tank = JSON.parse(document.getElementById('volume-tank').textContent);
+    const box = document.getElementById(input);
+    const scopeEl = document.getElementById(prefix + '-scope');
+    const unitEl = unitSelect ? document.getElementById(unitSelect) : null;
+    const currentUnit = () => (unit ? unit() : (unitEl ? unitEl.value : 'gal'));
+    const toUnit = gal => (currentUnit() === 'L' ? gal * LITERS_PER_GAL : gal);
+
+    scopeEl.querySelector('option[value="sump"]').disabled = !(tank && tank.sump > 0);
+
+    function applyScope() {
+      if (tank && scopeEl.value !== 'custom') {
+        box.value = Number(toUnit(tank[scopeEl.value]).toFixed(1));
+      }
+      onChange();
+    }
+
+    if (!tank) {
+      // No tanks yet: the volume box still works by itself.
+      document.getElementById(prefix + '-picker').classList.add('hidden');
+      scopeEl.value = 'custom';
+    } else {
+      scopeEl.value = scope;
+    }
+    scopeEl.addEventListener('change', () => {
+      applyScope();
+      if (scopeEl.value === 'custom') box.focus();
+    });
+    box.addEventListener('input', () => {
+      if (tank) scopeEl.value = 'custom';
+      onChange();
+    });
+    if (unitEl) {
+      let previous = unitEl.value;
+      unitEl.addEventListener('change', () => {
+        const value = parseFloat(box.value);
+        if (!isNaN(value) && previous !== unitEl.value) {
+          box.value = Number((unitEl.value === 'L' ? value * LITERS_PER_GAL : value / LITERS_PER_GAL).toFixed(2));
+        }
+        previous = unitEl.value;
+        onChange();
+      });
+    }
+    if (tank && scope !== 'custom') applyScope();
+
+    return {
+      gallons() {
+        const value = parseFloat(box.value);
+        if (isNaN(value)) return '';
+        return currentUnit() === 'L' ? value / LITERS_PER_GAL : value;
+      },
+      setCustomGallons(gal) {
+        if (tank) scopeEl.value = 'custom';
+        box.value = Number(toUnit(gal).toFixed(2));
+        onChange();
+      },
+    };
+  }
+</script>

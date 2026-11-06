@@ -19,10 +19,10 @@ from datetime import datetime, time, timedelta
 
 from django.utils import timezone
 
-from .alerts import compute_alert_state
+from .alerts import compute_alert_state, log_buckets
 from .models import (
     AppSettings, Animal, EventState, FillTimer, MaintenanceRoutine, ParameterType, WebhookDelivery,
-    WebhookEndpoint,
+    WebhookEndpoint, not_retired,
 )
 
 EVENT_TYPES = [
@@ -56,30 +56,37 @@ def collect_conditions(now=None):
     now = now or timezone.now()
     state = compute_alert_state()
     found = []
+    several_systems = len(log_buckets()) > 1
 
     for item in state['out_of_range_params']:
-        param, log = item['param'], item['log']
+        param, log, tank = item['param'], item['log'], item['tank']
+        tank_id = tank.pk if tank else 0
+        prefix = f"{tank.name}: " if tank and several_systems else ''
         severity = 'critical' if item['critical'] else 'warning'
         event_type = 'parameter.critical' if item['critical'] else 'parameter.out_of_range'
         label = 'critically ' + log.status if item['critical'] else log.status
         found.append(_condition(
-            f"param:{param.pk}:{log.status}:{severity}", event_type, severity,
-            f"{param.name} is {label}: {log.formatted_value} {param.unit}",
+            f"param:{param.pk}:{tank_id}:{log.status}:{severity}", event_type, severity,
+            f"{prefix}{param.name} is {label}: {log.formatted_value} {param.unit}",
             f"Target range is {param.formatted_min_ideal} to {param.formatted_max_ideal} {param.unit}.",
             parameter=param.code, value=float(log.value), unit=param.unit, status=log.status,
+            tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
             min_ideal=float(param.min_ideal), max_ideal=float(param.max_ideal),
             measured_at=log.measured_at.isoformat(),
         ))
 
     for param in ParameterType.objects.exclude(stale_after_hours__isnull=True):
-        latest = param.latest_log()
-        if latest and now - latest.measured_at > timedelta(hours=param.stale_after_hours):
-            found.append(_condition(
-                f"stale:{param.pk}:{latest.pk}", 'parameter.stale', 'warning',
-                f"No new {param.name} readings",
-                f"Nothing logged for over {param.stale_after_hours} hours. Check the probe.",
-                parameter=param.code, last_measured_at=latest.measured_at.isoformat(),
-            ))
+        for tank in log_buckets():
+            latest = param.latest_log(tank)
+            if latest and now - latest.measured_at > timedelta(hours=param.stale_after_hours):
+                prefix = f"{tank.name}: " if tank and several_systems else ''
+                found.append(_condition(
+                    f"stale:{param.pk}:{tank.pk if tank else 0}:{latest.pk}", 'parameter.stale', 'warning',
+                    f"{prefix}No new {param.name} readings",
+                    f"Nothing logged for over {param.stale_after_hours} hours. Check the probe.",
+                    parameter=param.code, last_measured_at=latest.measured_at.isoformat(),
+                    tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
+                ))
 
     for res in state['low_reservoirs']:
         found.append(_condition(
@@ -106,7 +113,7 @@ def collect_conditions(now=None):
             "This animal is flagged for attention.", animal=animal.name, status=animal.status,
         ))
 
-    for animal in Animal.objects.filter(status='quarantine').exclude(quarantine_started__isnull=True):
+    for animal in not_retired(Animal.objects.filter(status='quarantine')).exclude(quarantine_started__isnull=True):
         if animal.quarantine_complete:
             found.append(_condition(
                 f"quarantine:{animal.pk}:{animal.quarantine_started}", 'quarantine.complete', 'info',
@@ -179,7 +186,7 @@ def fire_scheduled(now=None):
     days = {timezone.localtime(since, tz).date(), timezone.localtime(now, tz).date()}
     fired = 0
 
-    routines = MaintenanceRoutine.objects.filter(routine_type='automated', is_active=True).select_related('tank')
+    routines = not_retired(MaintenanceRoutine.objects.filter(routine_type='automated', is_active=True)).select_related('tank')
     for routine in routines:
         for day in days:
             if not routine._occurs_on(day):

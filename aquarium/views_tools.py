@@ -14,18 +14,20 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import backups, events, fill, planner, power, timelapse, wishlist
+from . import backups, events, fill, planner, power, retire, timelapse, wishlist
+from .active import COOKIE_MAX_AGE, COOKIE_NAME, get_active_tank
+from .themes import RETIRED_ICONS, STOCK_ICONS, THEMES
 from .forms_tools import (
-    AnimalPhotoForm, AppSettingsForm, PlannedEquipmentForm, PlannedLivestockForm, PlannedSystemForm,
-    QuarantineEntryForm, QuarantinePlanForm, ROSystemForm, WebhookEndpointForm, WishlistEquipmentForm,
+    AnimalPhotoForm, AppSettingsForm, CostEntryForm, PlannedEquipmentForm, PlannedLivestockForm, PlannedSystemForm,
+    QuarantineEntryForm, QuarantinePlanForm, ROSystemForm, SystemThemeForm, WebhookEndpointForm, WishlistEquipmentForm,
     WishlistLivestockForm,
 )
 from .models import (
-    Animal, AnimalPhoto, AppSettings, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
+    Animal, AnimalPhoto, AppSettings, CostEntry, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
     QuarantineEntry, ROSystem, SpeciesCatalog, Tank, TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint,
-    WishlistItem,
+    WishlistItem, in_system,
 )
-from .views import _delete_object, _edit_object, _flash_form_errors, _safe_next, _to_decimal, _to_int
+from .views import _delete_object, _edit_object, _flash_form_errors, _safe_next, _to_decimal, _to_int, tank_volume_choices
 
 MAX_TIMER_SECONDS = 24 * 60 * 60
 
@@ -34,6 +36,143 @@ def _form_page(request, form, title, back_url, subtitle='', multipart=False):
     return render(request, 'aquarium/generic_form.html', {
         'form': form, 'title': title, 'subtitle': subtitle, 'back_url': back_url, 'multipart': multipart,
     })
+
+
+# ==========================================
+# System selector & look
+# ==========================================
+
+@require_POST
+def system_select_view(request):
+    """Switches which system this browser is looking at, then returns to the same page."""
+    response = redirect(_safe_next(request, reverse('dashboard')))
+    tank = Tank.objects.filter(pk=_to_int(request.POST.get('tank'), None)).first()
+    if tank:
+        response.set_cookie(COOKIE_NAME, str(tank.pk), max_age=COOKIE_MAX_AGE, samesite='Lax')
+    return response
+
+
+def system_theme_view(request):
+    tank = get_active_tank(request)
+    if tank is None:
+        messages.info(request, "Add a tank first, then you can choose its look.")
+        return redirect('tank_create')
+    form = SystemThemeForm(instance=tank)
+    if request.method == 'POST':
+        previous_icon = tank.custom_icon.name if tank.custom_icon else ''
+        form = SystemThemeForm(request.POST, request.FILES, instance=tank)
+        if form.is_valid():
+            saved = form.save()
+            if previous_icon and 'custom_icon' in request.FILES and saved.custom_icon.name != previous_icon:
+                saved.custom_icon.storage.delete(previous_icon)
+            messages.success(request, f"Saved the look for {saved.name}.")
+            return redirect('system_theme')
+        tank.refresh_from_db()
+        _flash_form_errors(request, form)
+    return render(request, 'aquarium/system_theme.html', {
+        'form': form, 'themes': THEMES, 'stock_icons': STOCK_ICONS, 'retired_icons': RETIRED_ICONS, 'active_tank': tank,
+    })
+
+
+@require_POST
+def tank_archive_view(request, tank_id):
+    tank = get_object_or_404(Tank, pk=tank_id)
+    retire.archive_system(tank)
+    messages.success(request, f"{tank.name} has retired. Its history is safe, and it won't send any more alerts.")
+    response = redirect('tanks')
+    # Move on to a current system, rather than staying on the one just retired.
+    if get_active_tank(request).pk == tank.pk:
+        response.delete_cookie(COOKIE_NAME)
+    return response
+
+
+@require_POST
+def tank_restore_view(request, tank_id):
+    tank = get_object_or_404(Tank, pk=tank_id)
+    retire.restore_system(tank)
+    messages.success(request, f"{tank.name} is back from retirement.")
+    response = redirect('tank_detail', tank_id=tank.pk)
+    response.set_cookie(COOKIE_NAME, str(tank.pk), max_age=COOKIE_MAX_AGE, samesite='Lax')
+    return response
+
+
+# ==========================================
+# The Damage: the hidden cost ledger
+# ==========================================
+
+DAMAGE_VERDICTS = [
+    (0, "A clean slate. Suspiciously clean."),
+    (100, "Still just a phase. You could stop any time."),
+    (500, "A few nice dinners out. Worth it, the fish say."),
+    (2000, "That's a decent laptop, and it can't even host clownfish."),
+    (5000, "A solid used motorcycle, except wetter."),
+    (15000, "A reliable used car. This one just never leaves the living room."),
+    (40000, "A new car. Your corals would like you to know they appreciate it."),
+    (100000, "A down payment on a house. For the fish."),
+]
+
+
+def _damage_verdict(total):
+    verdict = DAMAGE_VERDICTS[0][1]
+    for threshold, text in DAMAGE_VERDICTS:
+        if total >= threshold and (threshold or total == 0):
+            verdict = text
+    return verdict
+
+
+def the_damage_view(request):
+    tank = get_active_tank(request)
+    show_all = bool(request.GET.get('all')) or tank is None
+    if request.method == 'POST':
+        form = CostEntryForm(request.POST)
+        if form.is_valid():
+            entry = form.save()
+            messages.success(request, f"Added. No judgement. {entry.description} is on the pile.")
+            return redirect(request.get_full_path())
+        _flash_form_errors(request, form)
+
+    entries = CostEntry.objects.select_related('tank')
+    if not show_all:
+        entries = entries.filter(tank=tank)
+    entries = list(entries)
+    total = sum(float(e.amount) for e in entries)
+    today = timezone.localdate()
+
+    categories = dict(CostEntry.CATEGORY_CHOICES)
+    grouped = {}
+    for entry in entries:
+        grouped[entry.category] = grouped.get(entry.category, 0.0) + float(entry.amount)
+    by_category = [
+        {'label': categories.get(key, key), 'total': value, 'percent': round(value / total * 100) if total else 0}
+        for key, value in sorted(grouped.items(), key=lambda item: -item[1])
+    ]
+
+    gallons = sum(t.total_system_gallons for t in Tank.objects.all()) if show_all else tank.total_system_gallons
+    first = min((e.spent_on for e in entries), default=None)
+    return render(request, 'aquarium/the_damage.html', {
+        'entries': entries[:100],
+        'total': total,
+        'verdict': _damage_verdict(total),
+        'this_year': sum(float(e.amount) for e in entries if e.spent_on.year == today.year),
+        'per_gallon': total / gallons if gallons and total else None,
+        'per_day': total / max(1, (today - first).days + 1) if first else None,
+        'power_month': power.power_summary(None if show_all else tank)['cost_month'],
+        'by_category': by_category,
+        'currency': AppSettings.load().currency_symbol,
+        'show_all': show_all,
+        'multiple_systems': Tank.objects.count() > 1,
+        'form': CostEntryForm(initial={'tank': tank, 'spent_on': today}),
+    })
+
+
+def cost_edit_view(request, entry_id):
+    return _edit_object(request, CostEntry, CostEntryForm, entry_id, title='Edit Purchase', back_url=reverse('the_damage'))
+
+
+@require_POST
+def cost_delete_view(request, entry_id):
+    CostEntry.objects.filter(pk=entry_id).delete()
+    return redirect('the_damage')
 
 
 # ==========================================
@@ -48,7 +187,7 @@ def tools_view(request):
         'running_timers': FillTimer.objects.filter(status='running').count(),
         'endpoint_count': WebhookEndpoint.objects.filter(is_active=True).count(),
         'quarantine_count': Animal.objects.filter(status='quarantine').count(),
-        'power': power.power_summary(),
+        'power': power.power_summary(get_active_tank(request)),
         'latest_backup': next(iter(backups.list_backups()), None),
     })
 
@@ -64,9 +203,13 @@ def app_settings_view(request):
 # ==========================================
 
 def power_view(request):
-    tank = Tank.objects.filter(pk=_to_int(request.GET.get('tank'), None)).first()
+    raw = request.GET.get('tank')
+    if raw == 'all':
+        tank = None
+    else:
+        tank = Tank.objects.filter(pk=_to_int(raw, None)).first() or get_active_tank(request)
     return render(request, 'aquarium/power.html', {
-        'summary': power.power_summary(tank), 'tanks': Tank.objects.all(), 'selected_tank': tank,
+        'summary': power.power_summary(tank), 'tanks': Tank.objects.filter(is_archived=False), 'selected_tank': tank,
     })
 
 
@@ -378,7 +521,8 @@ def timers_view(request):
     systems = list(ROSystem.objects.all())
     ro_rows = [_ro_context(s) for s in systems]
     reservoirs = []
-    for res in DosingReservoir.objects.select_related('tank'):
+    active_tank = get_active_tank(request)
+    for res in in_system(DosingReservoir.objects.select_related('tank'), active_tank):
         reservoirs.append({
             'id': res.pk, 'name': res.name,
             'gallons_to_full': round(max(0.0, fill.to_gallons(float(res.capacity) - float(res.current_level), res.unit)), 3),
@@ -400,6 +544,7 @@ def timers_view(request):
         'timer_endpoints': sum(1 for e in WebhookEndpoint.objects.filter(is_active=True)
                                if e.wants('timer.finished', check_targets=False)),
         'all_endpoints': WebhookEndpoint.objects.filter(is_active=True),
+        'volume_tank': tank_volume_choices(active_tank),
     })
 
 
@@ -604,7 +749,7 @@ def plan_track_view(request, plan_id):
 
 def wishlist_view(request):
     items = wishlist.wanted_items()
-    combined = wishlist.fit_summary(items)
+    combined = wishlist.fit_summary(items, default=get_active_tank(request))
     return render(request, 'aquarium/wishlist.html', {
         'items': items,
         'combined': combined,
@@ -612,7 +757,7 @@ def wishlist_view(request):
         'unpriced': sum(1 for i in items if i.est_price is None),
         'currency': AppSettings.load().currency_symbol,
         'bought': WishlistItem.objects.filter(status='acquired').select_related('tank').order_by('-acquired_at')[:10],
-        'tanks': Tank.objects.all(),
+        'tanks': Tank.objects.filter(is_archived=False),
         'plans': PlannedSystem.objects.all(),
         'livestock_form': WishlistLivestockForm(),
         'equipment_form': WishlistEquipmentForm(),

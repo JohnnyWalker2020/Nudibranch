@@ -17,7 +17,12 @@
         <p class="text-xs text-slate-400 mt-0.5">{{ tank.volume_gallons }} gal ({{ tank.volume_liters }} L){% if tank.capacity_is_manual %} · capacity entered manually{% elif tank.has_dimensions %} · estimated from dimensions{% endif %}</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+      {% if tank.is_archived %}
+      <form method="POST" action="{% url 'tank_restore' tank.id %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Bring back</button></form>
+      {% else %}
+      <form method="POST" action="{% url 'tank_archive' tank.id %}" onsubmit="return confirm('Retire {{ tank.name|escapejs }}? All its data is kept, but it stops sending alerts and running schedules. You can bring it back at any time.')">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Retire</button></form>
+      {% endif %}
       <a href="{% url 'tank_edit' tank.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">✏️ Edit tank</a>
       <a href="{% url 'sump_create' tank.id %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Sump</a>
     </div>

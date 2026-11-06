@@ -4,11 +4,11 @@ from .models import (
     ParameterType, ParameterLog, AnimalGroup, Animal, WebcamFeed, SpeciesCatalog,
     Tank, Sump, SumpChamber, Equipment, DosingReservoir, MaintenanceRoutine, PlumbingRun,
     WaterChangeLog, DashboardWidget, AppSettings, QuarantineEntry, AnimalPhoto, TimelapseFrame, WebhookEndpoint,
-    WebhookDelivery, ROSystem, FillTimer, PlannedSystem, PlannedItem, WishlistItem,
+    WebhookDelivery, ROSystem, FillTimer, PlannedSystem, PlannedItem, WishlistItem, CostEntry, ParameterTarget,
 )
 
 for _model in (AppSettings, QuarantineEntry, AnimalPhoto, TimelapseFrame, WebhookEndpoint, WebhookDelivery,
-               ROSystem, FillTimer, PlannedSystem, PlannedItem, WishlistItem):
+               ROSystem, FillTimer, PlannedSystem, PlannedItem, WishlistItem, CostEntry, ParameterTarget):
     admin.site.register(_model)
 
 

@@ -1,3 +1,4 @@
+import copy
 import urllib.parse
 from datetime import timedelta
 
@@ -5,20 +6,43 @@ from django.db import models
 from django.db.models.signals import post_delete, pre_delete
 from django.dispatch import receiver
 from django.utils import timezone
+from django.utils.functional import cached_property
 
 from .calculators import (
     estimate_capacity_gallons, estimate_flow_gph, gph_to_lph, turnover_summary,
     pipe_volume_gallons, LITERS_PER_GAL, PIPE_SIZES,
 )
 from . import schedule as sched
+from .themes import DEFAULT_THEME, THEME_CHOICES
 
 WEEKDAYS = [(0, 'Mon'), (1, 'Tue'), (2, 'Wed'), (3, 'Thu'), (4, 'Fri'), (5, 'Sat'), (6, 'Sun')]
 PIPE_SIZE_CHOICES = [(key, f"{label} PVC") for key, (label, _id) in PIPE_SIZES.items()]
 
 
+# "Every system", as opposed to tank=None, which means "records that aren't assigned to a system".
+ANY = object()
+
+
+def in_system(queryset, tank):
+    """Limits a queryset with a `tank` field to one system. Unassigned records show under every system."""
+    if tank is ANY:
+        return queryset
+    if tank is None:
+        return queryset.filter(tank__isnull=True)
+    return queryset.filter(models.Q(tank=tank) | models.Q(tank__isnull=True))
+
+
+def not_retired(queryset):
+    """Leaves out records belonging to archived systems (for alerts and background jobs)."""
+    return queryset.filter(models.Q(tank__isnull=True) | models.Q(tank__is_archived=False))
+
+
 def all_weekdays():
     # Kept because migration 0007 references it.
     return [0, 1, 2, 3, 4, 5, 6]
+
+
+RANGE_FIELDS = ('low_limit', 'min_ideal', 'max_ideal', 'high_limit')
 
 
 class ParameterType(models.Model):
@@ -45,8 +69,32 @@ class ParameterType(models.Model):
     def __str__(self):
         return f"{self.name} ({self.unit})"
 
-    def latest_log(self):
-        return self.logs.order_by('-measured_at').first()
+    def for_system(self, tank):
+        """
+        This parameter with one system's target ranges, if it has its own. Everything that reads the
+        ranges (classify, the formatted values, templates) then just works. Falls back to these shared
+        defaults. The result is read-only: units and decimals live here, ranges in ParameterTarget.
+        """
+        tank_id = getattr(tank, 'pk', tank)
+        if not isinstance(tank_id, int):
+            return self
+        target = self.targets.filter(tank_id=tank_id).first()
+        if target is None:
+            return self
+        view = copy.copy(self)
+        for field in RANGE_FIELDS:
+            setattr(view, field, getattr(target, field))
+        view.is_system_view = True
+        view.has_system_targets = True
+        return view
+
+    def save(self, *args, **kwargs):
+        if getattr(self, 'is_system_view', False):
+            raise ValueError("A parameter's per-system view can't be saved.")
+        super().save(*args, **kwargs)
+
+    def latest_log(self, tank=ANY):
+        return in_system(self.logs.all(), tank).order_by('-measured_at').first()
 
     def format_value(self, val):
         """Formats a number according to the parameter's configured decimal places."""
@@ -102,12 +150,15 @@ class ParameterType(models.Model):
 class ParameterLog(models.Model):
     """Historical test measurement."""
     parameter_type = models.ForeignKey(ParameterType, on_delete=models.CASCADE, related_name="logs")
+    tank = models.ForeignKey('Tank', on_delete=models.CASCADE, null=True, blank=True, related_name='parameter_logs',
+                             help_text="System this was measured in")
     measured_at = models.DateTimeField(default=timezone.now)
     value = models.DecimalField(max_digits=10, decimal_places=4)
     notes = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ['-measured_at']
+        indexes = [models.Index(fields=['tank', 'parameter_type', '-measured_at'], name='log_tank_param_time')]
 
     def __str__(self):
         return f"{self.parameter_type.name}: {self.value} {self.parameter_type.unit} @ {self.measured_at:%Y-%m-%d %H:%M}"
@@ -117,19 +168,24 @@ class ParameterLog(models.Model):
         """Formats measurement according to the parameter's configured decimal places."""
         return self.parameter_type.format_value(self.value)
 
+    @cached_property
+    def _classification(self):
+        # Judged against the targets of the system it was measured in.
+        return self.parameter_type.for_system(self.tank_id).classify(self.value)
+
     @property
     def status(self):
         """'low', 'optimal' or 'high' relative to the ideal range."""
-        return self.parameter_type.classify(self.value)[0]
+        return self._classification[0]
 
     @property
     def severity(self):
         """'ok', 'warning' (outside ideal) or 'critical' (past the low/high limit)."""
-        return self.parameter_type.classify(self.value)[1]
+        return self._classification[1]
 
     @property
     def status_label(self):
-        status, severity = self.parameter_type.classify(self.value)
+        status, severity = self._classification
         if severity == 'critical':
             return f"CRITICAL {status.upper()}"
         return status.upper()
@@ -263,6 +319,8 @@ class WebcamFeed(models.Model):
     ]
 
     name = models.CharField(max_length=100)
+    tank = models.ForeignKey('Tank', on_delete=models.SET_NULL, null=True, blank=True, related_name='webcams',
+                             help_text="System this camera watches (blank = show on every system)")
     feed_url = models.CharField(max_length=500, help_text="URL of the stream, snapshot, or embed link")
     feed_type = models.CharField(max_length=20, choices=FEED_TYPES, default='mjpeg')
     is_active = models.BooleanField(default=True)
@@ -381,12 +439,25 @@ class Tank(DimensionedVessel):
     is_primary = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
+    theme = models.CharField(max_length=20, choices=THEME_CHOICES, default=DEFAULT_THEME)
+    icon_choice = models.CharField(max_length=30, blank=True, help_text="A stock icon, 'custom', or blank for a random one")
+    custom_icon = models.ImageField(upload_to='icons/', null=True, blank=True)
+    is_archived = models.BooleanField(default=False, editable=False)
+    archived_at = models.DateTimeField(null=True, blank=True, editable=False)
+    icon_before_archive = models.CharField(max_length=30, blank=True, editable=False)
 
     class Meta:
         ordering = ['-is_primary', 'name']
 
     def __str__(self):
         return f"{self.name} ({self.volume_gallons} gal)"
+
+    @property
+    def icon_url(self):
+        """The icon to show for this system, or '' to let the page pick a random stock one."""
+        if self.icon_choice == 'custom':
+            return self.custom_icon.url if self.custom_icon else ''
+        return f"/static/icons/nudibranch/{self.icon_choice}.svg" if self.icon_choice else ''
 
     @property
     def sump_gallons(self):
@@ -423,6 +494,24 @@ class Tank(DimensionedVessel):
             elif eq.category == 'wavemaker':
                 wave_gph += flow
         return turnover_summary(self.volume_gallons, self.total_system_gallons, return_gph, wave_gph)
+
+
+class ParameterTarget(models.Model):
+    """One system's own target ranges for a parameter. Without one, the parameter's shared defaults apply."""
+    tank = models.ForeignKey(Tank, on_delete=models.CASCADE, related_name='parameter_targets')
+    parameter_type = models.ForeignKey(ParameterType, on_delete=models.CASCADE, related_name='targets')
+    low_limit = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    min_ideal = models.DecimalField(max_digits=10, decimal_places=3)
+    max_ideal = models.DecimalField(max_digits=10, decimal_places=3)
+    high_limit = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tank', 'parameter_type'], name='one_target_per_system_parameter'),
+        ]
+
+    def __str__(self):
+        return f"{self.parameter_type.name} targets for {self.tank.name}"
 
 
 class PlumbingRun(models.Model):
@@ -1229,6 +1318,32 @@ class WishlistItem(models.Model):
     @property
     def total_price(self):
         return (self.est_price or 0) * self.quantity
+
+
+class CostEntry(models.Model):
+    """One line in the hidden spending ledger."""
+    CATEGORY_CHOICES = [
+        ('tank', '🏛️ Tank & plumbing'),
+        ('equipment', '⚙️ Equipment'),
+        ('livestock', '🐠 Livestock'),
+        ('rock', '🪨 Rock & sand'),
+        ('salt', '🧂 Salt & water'),
+        ('additives', '🧪 Additives & testing'),
+        ('food', '🍤 Food'),
+        ('other', '💸 Other'),
+    ]
+    tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='cost_entries')
+    spent_on = models.DateField(default=timezone.localdate)
+    category = models.CharField(max_length=15, choices=CATEGORY_CHOICES, default='other')
+    description = models.CharField(max_length=150)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        ordering = ['-spent_on', '-id']
+        verbose_name_plural = 'Cost entries'
+
+    def __str__(self):
+        return f"{self.description}: {self.amount}"
 
 
 def _pause_endpoints_losing_last_target(instance, relation, label):

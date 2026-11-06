@@ -17,9 +17,11 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
+from .alerts import compute_alert_state
+from .themes import RETIRED_ICONS
 from . import backups, compatibility, events, fill, planner, power, timelapse
 from .models import (
-    Animal, AnimalPhoto, AppSettings, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
+    Animal, AnimalPhoto, AppSettings, CostEntry, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
     ParameterLog, ParameterType, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
     TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint, WishlistItem,
 )
@@ -766,6 +768,569 @@ class WebhookTargetingTests(TestCase):
         page = self.client.get(reverse('integrations'))
         self.assertContains(page, 'Only the items below')
         self.assertContains(self.client.get(reverse('webhook_edit', args=[self.target.pk])), 'Only these routines')
+
+
+class CalculatorVolumeTests(TestCase):
+    PAGES = ('dosing', 'routines', 'timers')
+
+    def test_pages_use_the_selected_system(self):
+        from .models import Sump
+        tank = Tank.objects.create(name='Main', volume_gallons=40, capacity_is_manual=True, is_primary=True)
+        Sump.objects.create(tank=tank, name='Sump', volume_gallons=10, capacity_is_manual=True)
+        qt = Tank.objects.create(name='QT', volume_gallons=10, capacity_is_manual=True, is_primary=False)
+        ROSystem.objects.create(name='RO')
+        for name in self.PAGES:
+            response = self.client.get(reverse(name))
+            self.assertEqual(response.status_code, 200, name)
+            self.assertEqual(response.context['volume_tank'], {'id': tank.pk, 'name': 'Main', 'display': 40.0, 'sump': 10.0, 'system': 50.0})
+            self.assertContains(response, 'Custom volume')
+            self.assertContains(response, 'function volumePicker')
+        self.client.post(reverse('system_select'), {'tank': qt.pk, 'next': '/dosing/'})
+        for name in self.PAGES:
+            self.assertEqual(self.client.get(reverse(name)).context['volume_tank']['name'], 'QT', name)
+
+    def test_pages_work_without_tanks(self):
+        ROSystem.objects.create(name='RO')
+        for name in self.PAGES:
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+
+    def test_dose_uses_the_custom_volume_sent(self):
+        common = {'parameter': 'alkalinity', 'chemical': 'soda_ash', 'current': 7, 'target': 8, 'max_daily': 1}
+        ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9)
+        big = self.client.get(reverse('dose_calc_api'), {**common, 'gallons': 100})
+        small = self.client.get(reverse('dose_calc_api'), {**common, 'gallons': 10})
+        self.assertEqual(big.status_code, 200, big.content)
+        self.assertEqual(big.json()['system_gallons'], 100)
+        self.assertEqual(small.json()['system_gallons'], 10)
+        missing = self.client.get(reverse('dose_calc_api'), {**common, 'gallons': ''})
+        self.assertEqual(missing.status_code, 400)
+
+
+class SystemScopeTests(ServerMixin, TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)
+        self.qt = Tank.objects.create(name='QT', volume_gallons=10, capacity_is_manual=True, is_primary=False)
+        self.alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9, low_limit=7)
+
+    def select(self, tank):
+        return self.client.post(reverse('system_select'), {'tank': tank.pk, 'next': '/'})
+
+    def log(self, tank, value):
+        return ParameterLog.objects.create(parameter_type=self.alk, tank=tank, value=Decimal(str(value)))
+
+    def test_defaults_to_primary_and_remembers_choice(self):
+        self.assertEqual(self.client.get('/').context['active_tank'], self.main)
+        self.assertRedirects(self.select(self.qt), '/')
+        self.assertEqual(self.client.get('/').context['active_tank'], self.qt)
+
+    def test_bad_or_deleted_selection_falls_back(self):
+        self.client.cookies['nudibranch_system'] = 'not-a-number'
+        self.assertEqual(self.client.get('/').context['active_tank'], self.main)
+        self.select(self.qt)
+        self.qt.delete()
+        self.assertEqual(self.client.get('/').context['active_tank'], self.main)
+
+    def test_select_cannot_redirect_offsite(self):
+        response = self.client.post(reverse('system_select'), {'tank': self.qt.pk, 'next': 'https://evil.example/'})
+        self.assertEqual(response.url, reverse('dashboard'))
+
+    def test_readings_are_separate(self):
+        self.log(self.main, 8.5)
+        self.log(self.qt, 6.0)
+        self.assertEqual(float(self.alk.latest_log(self.main).value), 8.5)
+        self.assertEqual(float(self.alk.latest_log(self.qt).value), 6.0)
+        page = self.client.get(reverse('parameters'))
+        self.assertEqual([float(l.value) for l in page.context['recent_logs']], [8.5])
+        data = self.client.get(reverse('api_chart_data'), {'code': 'alkalinity'}).json()
+        self.assertEqual(data['values'], [8.5])
+        self.select(self.qt)
+        self.assertEqual(self.client.get(reverse('api_chart_data'), {'code': 'alkalinity'}).json()['values'], [6.0])
+        everything = self.client.get(reverse('api_all_chart_data')).json()['datasets']
+        self.assertEqual(everything[0]['values'], [6.0])
+        self.assertEqual(self.client.get(reverse('api_chart_data'), {'code': 'alkalinity', 'tank': self.main.pk}).json()['values'], [8.5])
+
+    def test_logging_goes_to_selected_system(self):
+        self.select(self.qt)
+        self.client.post(reverse('quick_log_create'), {'parameter_type': self.alk.pk, 'value': '8.1'})
+        self.client.post(reverse('quick_measure_create'), {'value': ['8.2'], 'parameter': [self.alk.pk]})
+        self.assertEqual(ParameterLog.objects.filter(tank=self.qt).count(), 2)
+
+    def test_api_routes_readings(self):
+        post = lambda body: self.client.post(reverse('api_parameter_log'), json.dumps(body), content_type='application/json')
+        self.select(self.qt)  # a browser's choice must not affect devices
+        self.assertEqual(post({'parameter': 'alkalinity', 'value': 8}).json()['logs'][0]['tank'], 'Main')
+        self.assertEqual(post({'parameter': 'alkalinity', 'value': 8, 'tank': 'qt'}).json()['logs'][0]['tank'], 'QT')
+        self.assertEqual(post({'tank': self.qt.pk, 'readings': [{'parameter': 'alkalinity', 'value': 8}]}).json()['logs'][0]['tank'], 'QT')
+        batch = post({'readings': [{'parameter': 'alkalinity', 'value': 8, 'tank': 'QT'}, {'parameter': 'alkalinity', 'value': 8}]}).json()
+        self.assertEqual([l['tank'] for l in batch['logs']], ['QT', 'Main'])
+        self.assertEqual(post({'parameter': 'alkalinity', 'value': 8, 'tank': 'nope'}).status_code, 400)
+        self.assertEqual(post({'readings': [{'parameter': 'alkalinity', 'value': 8, 'tank': 'nope'}]}).status_code, 400)
+
+    def test_pages_only_show_selected_system(self):
+        Animal.objects.create(name='MainFish', tank=self.main)
+        Animal.objects.create(name='QtFish', tank=self.qt)
+        Animal.objects.create(name='Unassigned')
+        names = lambda: {a.name for a in self.client.get(reverse('livestock')).context['animals']}
+        self.assertEqual(names(), {'MainFish', 'Unassigned'})
+        self.select(self.qt)
+        self.assertEqual(names(), {'QtFish', 'Unassigned'})
+
+    def test_equipment_all_systems_view(self):
+        Equipment.objects.create(name='MainPump', tank=self.main, wattage=10)
+        Equipment.objects.create(name='QtHeater', tank=self.qt, wattage=20)
+        names = lambda **q: {e.name for e in self.client.get(reverse('equipment'), q).context['equipment_list']}
+        self.assertEqual(names(), {'MainPump'})
+        self.assertEqual(names(tank='all'), {'MainPump', 'QtHeater'})
+        self.assertEqual(names(tank=self.qt.pk), {'QtHeater'})
+        self.assertContains(self.client.get(reverse('equipment')), 'All systems')
+        self.assertEqual(self.client.get(reverse('power'), {'tank': 'all'}).context['summary']['rows'].__len__(), 2)
+        self.assertEqual(self.client.get(reverse('power')).context['summary']['rows'].__len__(), 1)
+
+    def test_universal_pages_stay_universal(self):
+        WishlistItem.objects.create(kind='equipment', name='Wanted', category='other')
+        PlannedSystem.objects.create(name='Plan', volume_gallons=10, capacity_is_manual=True)
+        self.select(self.qt)
+        self.assertContains(self.client.get(reverse('wishlist')), 'Wanted')
+        self.assertContains(self.client.get(reverse('planner')), 'Plan')
+
+    def test_alerts_scope_and_other_system_marker(self):
+        self.log(self.qt, 6.0)
+        page = self.client.get('/')
+        self.assertEqual(page.context['global_out_of_range_count'], 0)
+        marks = {s['tank'].name: s['alerts'] for s in page.context['systems']}
+        self.assertEqual(marks['QT'], 1)
+        self.assertContains(page, '⚠️ 1')
+        self.select(self.qt)
+        self.assertEqual(self.client.get('/').context['global_out_of_range_count'], 1)
+
+    def test_background_alerts_cover_every_system(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'events_baselined': True})
+        WebhookEndpoint.objects.create(name='E', url='http://x/')
+        self.log(self.main, 7.5)
+        self.log(self.qt, 7.5)
+        self.assertEqual(events.sync_conditions(), 2)
+        titles = sorted(WebhookDelivery.objects.values_list('title', flat=True))
+        self.assertTrue(titles[0].startswith('Main:'))
+        self.assertTrue(titles[1].startswith('QT:'))
+        self.assertEqual(WebhookDelivery.objects.first().data['tank_id'] in (self.main.pk, self.qt.pk), True)
+        self.assertEqual(events.sync_conditions(), 0)
+
+    def test_system_calculators_read_that_systems_tests(self):
+        self.log(self.main, 8.5)
+        self.log(self.qt, 6.0)
+        current = lambda: self.client.get(reverse('dosing')).context['dose_data']['parameters']['alkalinity']['current']
+        self.assertEqual(current(), 8.5)
+        self.select(self.qt)
+        self.assertEqual(current(), 6.0)
+
+    def test_delete_warning_mentions_tests(self):
+        self.log(self.qt, 6.0)
+        self.assertContains(self.client.get(reverse('tank_delete', args=[self.qt.pk])), '1 water test')
+
+    def test_seed_leaves_existing_systems_alone(self):
+        self.main.name = 'Renamed'
+        self.main.save()
+        call_command('seed_reef_data', stdout=io.StringIO())
+        self.assertEqual(sorted(Tank.objects.values_list('name', flat=True)), ['QT', 'Renamed'])
+        self.assertEqual(Equipment.objects.count(), 0)
+
+    def test_seed_creates_sample_system_on_fresh_install(self):
+        Tank.objects.all().delete()
+        call_command('seed_reef_data', stdout=io.StringIO())
+        self.assertEqual(Tank.objects.count(), 1)
+        self.assertTrue(Equipment.objects.exists())
+
+    def test_no_tanks_still_renders(self):
+        Tank.objects.all().delete()
+        ParameterLog.objects.create(parameter_type=self.alk, value=8)
+        for name in ('dashboard', 'parameters', 'livestock', 'equipment', 'dosing', 'routines', 'timers', 'webcams', 'tools', 'the_damage', 'power'):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+        self.assertRedirects(self.client.get(reverse('system_theme')), reverse('tank_create'))
+
+
+class ParameterTargetTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)
+        self.soft = Tank.objects.create(name='Soft', volume_gallons=40, capacity_is_manual=True, is_primary=False)
+        self.nitrate = ParameterType.objects.create(
+            name='Nitrate', code='nitrate', unit='ppm', decimal_places=1, low_limit=1, min_ideal=2, max_ideal=10, high_limit=30)
+        self.url = reverse('parameter_settings', args=[self.nitrate.pk])
+
+    def select(self, tank):
+        self.client.post(reverse('system_select'), {'tank': tank.pk})
+
+    def form(self, **overrides):
+        data = {'unit': 'ppm', 'decimal_places': 1, 'low_limit': 1, 'min_ideal': 2, 'max_ideal': 10, 'high_limit': 30}
+        data.update(overrides)
+        return self.client.post(self.url, data)
+
+    def own_targets(self, tank):
+        self.nitrate.targets.create(tank=tank, low_limit=None, min_ideal=Decimal('5'), max_ideal=Decimal('40'), high_limit=Decimal('60'))
+
+    def log(self, tank, value):
+        return ParameterLog.objects.create(parameter_type=self.nitrate, tank=tank, value=Decimal(str(value)))
+
+    def test_same_reading_is_judged_per_system(self):
+        self.own_targets(self.soft)
+        self.assertEqual(self.log(self.main, 25).status_label, 'HIGH')
+        self.assertEqual(self.log(self.soft, 25).status_label, 'OPTIMAL')
+        self.assertEqual(self.log(self.main, 35).status_label, 'CRITICAL HIGH')
+        self.assertEqual(self.log(self.soft, 1).status, 'low')
+        self.assertEqual(self.log(self.soft, 1).severity, 'warning')  # that system has no low limit
+
+    def test_alerts_use_each_systems_targets(self):
+        self.own_targets(self.soft)
+        self.log(self.main, 25)
+        self.log(self.soft, 25)
+        main_state = compute_alert_state(tank=self.main)
+        soft_state = compute_alert_state(tank=self.soft)
+        self.assertEqual(len(main_state['out_of_range_params']), 1)
+        self.assertEqual(soft_state['out_of_range_params'], [])
+        AppSettings.objects.update_or_create(pk=1, defaults={'events_baselined': True})
+        WebhookEndpoint.objects.create(name='E', url='http://x/')
+        self.assertEqual(events.sync_conditions(), 1)
+        self.assertTrue(WebhookDelivery.objects.get().title.startswith('Main:'))
+
+    def test_alert_message_quotes_that_systems_range(self):
+        self.own_targets(self.soft)
+        self.log(self.soft, 50)
+        AppSettings.objects.update_or_create(pk=1, defaults={'events_baselined': True})
+        WebhookEndpoint.objects.create(name='E', url='http://x/')
+        events.sync_conditions()
+        delivery = WebhookDelivery.objects.get()
+        self.assertIn('5.0 to 40.0', delivery.message)
+        self.assertEqual(delivery.data['max_ideal'], 40.0)
+
+    def test_charts_dashboard_and_dose_follow_selected_system(self):
+        self.own_targets(self.soft)
+        self.log(self.soft, 25)
+        chart = lambda: self.client.get(reverse('api_chart_data'), {'code': 'nitrate'}).json()['parameter']['max_ideal']
+        self.assertEqual(chart(), 10.0)
+        self.select(self.soft)
+        self.assertEqual(chart(), 40.0)
+        self.assertEqual(self.client.get(reverse('api_all_chart_data')).json()['datasets'][0]['max_ideal'], 40.0)
+        self.assertContains(self.client.get('/'), '5.0 – 40.0')
+        alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9)
+        alk.targets.create(tank=self.soft, min_ideal=Decimal('7'), max_ideal=Decimal('8'))
+        dose = self.client.get(reverse('dosing')).context['dose_data']['parameters']['alkalinity']
+        self.assertEqual((dose['ideal_min'], dose['ideal_max'], dose['target']), (7.0, 8.0, 7.5))
+        data = self.client.get(reverse('api_parameter_types'), {'tank': 'Soft'}).json()['parameters']
+        self.assertEqual({p['code']: p['max_ideal'] for p in data}['nitrate'], 40.0)
+        data = self.client.get(reverse('api_parameter_types')).json()['parameters']
+        self.assertEqual({p['code']: p['max_ideal'] for p in data}['nitrate'], 10.0)
+
+    def test_editing_only_changes_selected_system(self):
+        self.select(self.soft)
+        response = self.form(min_ideal=5, max_ideal=40, high_limit=60)
+        self.assertEqual(response.status_code, 302)
+        self.nitrate.refresh_from_db()
+        self.assertEqual(self.nitrate.max_ideal, Decimal('10'))
+        self.assertEqual(self.nitrate.targets.get().tank, self.soft)
+        self.assertEqual(self.nitrate.for_system(self.main).max_ideal, Decimal('10'))
+        self.assertEqual(self.nitrate.for_system(self.soft).max_ideal, Decimal('40'))
+        page = self.client.get(self.url)
+        self.assertContains(page, 'has its own targets')
+        self.assertContains(page, 'value="40.000"')
+
+    def test_saving_default_values_needs_no_override(self):
+        self.select(self.soft)
+        self.form()
+        self.assertEqual(self.nitrate.targets.count(), 0)
+        self.assertContains(self.client.get(self.url), 'is using the default targets')
+
+    def test_unit_and_decimals_are_shared(self):
+        self.select(self.soft)
+        self.form(decimal_places=2, min_ideal=5, max_ideal=40, high_limit=60)
+        self.nitrate.refresh_from_db()
+        self.assertEqual(self.nitrate.decimal_places, 2)
+        self.assertEqual(self.nitrate.for_system(self.soft).decimal_places, 2)
+
+    def test_make_default_and_reset(self):
+        self.select(self.soft)
+        self.form(min_ideal=5, max_ideal=40, high_limit=60, apply_default='on')
+        self.nitrate.refresh_from_db()
+        self.assertEqual(self.nitrate.max_ideal, Decimal('40'))
+        self.assertEqual(self.nitrate.targets.count(), 0)
+        self.form(min_ideal=6, max_ideal=20, high_limit=60)
+        self.assertEqual(self.nitrate.targets.count(), 1)
+        self.client.post(reverse('parameter_targets_reset', args=[self.nitrate.pk]))
+        self.assertEqual(self.nitrate.targets.count(), 0)
+        self.assertEqual(self.nitrate.for_system(self.soft).max_ideal, Decimal('40'))
+
+    def test_one_system_just_edits_the_default(self):
+        self.soft.delete()
+        self.form(min_ideal=3, max_ideal=20, high_limit=40)
+        self.nitrate.refresh_from_db()
+        self.assertEqual(self.nitrate.max_ideal, Decimal('20'))
+        self.assertEqual(self.nitrate.targets.count(), 0)
+        self.assertNotContains(self.client.get(self.url), 'Also make these the default')
+
+    def test_bad_ranges_are_rejected(self):
+        self.select(self.soft)
+        response = self.form(min_ideal=50, max_ideal=10)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.nitrate.targets.count(), 0)
+
+    def test_unit_conversion_covers_every_systems_targets_and_tests(self):
+        temp = ParameterType.objects.create(name='Temperature', code='temperature', unit='F', decimal_places=1,
+                                            low_limit=75, min_ideal=77, max_ideal=79, high_limit=81)
+        temp.targets.create(tank=self.soft, low_limit=Decimal('68'), min_ideal=Decimal('68'), max_ideal=Decimal('86'), high_limit=Decimal('95'))
+        temp.targets.update(low_limit=Decimal('59'))
+        log = ParameterLog.objects.create(parameter_type=temp, tank=self.soft, value=Decimal('77'))
+        response = self.client.post(reverse('parameter_settings', args=[temp.pk]), {
+            'unit': 'C', 'decimal_places': 1, 'low_limit': 75, 'min_ideal': 77, 'max_ideal': 79, 'high_limit': 81,
+            'convert_history': 'on'})
+        self.assertEqual(response.status_code, 302)
+        temp.refresh_from_db()
+        log.refresh_from_db()
+        self.assertEqual(temp.unit, 'C')
+        self.assertEqual(round(float(temp.min_ideal)), 25)
+        self.assertEqual(round(float(log.value)), 25)
+        target = temp.targets.get()
+        self.assertEqual((round(float(target.low_limit)), round(float(target.min_ideal)), round(float(target.max_ideal))), (15, 20, 30))
+
+    def test_system_view_cannot_be_saved(self):
+        self.own_targets(self.soft)
+        with self.assertRaises(ValueError):
+            self.nitrate.for_system(self.soft).save()
+
+    def test_deleting_system_removes_its_targets(self):
+        self.own_targets(self.soft)
+        self.soft.delete()
+        self.assertEqual(self.nitrate.targets.count(), 0)
+
+
+class RetiredSystemTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True, icon_choice='robot')
+        self.old = Tank.objects.create(name='Old', volume_gallons=20, capacity_is_manual=True, is_primary=False, icon_choice='dragon')
+        self.alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9, low_limit=7)
+        self.log = ParameterLog.objects.create(parameter_type=self.alk, tank=self.old, value=Decimal('5'))
+
+    def retire(self, tank=None):
+        return self.client.post(reverse('tank_archive', args=[(tank or self.old).pk]))
+
+    def test_keeps_data_and_sets_retiree_icon(self):
+        Animal.objects.create(name='Oldie', tank=self.old)
+        self.retire()
+        self.old.refresh_from_db()
+        self.assertTrue(self.old.is_archived)
+        self.assertIsNotNone(self.old.archived_at)
+        self.assertIn(self.old.icon_choice, [key for key, _ in RETIRED_ICONS])
+        self.assertTrue(self.old.icon_url.endswith(f"{self.old.icon_choice}.svg"))
+        self.assertEqual(self.old.parameter_logs.count(), 1)
+        self.assertEqual(self.old.animals.count(), 1)
+
+    def test_all_placeholder_icons_exist(self):
+        from django.conf import settings
+        for key, _ in RETIRED_ICONS:
+            self.assertTrue((settings.BASE_DIR / 'static' / 'icons' / 'nudibranch' / f'{key}.svg').exists(), key)
+
+    def test_restore_brings_back_old_icon(self):
+        self.retire()
+        response = self.client.post(reverse('tank_restore', args=[self.old.pk]))
+        self.assertRedirects(response, reverse('tank_detail', args=[self.old.pk]))
+        self.old.refresh_from_db()
+        self.assertFalse(self.old.is_archived)
+        self.assertEqual((self.old.icon_choice, self.old.icon_before_archive), ('dragon', ''))
+        self.assertEqual(self.client.get('/').context['active_tank'], self.old)
+
+    def test_retiring_twice_keeps_original_icon(self):
+        self.retire()
+        self.retire()
+        self.client.post(reverse('tank_restore', args=[self.old.pk]))
+        self.old.refresh_from_db()
+        self.assertEqual(self.old.icon_choice, 'dragon')
+
+    def test_retiring_primary_promotes_another(self):
+        self.retire(self.main)
+        self.main.refresh_from_db()
+        self.old.refresh_from_db()
+        self.assertFalse(self.main.is_primary)
+        self.assertTrue(self.old.is_primary)
+        self.assertEqual(self.client.get('/').context['active_tank'], self.old)
+
+    def test_retiring_selected_system_moves_on(self):
+        self.client.post(reverse('system_select'), {'tank': self.old.pk})
+        self.retire()
+        self.assertEqual(self.client.get('/').context['active_tank'], self.main)
+
+    def test_no_alerts_or_events(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'events_baselined': True})
+        WebhookEndpoint.objects.create(name='E', url='http://x/')
+        Animal.objects.create(name='Sick', tank=self.old, status='monitoring')
+        self.retire()
+        self.assertEqual(events.sync_conditions(), 0)
+        self.old.refresh_from_db()
+        self.assertEqual(compute_alert_state(tank=self.old)['total_alerts'], 0)
+        marks = {s['tank'].name: s['alerts'] for s in self.client.get('/').context['systems']}
+        self.assertEqual(marks['Old'], 0)
+
+    def test_schedules_do_not_fire(self):
+        MaintenanceRoutine.objects.create(
+            title='Feeder', tank=self.old, routine_type='automated', repeat_every=1, repeat_unit='day',
+            start_date=timezone.localdate() - timedelta(days=1), checklist_items=[], schedule_events=[{'time': '08:00', 'action': 'Go'}])
+        WebhookEndpoint.objects.create(name='E', url='http://x/')
+        at = timezone.make_aware(datetime.combine(timezone.localdate(), time(8, 0)))
+        AppSettings.objects.update_or_create(pk=1, defaults={'last_schedule_check': at - timedelta(minutes=1)})
+        self.retire()
+        self.assertEqual(events.fire_scheduled(at), 0)
+
+    def test_no_new_tests(self):
+        self.client.post(reverse('system_select'), {'tank': self.old.pk})
+        self.retire()
+        self.client.post(reverse('system_select'), {'tank': self.old.pk})
+        self.client.post(reverse('quick_log_create'), {'parameter_type': self.alk.pk, 'value': '8'})
+        self.client.post(reverse('quick_measure_create'), {'value': ['8'], 'parameter': [self.alk.pk]})
+        self.assertEqual(self.old.parameter_logs.count(), 1)
+        post = lambda body: self.client.post(reverse('api_parameter_log'), json.dumps(body), content_type='application/json')
+        self.assertEqual(post({'parameter': 'alkalinity', 'value': 8, 'tank': 'Old'}).status_code, 400)
+        self.assertEqual(post({'parameter': 'alkalinity', 'value': 8}).json()['logs'][0]['tank'], 'Main')
+
+    def test_history_is_viewable(self):
+        self.retire()
+        self.client.post(reverse('system_select'), {'tank': self.old.pk})
+        page = self.client.get(reverse('parameters'))
+        self.assertEqual(list(page.context['recent_logs']), [self.log])
+        self.assertContains(page, 'Bring it back')
+        for name in ('dashboard', 'livestock', 'equipment', 'dosing', 'routines', 'timers', 'webcams', 'tools', 'power', 'the_damage', 'system_theme'):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+
+    def test_selector_and_lists(self):
+        self.retire()
+        page = self.client.get(reverse('tanks'))
+        self.assertContains(page, 'Retired systems')
+        self.assertContains(page, 'label="Retired"')
+        self.assertEqual([c['tank'] for c in page.context['tank_cards']], [self.main])
+        Equipment.objects.create(name='OldPump', tank=self.old, wattage=100)
+        self.assertEqual([e.name for e in self.client.get(reverse('equipment'), {'tank': 'all'}).context['equipment_list']], [])
+        self.assertEqual(self.client.get(reverse('power'), {'tank': 'all'}).context['summary']['rows'], [])
+        choices = self.client.get(reverse('plan_create')).context['form'].fields['existing_tank'].queryset
+        self.assertEqual(list(choices), [self.main])
+
+    def test_retiree_icons_offered_only_when_retired(self):
+        self.assertNotContains(self.client.get(reverse('system_theme')), 'Rocking Chair')
+        self.retire()
+        self.client.post(reverse('system_select'), {'tank': self.old.pk})
+        self.assertContains(self.client.get(reverse('system_theme')), 'Rocking Chair')
+        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': 'retired_rocker'})
+        self.old.refresh_from_db()
+        self.assertEqual(self.old.icon_choice, 'retired_rocker')
+
+    def test_every_system_retired_still_works(self):
+        self.retire()
+        self.retire(self.main)
+        self.assertEqual(self.client.get('/').status_code, 200)
+        self.assertIsNotNone(self.client.get('/').context['active_tank'])
+        call_command('seed_reef_data', stdout=io.StringIO())
+        self.assertEqual(Tank.objects.count(), 2)
+
+
+class SystemLookTests(TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        override = override_settings(MEDIA_ROOT=self.tmp)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.main = Tank.objects.create(name='Main', capacity_is_manual=True, is_primary=True)
+        self.qt = Tank.objects.create(name='QT', capacity_is_manual=True, is_primary=False)
+
+    def save(self, **data):
+        data.setdefault('theme', 'ocean')
+        data.setdefault('icon_choice', '')
+        return self.client.post(reverse('system_theme'), data, follow=True)
+
+    def test_each_system_has_its_own_look(self):
+        self.save(theme='kelp', icon_choice='dragon')
+        page = self.client.get('/')
+        self.assertContains(page, '#10b981')
+        self.assertContains(page, 'nudibranch/dragon.svg')
+        self.assertEqual(page.context['system_icon_url'], '/static/icons/nudibranch/dragon.svg')
+        self.client.post(reverse('system_select'), {'tank': self.qt.pk})
+        page = self.client.get('/')
+        self.assertNotContains(page, '#10b981')
+        self.assertEqual(page.context['system_icon_url'], '')
+
+    def test_custom_icon_upload_and_replace(self):
+        buf = io.BytesIO()
+        Image.new('RGB', (8, 8), 'red').save(buf, 'PNG')
+        self.save(custom_icon=SimpleUploadedFile('me.png', buf.getvalue(), 'image/png'))
+        self.main.refresh_from_db()
+        self.assertEqual(self.main.icon_choice, 'custom')
+        first = Path(self.main.custom_icon.path)
+        self.assertTrue(first.exists())
+        self.assertEqual(self.main.icon_url, self.main.custom_icon.url)
+        self.save(icon_choice='custom', custom_icon=SimpleUploadedFile('next.png', buf.getvalue(), 'image/png'))
+        self.main.refresh_from_db()
+        self.assertFalse(first.exists())
+        self.assertTrue(Path(self.main.custom_icon.path).exists())
+
+    def test_rejects_bad_uploads_and_values(self):
+        self.save(custom_icon=SimpleUploadedFile('x.svg', b'<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>', 'image/svg+xml'))
+        self.save(custom_icon=SimpleUploadedFile('x.png', b'not an image', 'image/png'))
+        self.save(icon_choice='../../evil')
+        self.save(theme='nonsense')
+        self.main.refresh_from_db()
+        self.assertFalse(self.main.custom_icon)
+        self.assertEqual((self.main.theme, self.main.icon_choice), ('ocean', ''))
+
+    def test_page_lists_all_choices(self):
+        page = self.client.get(reverse('system_theme'))
+        for text in ('Kelp Forest', 'Coral Reef', 'Surprise me', 'Mecha Robot', 'Or add your own'):
+            self.assertContains(page, text)
+
+
+class DamageTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=50, capacity_is_manual=True, is_primary=True)
+        self.qt = Tank.objects.create(name='QT', volume_gallons=10, capacity_is_manual=True, is_primary=False)
+
+    def add(self, amount, tank=None, description='Thing', category='other'):
+        return self.client.post(reverse('the_damage'), {
+            'description': description, 'amount': amount, 'spent_on': timezone.localdate().isoformat(),
+            'category': category, 'tank': (tank or self.main).pk})
+
+    def test_add_and_totals(self):
+        self.add('300', description='Coral', category='livestock')
+        self.add('200', description='Pump', category='equipment')
+        self.add('999', tank=self.qt)
+        page = self.client.get(reverse('the_damage'))
+        self.assertEqual(page.context['total'], 500.0)
+        self.assertEqual(page.context['per_gallon'], 10.0)
+        self.assertEqual(page.context['by_category'][0]['percent'], 60)
+        self.assertContains(page, 'A few nice dinners')
+        everything = self.client.get(reverse('the_damage'), {'all': 1})
+        self.assertEqual(everything.context['total'], 1499.0)
+
+    def test_empty_page_and_edit_delete(self):
+        self.assertContains(self.client.get(reverse('the_damage')), 'clean slate')
+        self.add('5')
+        entry = CostEntry.objects.get()
+        self.assertEqual(self.client.get(reverse('cost_edit', args=[entry.pk])).status_code, 200)
+        self.client.post(reverse('cost_delete', args=[entry.pk]))
+        self.assertEqual(CostEntry.objects.count(), 0)
+
+    def test_hidden_but_reachable(self):
+        page = self.client.get('/')
+        self.assertContains(page, 'logo-link')
+        self.assertContains(page, reverse('the_damage'))
+        self.assertNotContains(page, 'The Damage</a>')
+        self.assertContains(self.client.get(reverse('tools')), 'aria-label="The Damage"')
+
+    def test_purchases_land_here(self):
+        fish = species('F', 'Fishus one')
+        item = WishlistItem.objects.create(species=fish, name='F', quantity=2, est_price=Decimal('25'))
+        self.client.post(reverse('wishlist_bought', args=[item.pk]), {'tank': self.main.pk})
+        self.assertEqual(CostEntry.objects.get().amount, Decimal('50'))
+        CostEntry.objects.all().delete()
+        plan = PlannedSystem.objects.create(name='P', existing_tank=self.main)
+        PlannedItem.objects.create(plan=plan, kind='equipment', name='Pump', category='return_pump', quantity=2, unit_cost=Decimal('10'))
+        PlannedItem.objects.create(plan=plan, kind='equipment', name='Free', category='other')
+        planner.track_plan(plan)
+        planner.track_plan(plan)
+        entry = CostEntry.objects.get()
+        self.assertEqual((entry.amount, entry.category, entry.tank), (Decimal('20'), 'equipment', self.main))
 
 
 class WishlistTests(TestCase):

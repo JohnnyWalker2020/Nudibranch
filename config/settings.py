@@ -68,6 +68,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'aquarium.context_processors.alerts_processor',
+                'aquarium.context_processors.system_processor',
             ],
         },
     },

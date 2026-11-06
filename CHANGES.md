@@ -1,5 +1,26 @@
 # Nudibranch: change summary
 
+## Round 6 (2026-11-05)
+
+Apply with `docker compose up -d --build`; migrations 0012 to 0015 run on start and assign your existing water tests to your primary tank.
+
+- **One selected system**: a selector at the top of every page picks the system, remembered per browser. The dashboard, parameters,
+  charts, livestock, equipment, dosing, routines, webcams, alerts, power and calculators then show just that system.
+  Universal: wishlist, plans, species catalog, parameter names and units, webhooks, backups, quarantine list.
+- **Per-system target ranges**: a parameter's settings page edits the selected system's ranges. Systems without their own use the
+  default, and can go back to it at any time. Readings, alerts, charts and the Dose Estimator all use the right system's targets.
+- **Water tests belong to a system**. The API takes an optional `tank` (ID or name); without it, readings go to the primary tank.
+  Background alerts check every system, and the selector marks other systems that have alerts.
+- **Equipment** and **Power** have an "All systems" view. Webcams can belong to one system, or show on all.
+- **Calculators** use the selected system automatically, with whole system, display, sump or custom volume.
+- **Retiring a system** (button on its tank page): keeps all its data, gives it a retiree icon, and stops its alerts, schedules, time-lapse
+  and new tests. It moves to a Retired group in the selector and can be brought back any time, with its old icon. The retiree icons are
+  placeholders in `static/icons/nudibranch/retired_*.svg`: replace those files, keeping the names.
+- **System look**: each system has a colour scheme and a stock or uploaded icon.
+- **The Damage**: there's a hidden spending ledger. Purchases from the wishlist or a plan with a price are added automatically.
+- **Fixed**: restarting the app recreated "Main Display Tank" and its sample gear if they'd been renamed or deleted. Sample data is
+  now only added to a brand new install.
+
 ## Round 5 (2026-11-05)
 
 Apply with `docker compose down && docker compose up -d --build`; migration 0009 runs on start.
@@ -26,6 +47,9 @@ Run the tests with `docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata 
 - **Webcam time-lapse**: scheduled frames from a snapshot URL or MJPEG stream, played back in the browser.
 - **Power cost**: estimated kWh and cost from equipment wattage. Set your electricity price in Tools > Settings.
 - `docker-compose.yml`: passes an optional `API_SECRET_KEY` from a `.env` file.
+- **Calculator volumes**: the Dose Estimator, Salt Mixing Calculator and Fill Timer calculator all share a tank system picker (whole
+  system, display only, sump only or a custom volume, in gallons or liters). Typing a volume switches to custom. In the Dose Estimator,
+  changing the tank no longer resets your other entries, and changing the parameter keeps your volume.
 - **Webhook targeting**: a connection can be limited to specific routines or to fill timers for specific reservoirs, and a timer can
   choose its connections when it starts. A targeted connection with no event types ticked receives only events about its targets.
   If its last target is deleted, the connection pauses rather than widening to everything. Migration 0011 runs on start.

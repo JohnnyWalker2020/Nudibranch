@@ -45,21 +45,23 @@
       <p class="text-xs text-slate-400">Fields fill from your latest logs, parameter targets and tank size. Overwrite any of them.</p>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       <div>
-        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Parameter</label>
+        <label for="est-parameter" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Parameter</label>
         <select id="est-parameter" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm"></select>
       </div>
-      <div>
-        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Tank</label>
-        <select id="est-tank" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm"></select>
+      <div class="sm:col-span-2">
+        {% include 'aquarium/partials/volume_picker.html' with prefix='est' %}
       </div>
       <div>
-        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Volume to treat (gal)</label>
-        <input id="est-gallons" type="number" step="0.1" min="0" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
-        <p class="text-[10px] text-slate-500 mt-1">Defaults to display + sump (total system).</p>
+        <label for="est-gallons" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Volume to treat</label>
+        <div class="flex gap-1.5">
+          <input id="est-gallons" type="number" step="0.1" min="0" class="min-w-0 flex-1 px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+          <select id="est-gallons-unit" aria-label="Volume unit" class="px-2 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm"><option value="gal">gal</option><option value="L">L</option></select>
+        </div>
       </div>
     </div>
+    <p class="text-[11px] text-slate-500 -mt-2">Water that circulates together shares every dose, so use the whole system unless the water you're treating is separated, such as a quarantine or mixing container. Using a smaller number on a connected system underdoses it.</p>
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div>
@@ -153,6 +155,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include 'aquarium/partials/volume_picker_js.html' %}
 <script>
 (function () {
   const D = JSON.parse(document.getElementById('dose-data').textContent);
@@ -162,7 +165,7 @@
 
   // populate selects
   Object.values(P).forEach(p => $('est-parameter').add(new Option(p.name, p.code)));
-  D.tanks.forEach(t => $('est-tank').add(new Option(t.name, t.id)));
+  const volume = volumePicker({ prefix: 'est', input: 'est-gallons', unitSelect: 'est-gallons-unit', scope: 'system' });
 
   function fmt(n, d) { return n === null || n === undefined ? '—' : Number(n).toFixed(d); }
 
@@ -174,11 +177,9 @@
 
   function fillDefaults() {
     const p = P[$('est-parameter').value];
-    const t = D.tanks.find(x => String(x.id) === $('est-tank').value);
     const u = p.unit;
     ['est-unit-1', 'est-unit-2', 'est-unit-3'].forEach(id => $(id).textContent = '(' + u + ')');
     document.querySelectorAll('.est-unit-text').forEach(e => e.textContent = u);
-    if (t) $('est-gallons').value = t.system;
     $('est-current').value = p.current !== null ? p.current : '';
     $('est-current-note').textContent = p.current !== null ? 'Last test ' + p.measured_at + (p.display_unit !== u ? ' (converted from ' + p.display_unit + ')' : '') : 'No test logged yet';
     $('est-target').value = p.target !== null ? p.target : '';
@@ -214,7 +215,7 @@
     const q = new URLSearchParams({
       parameter: $('est-parameter').value,
       current: $('est-current').value, target: $('est-target').value,
-      gallons: $('est-gallons').value, daily_loss: $('est-loss').value || 0, max_daily: $('est-max').value,
+      gallons: volume.gallons(), daily_loss: $('est-loss').value || 0, max_daily: $('est-max').value,
     });
     if (mode === 'dry') {
       q.set('chemical', $('est-chemical').value);
@@ -256,7 +257,6 @@
   }
 
   $('est-parameter').addEventListener('change', () => { fillChemicals(); fillDefaults(); });
-  $('est-tank').addEventListener('change', fillDefaults);
   $('mode-dry').addEventListener('click', () => setMode('dry'));
   $('mode-label').addEventListener('click', () => setMode('label'));
   $('est-run').addEventListener('click', run);

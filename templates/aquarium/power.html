@@ -16,7 +16,7 @@
 
   {% if tanks|length > 1 %}
   <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
-    <a href="{% url 'power' %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">All tanks</a>
+    <a href="{% url 'power' %}?tank=all" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">All systems</a>
     {% for t in tanks %}<a href="{% url 'power' %}?tank={{ t.id }}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_tank.id == t.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">{{ t.name }}</a>{% endfor %}
   </div>
   {% endif %}

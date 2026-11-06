@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}The Damage | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="text-center space-y-1 pt-2">
+    <p class="text-4xl">🤫💸</p>
+    <h1 class="text-3xl font-black text-white tracking-tight">The Damage</h1>
+    <p class="text-xs text-slate-400">You found the secret ledger. What happens in here stays in here.</p>
+  </div>
+
+  {% if multiple_systems %}
+  <div class="flex items-center justify-center gap-2">
+    <a href="{% url 'the_damage' %}" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if not show_all %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">{{ active_tank.name }}</a>
+    <a href="{% url 'the_damage' %}?all=1" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if show_all %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">All systems</a>
+  </div>
+  {% endif %}
+
+  <div class="bg-gradient-to-br from-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-6 text-center space-y-2">
+    <span class="text-[10px] uppercase font-bold text-slate-500">Total sunk into saltwater</span>
+    <p class="text-5xl font-black text-white">{{ currency }}{{ total|floatformat:2 }}</p>
+    <p class="text-sm font-semibold text-cyan-400">{{ verdict }}</p>
+  </div>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">This year</span><p class="text-xl font-black text-white">{{ currency }}{{ this_year|floatformat:2 }}</p></div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Per gallon of water</span><p class="text-xl font-black text-white">{% if per_gallon is not None %}{{ currency }}{{ per_gallon|floatformat:2 }}{% else %}-{% endif %}</p></div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Per day since the first buy</span><p class="text-xl font-black text-white">{% if per_day is not None %}{{ currency }}{{ per_day|floatformat:2 }}{% else %}-{% endif %}</p></div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Power per month (estimate)</span><p class="text-xl font-black text-amber-400">{{ currency }}{{ power_month|floatformat:2 }}</p><p class="text-[10px] text-slate-500">Not in the total</p></div>
+  </div>
+
+  {% if by_category %}
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Where it went</h2>
+    {% for row in by_category %}
+    <div>
+      <div class="flex justify-between text-xs"><span class="text-slate-300">{{ row.label }}</span><span class="font-semibold text-white">{{ currency }}{{ row.total|floatformat:2 }}</span></div>
+      <div class="mt-1 h-2 bg-slate-800 rounded-full overflow-hidden"><div class="h-full bg-cyan-500" style="width: {{ row.percent }}%"></div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="POST" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+    {% csrf_token %}
+    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Confess a purchase</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">What was it</label>{{ form.description }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cost</label>{{ form.amount }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Date</label>{{ form.spent_on }}</div>
+      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Category</label>{{ form.category }}</div>
+      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">System</label>{{ form.tank }}</div>
+    </div>
+    <button class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-bold">Add it to the pile</button>
+  </form>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
+    <h2 class="p-4 text-xs font-bold uppercase tracking-wider text-slate-400">The receipts</h2>
+    {% for entry in entries %}
+    <div class="p-3 px-4 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-white truncate">{{ entry.description }}</p>
+        <p class="text-[11px] text-slate-500">{{ entry.spent_on|date:"M j, Y" }} · {{ entry.get_category_display }}{% if show_all and entry.tank %} · {{ entry.tank.name }}{% endif %}</p>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="text-sm font-bold text-amber-400">{{ currency }}{{ entry.amount|floatformat:2 }}</span>
+        <a href="{% url 'cost_edit' entry.id %}" class="text-xs text-slate-400 hover:text-cyan-400">Edit</a>
+        <form method="POST" action="{% url 'cost_delete' entry.id %}" onsubmit="return confirm('Delete this entry?')">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Delete</button></form>
+      </div>
+    </div>
+    {% empty %}
+    <p class="p-8 text-center text-xs text-slate-500">Nothing yet. Blissful ignorance is a valid choice, too.</p>
+    {% endfor %}
+  </div>
+  <p class="text-center text-[11px] text-slate-600">Things you mark as bought from the wishlist or a plan, with a price, land here on their own.</p>
+</div>
+{% endblock %}

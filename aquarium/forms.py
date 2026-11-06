@@ -81,6 +81,7 @@ class ParameterSettingsForm(forms.ModelForm):
         label="Convert Historical Measurements",
         help_text="Automatically convert all previously entered test logs to match the new unit"
     )
+    apply_default = forms.BooleanField(required=False)
 
     class Meta:
         model = ParameterType
@@ -173,9 +174,11 @@ class ParameterLogEditForm(DefaultNowMixin, forms.ModelForm):
 
     class Meta:
         model = ParameterLog
-        fields = ['parameter_type', 'value', 'measured_at', 'notes']
+        fields = ['parameter_type', 'tank', 'value', 'measured_at', 'notes']
+        labels = {'tank': 'System'}
         widgets = {
             'parameter_type': forms.Select(attrs={'class': INPUT}),
+            'tank': forms.Select(attrs={'class': INPUT}),
             'value': forms.NumberInput(attrs={'class': INPUT, 'step': 'any', 'inputmode': 'decimal'}),
             'measured_at': _datetime_widget(),
             'notes': forms.TextInput(attrs={'class': INPUT}),
@@ -546,10 +549,11 @@ class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
 class WebcamFeedForm(forms.ModelForm):
     class Meta:
         model = WebcamFeed
-        fields = ['name', 'feed_url', 'feed_type', 'is_active', 'order', 'timelapse_enabled', 'snapshot_url',
+        fields = ['name', 'tank', 'feed_url', 'feed_type', 'is_active', 'order', 'timelapse_enabled', 'snapshot_url',
                   'timelapse_interval_minutes', 'timelapse_keep_days']
         widgets = {
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Front view'}),
+            'tank': forms.Select(attrs={'class': INPUT}),
             'feed_url': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'http://192.168.1.50:1984/api/stream.mjpeg?src=tank'}),
             'feed_type': forms.Select(attrs={'class': INPUT}),
             'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX}),

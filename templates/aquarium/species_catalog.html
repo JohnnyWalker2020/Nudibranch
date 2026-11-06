@@ -164,7 +164,7 @@
             {% if tanks|length > 1 %}
               <select name="tank" class="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-300 text-xs focus:ring-1 focus:ring-cyan-500 max-w-[110px] truncate" title="Select tank">
                 {% for t in tanks %}
-                  <option value="{{ t.id }}" {% if t.is_primary %}selected{% endif %}>{{ t.name }}</option>
+                  <option value="{{ t.id }}" {% if t.id == active_tank.id %}selected{% endif %}>{{ t.name }}</option>
                 {% endfor %}
               </select>
             {% else %}

@@ -7,7 +7,7 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 from PIL import Image
 
-from .models import TimelapseFrame, WebcamFeed
+from .models import TimelapseFrame, WebcamFeed, not_retired
 
 MAX_BYTES = 15 * 1024 * 1024
 TIMEOUT = 15
@@ -89,7 +89,7 @@ def capture_frame(feed, now=None):
 def capture_due(now=None):
     now = now or timezone.now()
     count = 0
-    for feed in WebcamFeed.objects.filter(is_active=True, timelapse_enabled=True):
+    for feed in not_retired(WebcamFeed.objects.filter(is_active=True, timelapse_enabled=True)):
         interval = timedelta(minutes=max(1, feed.timelapse_interval_minutes))
         if feed.last_capture_at is None or now - feed.last_capture_at >= interval:
             count += 1 if capture_frame(feed, now) else 0
