@@ -3,7 +3,7 @@ import urllib.parse
 from datetime import timedelta
 
 from django.db import models
-from django.db.models.signals import post_delete, pre_delete
+from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.functional import cached_property
@@ -254,6 +254,8 @@ class Animal(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     quarantine_started = models.DateField(null=True, blank=True, help_text="Day quarantine began")
     quarantine_days = models.PositiveIntegerField(default=30, help_text="Planned quarantine length in days")
+    paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                               help_text="What you paid in total. Added to The Damage automatically")
 
     class Meta:
         ordering = ['status', 'name']
@@ -678,6 +680,8 @@ class Equipment(models.Model):
     max_flow_gph = models.PositiveIntegerField(null=True, blank=True, help_text="Rated maximum flow in gallons per hour (L/h ÷ 3.785 = gph)")
     power_setting_percent = models.PositiveSmallIntegerField(default=100, help_text="Current power / speed setting, 1-100%")
     flow_derate_percent = models.PositiveSmallIntegerField(default=0, help_text="Flow lost to head height and plumbing, % (return pumps are often 20-40%)")
+    paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+                               help_text="What you paid in total. Added to The Damage automatically")
     hours_per_day = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True,
                                         help_text="Hours it draws power per day, for the power estimate (blank = typical for this category)")
     notes = models.TextField(blank=True)
@@ -996,6 +1000,8 @@ class AppSettings(models.Model):
     electricity_rate = models.DecimalField(max_digits=6, decimal_places=4, default=0.15,
                                            help_text="Your electricity price per kWh")
     currency_symbol = models.CharField(max_length=4, default='$')
+    costs_enabled = models.BooleanField(default=False, editable=False,
+                                        help_text="Prices stay hidden until this is turned on in The Damage")
     auto_backup_days = models.PositiveIntegerField(default=7, help_text="Make a backup every N days (0 = off)")
     auto_backup_keep = models.PositiveIntegerField(default=4, help_text="How many automatic backups to keep")
     worker_last_seen = models.DateTimeField(null=True, blank=True, editable=False)
@@ -1337,6 +1343,9 @@ class CostEntry(models.Model):
     category = models.CharField(max_length=15, choices=CATEGORY_CHOICES, default='other')
     description = models.CharField(max_length=150)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    # Set when this entry comes from an animal's or equipment's "what you paid". The money stays spent if it's deleted.
+    animal = models.OneToOneField(Animal, on_delete=models.SET_NULL, null=True, blank=True, editable=False, related_name='cost_entry')
+    equipment = models.OneToOneField(Equipment, on_delete=models.SET_NULL, null=True, blank=True, editable=False, related_name='cost_entry')
 
     class Meta:
         ordering = ['-spent_on', '-id']
@@ -1344,6 +1353,58 @@ class CostEntry(models.Model):
 
     def __str__(self):
         return f"{self.description}: {self.amount}"
+
+
+def _sync_paid_entry(instance, link, category, description, day):
+    """Keeps the ledger line for an animal's or equipment's "what you paid" matching it."""
+    entry = CostEntry.objects.filter(**{link: instance}).first()
+    if instance.paid is None:
+        if entry:
+            entry.delete()
+        return
+    if entry is None:
+        entry = CostEntry(**{link: instance}, spent_on=day or timezone.localdate())
+    elif day:
+        entry.spent_on = day
+    entry.tank = instance.tank
+    entry.category = category
+    entry.description = description[:150]
+    entry.amount = instance.paid
+    entry.save()
+
+
+@receiver(post_save, sender=Animal)
+def _animal_saved(sender, instance, raw=False, **kwargs):
+    if not raw:
+        label = f"{instance.count}x {instance.name}" if instance.count > 1 else instance.name
+        _sync_paid_entry(instance, 'animal', 'livestock', label, instance.acquired_date)
+
+
+@receiver(post_save, sender=Equipment)
+def _equipment_saved(sender, instance, raw=False, **kwargs):
+    if not raw:
+        _sync_paid_entry(instance, 'equipment', 'equipment', instance.name, instance.installed_date)
+
+
+def _linked_record_querysets(entry):
+    if entry.animal_id:
+        yield Animal.objects.filter(pk=entry.animal_id)
+    if entry.equipment_id:
+        yield Equipment.objects.filter(pk=entry.equipment_id)
+
+
+@receiver(post_save, sender=CostEntry)
+def _cost_entry_saved(sender, instance, raw=False, **kwargs):
+    """Correcting the amount in the ledger corrects the animal or equipment too."""
+    if not raw:
+        for records in _linked_record_querysets(instance):
+            records.update(paid=instance.amount)  # update() doesn't re-trigger the sync above
+
+
+@receiver(post_delete, sender=CostEntry)
+def _cost_entry_deleted(sender, instance, **kwargs):
+    for records in _linked_record_querysets(instance):
+        records.update(paid=None)
 
 
 def _pause_endpoints_losing_last_target(instance, relation, label):

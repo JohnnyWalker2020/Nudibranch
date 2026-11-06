@@ -5,7 +5,7 @@ from django import forms
 
 from .events import EVENT_TYPES
 from .themes import RETIRED_ICONS, STOCK_ICONS
-from .forms import CHECKBOX, INPUT, TEXTAREA
+from .forms import CHECKBOX, CostGatedMixin, INPUT, TEXTAREA
 from .models import (
     AnimalPhoto, AppSettings, CostEntry, Equipment, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem,
     SpeciesCatalog, Tank, WebhookEndpoint, WishlistItem,
@@ -154,7 +154,9 @@ class ROSystemForm(StyledFormMixin, forms.ModelForm):
         }
 
 
-class PlannedSystemForm(StyledFormMixin, forms.ModelForm):
+class PlannedSystemForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
+    cost_fields = ('budget',)
+
     class Meta:
         model = PlannedSystem
         fields = ['name', 'goal', 'existing_tank', 'dimension_unit', 'width', 'depth', 'height', 'fill_percent',
@@ -172,7 +174,8 @@ class PlannedSystemForm(StyledFormMixin, forms.ModelForm):
         self.fields['existing_tank'].queryset = Tank.objects.filter(is_archived=False)
 
 
-class PlannedLivestockForm(StyledFormMixin, forms.ModelForm):
+class PlannedLivestockForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
+    cost_fields = ('unit_cost',)
     species = forms.ModelChoiceField(queryset=SpeciesCatalog.objects.order_by('name'), empty_label='Choose a species...')
 
     class Meta:
@@ -181,7 +184,8 @@ class PlannedLivestockForm(StyledFormMixin, forms.ModelForm):
         labels = {'unit_cost': 'Price each'}
 
 
-class WishlistLivestockForm(StyledFormMixin, forms.ModelForm):
+class WishlistLivestockForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
+    cost_fields = ('est_price',)
     species = forms.ModelChoiceField(queryset=SpeciesCatalog.objects.order_by('name'), empty_label='Choose a species...')
 
     class Meta:
@@ -203,7 +207,8 @@ class WishlistLivestockForm(StyledFormMixin, forms.ModelForm):
         return item
 
 
-class WishlistEquipmentForm(StyledFormMixin, forms.ModelForm):
+class WishlistEquipmentForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
+    cost_fields = ('est_price',)
     category = forms.ChoiceField(choices=Equipment.CATEGORY_CHOICES, label='Type')
 
     class Meta:
@@ -221,7 +226,8 @@ class WishlistEquipmentForm(StyledFormMixin, forms.ModelForm):
         return item
 
 
-class PlannedEquipmentForm(StyledFormMixin, forms.ModelForm):
+class PlannedEquipmentForm(CostGatedMixin, StyledFormMixin, forms.ModelForm):
+    cost_fields = ('unit_cost',)
     category = forms.ChoiceField(choices=Equipment.CATEGORY_CHOICES)
 
     class Meta:

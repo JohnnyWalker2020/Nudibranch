@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from .compatibility import check_stock, tank_stock
 from .models import PlannedItem, Tank, WishlistItem
-from .planner import create_tracked_record, record_cost
+from .planner import create_tracked_record
 
 PRIORITY_ORDER = {'must': 0, 'want': 1, 'someday': 2}
 
@@ -84,8 +84,8 @@ def mark_bought(item, tank, *, quarantine=False):
     create_tracked_record(
         tank, kind=item.kind, name=item.name, species=item.species, quantity=item.quantity,
         category=item.category, wattage=item.wattage, max_flow_gph=item.max_flow_gph, quarantine_fish=quarantine,
+        unit_price=item.est_price,
     )
-    record_cost(tank, item.kind, item.name, item.quantity, item.est_price)
     item.status = 'acquired'
     item.tank = tank
     item.acquired_at = timezone.now()

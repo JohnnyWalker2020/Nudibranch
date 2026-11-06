@@ -30,7 +30,7 @@ from .forms import (
     SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
 )
 from .models import (
-    Animal, AnimalGroup, DosingReservoir, Equipment, MaintenanceRoutine, ParameterLog,
+    Animal, AnimalGroup, AppSettings, DosingReservoir, Equipment, MaintenanceRoutine, ParameterLog,
     ParameterType, SpeciesCatalog, Sump, SumpChamber, Tank, WaterChangeLog, WebcamFeed,
     ParameterTarget, PlumbingRun, RANGE_FIELDS, in_system, not_retired, reef2reef_search,
 )
@@ -877,8 +877,12 @@ def species_add_to_tank(request, species_id):
 
         care_notes = f"Care: {species.care_level}. Diet: {species.diet}. {species.notes}".strip()
         new_warnings = warnings_for_addition(species, target_tank, count)
+        paid = _to_decimal(request.POST.get('paid')) if AppSettings.load().costs_enabled else None
+        if paid is not None and (not paid.is_finite() or paid < 0 or paid >= Decimal('100000000')):
+            paid = None
 
         animal = Animal.objects.create(
+            paid=paid,
             name=species.name,
             species=species.species,
             tank=target_tank,

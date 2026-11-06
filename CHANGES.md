@@ -2,7 +2,7 @@
 
 ## Round 6 (2026-11-05)
 
-Apply with `docker compose up -d --build`; migrations 0012 to 0015 run on start and assign your existing water tests to your primary tank.
+Apply with `docker compose up -d --build`; migrations 0012 to 0017 run on start and assign your existing water tests to your primary tank.
 
 - **One selected system**: a selector at the top of every page picks the system, remembered per browser. The dashboard, parameters,
   charts, livestock, equipment, dosing, routines, webcams, alerts, power and calculators then show just that system.
@@ -17,9 +17,13 @@ Apply with `docker compose up -d --build`; migrations 0012 to 0015 run on start 
   and new tests. It moves to a Retired group in the selector and can be brought back any time, with its old icon. The retiree icons are
   placeholders in `static/icons/nudibranch/retired_*.svg`: replace those files, keeping the names.
 - **System look**: each system has a colour scheme and a stock or uploaded icon.
-- **The Damage**: there's a hidden spending ledger. Purchases from the wishlist or a plan with a price are added automatically.
+- **The Damage**: there's a hidden, fire-themed spending ledger. Prices are off until you "light the match" inside it, which turns on
+  price fields on the wishlist and in plans, plus "what you paid" on livestock and equipment. Those all land in the ledger and stay in sync
+  with it. Putting it out hides prices but deletes nothing. The ledger can be filtered by system and dates, and has a spending chart.
 - **Fixed**: restarting the app recreated "Main Display Tank" and its sample gear if they'd been renamed or deleted. Sample data is
   now only added to a brand new install.
+- **Fixed**: the top navigation overlapped the logo on narrower screens. It now scrolls instead.
+- **Docs**: rewrote the README to cover all current features, webhooks and development.
 
 ## Round 5 (2026-11-05)
 

@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from .calculators import estimate_flow_gph, turnover_summary
 from .compatibility import ACTIVE_STATUSES, bioload, check_stock, tank_stock
-from .models import AnimalGroup, Animal, AppSettings, CostEntry, Equipment, Sump, Tank
+from .models import AnimalGroup, Animal, AppSettings, Equipment, Sump, Tank
 from .power import DAYS_PER_MONTH, TYPICAL_HOURS, daily_kwh, power_summary
 
 RETURN_HEAD_LOSS_PERCENT = 25  # planning assumption for head height and plumbing losses
@@ -121,21 +121,18 @@ def analyze(plan):
     }
 
 
-def record_cost(tank, kind, name, quantity, unit_price):
-    """Logs a purchase in the cost ledger when its price is known."""
-    if unit_price:
-        CostEntry.objects.create(tank=tank, category=kind if kind in ('livestock', 'equipment') else 'other',
-                                 description=f"{quantity}x {name}"[:150], amount=unit_price * quantity)
-
-
 def create_tracked_record(tank, *, kind, name, species=None, quantity=1, category='', wattage=None,
-                          max_flow_gph=None, quarantine_fish=False):
-    """Creates the real equipment or animal record for something planned or bought."""
+                          max_flow_gph=None, quarantine_fish=False, unit_price=None):
+    """
+    Creates the real equipment or animal record for something planned or bought. A known price is
+    recorded as what you paid, which adds it to The Damage (only while costs are switched on).
+    """
+    price = unit_price if unit_price and AppSettings.load().costs_enabled else None
     if kind == 'equipment':
         for _ in range(quantity):
             Equipment.objects.create(
                 tank=tank, name=name[:120], category=category or 'other', wattage=wattage,
-                max_flow_gph=max_flow_gph,
+                max_flow_gph=max_flow_gph, paid=price,
                 flow_derate_percent=RETURN_HEAD_LOSS_PERCENT if category == 'return_pump' else 0,
             )
         return
@@ -146,7 +143,7 @@ def create_tracked_record(tank, *, kind, name, species=None, quantity=1, categor
     animal = Animal.objects.create(
         name=name[:120], species=species.species if species else '', tank=tank, count=quantity,
         status='quarantine' if quarantine_fish and is_fish else 'healthy', notes=notes,
-        acquired_date=timezone.localdate(),
+        acquired_date=timezone.localdate(), paid=price * quantity if price else None,
     )
     if species is not None and species.suggested_group:
         group, _ = AnimalGroup.objects.get_or_create(
@@ -175,9 +172,8 @@ def track_plan(plan, *, quarantine_fish=False):
         create_tracked_record(
             tank, kind=item.kind, name=item.name, species=item.species, quantity=item.quantity,
             category=item.category, wattage=item.wattage, max_flow_gph=item.max_flow_gph,
-            quarantine_fish=quarantine_fish,
+            quarantine_fish=quarantine_fish, unit_price=item.unit_cost,
         )
-        record_cost(tank, item.kind, item.name, item.quantity, item.unit_cost)
         item.tracked = True
         item.save(update_fields=['tracked'])
 

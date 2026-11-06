@@ -66,6 +66,7 @@
               {% if animal.species %}<p class="text-xs text-slate-400 italic">{{ animal.species }}</p>{% endif %}
             </div>
             <div class="flex flex-wrap gap-1.5">
+              {% if costs_enabled and animal.paid is not None %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30">💸 Paid {{ currency_symbol }}{{ animal.paid|floatformat:2 }}</span>{% endif %}
               {% if animal.tank %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">🏛️ {{ animal.tank.name }}</span>{% endif %}
               {% for g in animal.groups.all %}<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">{{ g.icon }} {{ g.name }}</span>{% empty %}{% if not animal.tank %}<span class="text-[10px] text-slate-500">No group assigned</span>{% endif %}{% endfor %}
             </div>

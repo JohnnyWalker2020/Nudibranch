@@ -85,6 +85,14 @@
       {% if form.tank.errors %}<p class="text-xs text-rose-400">{{ form.tank.errors.0 }}</p>{% endif %}
     </div>
 
+    {% if form.paid %}
+    <div class="space-y-1.5">
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">What you paid</label>
+      {{ form.paid }}
+      {% for err in form.paid.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+    </div>
+    {% endif %}
+
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div class="space-y-1.5"><label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Health status</label>{{ form.status }}</div>
       <div class="space-y-1.5"><label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Acquired date</label>{{ form.acquired_date }}</div>

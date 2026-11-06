@@ -95,6 +95,7 @@ urlpatterns = [
     path('tanks/<int:tank_id>/restore/', tools.tank_restore_view, name='tank_restore'),
     path('system/look/', tools.system_theme_view, name='system_theme'),
     path('the-damage/', tools.the_damage_view, name='the_damage'),
+    path('the-damage/switch/', tools.damage_switch_view, name='damage_switch'),
     path('the-damage/<int:entry_id>/edit/', tools.cost_edit_view, name='cost_edit'),
     path('the-damage/<int:entry_id>/delete/', tools.cost_delete_view, name='cost_delete'),
 

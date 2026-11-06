@@ -2,8 +2,9 @@
 import json
 import tempfile
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from pathlib import Path
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
@@ -12,6 +13,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from . import backups, events, fill, planner, power, retire, timelapse, wishlist
@@ -120,23 +122,69 @@ def _damage_verdict(total):
     return verdict
 
 
+def _parse_date(raw):
+    try:
+        return parse_date(raw or '')
+    except ValueError:
+        return None
+
+
+def _spending_points(entries, start, end):
+    """Running total for the chart: [{'x': timestamp in ms, 'y': total, 'label': date}], oldest first."""
+    by_day = {}
+    for entry in entries:
+        by_day[entry.spent_on] = by_day.get(entry.spent_on, 0.0) + float(entry.amount)
+    if not by_day:
+        return []
+
+    def point(day, total):
+        stamp = datetime.combine(day, datetime.min.time(), tzinfo=dt_timezone.utc).timestamp() * 1000
+        return {'x': int(stamp), 'y': round(total, 2), 'label': day.strftime('%b %d, %Y')}
+
+    days = sorted(by_day)
+    first = start if start and start < days[0] else days[0] - timedelta(days=1)
+    points = [point(first, 0.0)]
+    total = 0.0
+    for day in days:
+        total += by_day[day]
+        points.append(point(day, total))
+    if end > days[-1]:
+        points.append(point(end, total))
+    return points
+
+
 def the_damage_view(request):
-    tank = get_active_tank(request)
-    show_all = bool(request.GET.get('all')) or tank is None
+    active = get_active_tank(request)
+    if not AppSettings.load().costs_enabled:
+        return render(request, 'aquarium/the_damage.html')
+
+    # ?tank=all or ?tank=<id>, defaulting to the selected system.
+    tank_param = request.GET.get('tank') or ('all' if request.GET.get('all') else '')
+    tank = Tank.objects.filter(pk=_to_int(tank_param, None)).first() if tank_param != 'all' else None
+    if tank is None and tank_param != 'all':
+        tank = active
+    show_all = tank is None
+
     if request.method == 'POST':
         form = CostEntryForm(request.POST)
         if form.is_valid():
             entry = form.save()
-            messages.success(request, f"Added. No judgement. {entry.description} is on the pile.")
+            messages.success(request, f"Added. No judgement. {entry.description} is on the fire.")
             return redirect(request.get_full_path())
         _flash_form_errors(request, form)
 
-    entries = CostEntry.objects.select_related('tank')
-    if not show_all:
-        entries = entries.filter(tank=tank)
-    entries = list(entries)
-    total = sum(float(e.amount) for e in entries)
     today = timezone.localdate()
+    date_from, date_to = _parse_date(request.GET.get('from')), _parse_date(request.GET.get('to'))
+    if date_from and date_to and date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    system_entries = CostEntry.objects.select_related('tank')
+    if not show_all:
+        system_entries = system_entries.filter(tank=tank)
+    system_entries = list(system_entries)
+    entries = [e for e in system_entries
+               if (not date_from or e.spent_on >= date_from) and (not date_to or e.spent_on <= date_to)]
+    total = sum(float(e.amount) for e in entries)
 
     categories = dict(CostEntry.CATEGORY_CHOICES)
     grouped = {}
@@ -147,25 +195,59 @@ def the_damage_view(request):
         for key, value in sorted(grouped.items(), key=lambda item: -item[1])
     ]
 
-    gallons = sum(t.total_system_gallons for t in Tank.objects.all()) if show_all else tank.total_system_gallons
-    first = min((e.spent_on for e in entries), default=None)
+    gallons = sum(t.total_system_gallons for t in Tank.objects.filter(is_archived=False)) if show_all else tank.total_system_gallons
+    first = date_from or min((e.spent_on for e in entries), default=None)
+    last = min(date_to, today) if date_to else today
+    system_query = {'tank': 'all' if show_all else tank.pk}
+    presets = [
+        ('Last 30 days', {'from': (today - timedelta(days=30)).isoformat()}),
+        ('Last 90 days', {'from': (today - timedelta(days=90)).isoformat()}),
+        ('This year', {'from': today.replace(month=1, day=1).isoformat()}),
+        ('All time', {}),
+    ]
     return render(request, 'aquarium/the_damage.html', {
-        'entries': entries[:100],
+        'entries': sorted(entries, key=lambda e: (e.spent_on, e.pk), reverse=True)[:100],
         'total': total,
         'verdict': _damage_verdict(total),
-        'this_year': sum(float(e.amount) for e in entries if e.spent_on.year == today.year),
+        'this_year': sum(float(e.amount) for e in system_entries if e.spent_on.year == today.year),
         'per_gallon': total / gallons if gallons and total else None,
-        'per_day': total / max(1, (today - first).days + 1) if first else None,
-        'power_month': power.power_summary(None if show_all else tank)['cost_month'],
+        'per_day': total / max(1, (last - first).days + 1) if first and total else None,
+        'power_month': power.power_summary(tank)['cost_month'],
         'by_category': by_category,
         'currency': AppSettings.load().currency_symbol,
         'show_all': show_all,
+        'selected_tank': tank,
+        'systems_all': Tank.objects.order_by('is_archived', '-is_primary', 'name'),
         'multiple_systems': Tank.objects.count() > 1,
-        'form': CostEntryForm(initial={'tank': tank, 'spent_on': today}),
+        'date_from': date_from,
+        'date_to': date_to,
+        'range_active': bool(date_from or date_to),
+        'presets': [
+            {'label': label, 'query': urlencode({**system_query, **dates}),
+             'active': dates.get('from') == (date_from.isoformat() if date_from else None) and not date_to}
+            for label, dates in presets
+        ],
+        'chart_points': _spending_points(entries, date_from, last),
+        'form': CostEntryForm(initial={'tank': tank or active, 'spent_on': today}),
     })
 
 
+@require_POST
+def damage_switch_view(request):
+    """Lights or puts out the fire: turns prices on or off across the whole app. Nothing is deleted."""
+    enabled = request.POST.get('enabled') == '1'
+    AppSettings.load()
+    AppSettings.objects.filter(pk=1).update(costs_enabled=enabled)
+    if enabled:
+        messages.success(request, "It's lit. You can now enter prices on the wishlist and in plans.")
+    else:
+        messages.info(request, "Fire's out. Prices are hidden, and everything you entered is kept for next time.")
+    return redirect('the_damage')
+
+
 def cost_edit_view(request, entry_id):
+    if not AppSettings.load().costs_enabled:
+        return redirect('the_damage')
     return _edit_object(request, CostEntry, CostEntryForm, entry_id, title='Edit Purchase', back_url=reverse('the_damage'))
 
 

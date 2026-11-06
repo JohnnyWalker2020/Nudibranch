@@ -26,11 +26,13 @@
       <p class="text-2xl font-black text-white">{{ a.system_gallons }} <span class="text-sm text-slate-400">gal</span></p>
       <p class="text-[11px] text-slate-500">{{ a.display_gallons }} gal display</p>
     </div>
+    {% if costs_enabled %}
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
       <span class="text-[10px] uppercase font-bold text-slate-500">Budget</span>
       <p class="text-2xl font-black {% if a.over_budget %}text-rose-400{% else %}text-white{% endif %}">{{ a.currency }}{{ a.total_cost|floatformat:2 }}</p>
       <p class="text-[11px] text-slate-500">{% if a.budget is not None %}of {{ a.currency }}{{ a.budget|floatformat:2 }}{% else %}No budget set{% endif %}</p>
     </div>
+    {% endif %}
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
       <span class="text-[10px] uppercase font-bold text-slate-500">Running cost</span>
       <p class="text-2xl font-black text-amber-400">{{ a.currency }}{{ a.cost_month_power|floatformat:2 }}</p>
@@ -55,7 +57,7 @@
             {% if item.species %}<p class="text-[11px] text-slate-500">{{ item.species.care_level }}{% if item.species.min_tank_gallons %} · {{ item.species.min_tank_gallons }}+ gal{% endif %}{% if item.species.temperament %} · {{ item.species.get_temperament_display }}{% endif %} · Reef safe: {{ item.species.reef_safe }}</p>{% endif %}
           </div>
           <div class="flex items-center gap-3 shrink-0">
-            {% if item.unit_cost %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
+            {% if item.unit_cost and costs_enabled %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
             {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Remove</button></form>{% endif %}
           </div>
         </div>
@@ -65,8 +67,8 @@
         <form method="POST" action="{% url 'plan_add_livestock' plan.id %}" class="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end pt-2 border-t border-slate-800">
           {% csrf_token %}
           <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Species</label>{{ livestock_form.species }}</div>
-          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ livestock_form.quantity }}</div>
-          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ livestock_form.unit_cost }}</div>
+          <div{% if not costs_enabled %} class="col-span-2"{% endif %}><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ livestock_form.quantity }}</div>
+          {% if costs_enabled %}<div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ livestock_form.unit_cost }}</div>{% endif %}
           <button class="col-span-2 sm:col-span-4 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-cyan-400">Add livestock</button>
         </form>
       </div>
@@ -81,7 +83,7 @@
             <p class="text-[11px] text-slate-500">{{ item.get_category_display }}{% if item.wattage %} · {{ item.wattage }} W{% endif %}{% if item.max_flow_gph %} · {{ item.max_flow_gph }} gph{% endif %}</p>
           </div>
           <div class="flex items-center gap-3 shrink-0">
-            {% if item.unit_cost %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
+            {% if item.unit_cost and costs_enabled %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
             {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Remove</button></form>{% endif %}
           </div>
         </div>
@@ -95,7 +97,7 @@
           <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ equipment_form.quantity }}</div>
           <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Watts each</label>{{ equipment_form.wattage }}</div>
           <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Flow each (gph)</label>{{ equipment_form.max_flow_gph }}</div>
-          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ equipment_form.unit_cost }}</div>
+          {% if costs_enabled %}<div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ equipment_form.unit_cost }}</div>{% endif %}
           <button class="col-span-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-cyan-400">Add equipment</button>
         </form>
       </div>

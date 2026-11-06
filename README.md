@@ -1,34 +1,126 @@
-# 🪸 Nudibranch — Reef Aquarium Tracker
+# 🪸 Nudibranch: Reef Aquarium Tracker
 
-A mobile-first, containerized web application designed for saltwater aquarium hobbyists to track water chemistry, monitor livestock, and view live tank webcams.
+A self-hosted, mobile-friendly app for saltwater aquarium keepers. Track water chemistry, livestock, equipment and maintenance for one tank or several, plan your next system, and get alerts on your phone.
 
-Built with **Python**, **Django 5**, **SQLite (WAL Mode)**, **Tailwind CSS**, **HTMX**, and **Chart.js**, packaged as an installable **Progressive Web App (PWA)**.
+Built with **Python**, **Django 5**, **SQLite**, **Tailwind CSS**, **HTMX** and **Chart.js**, and installable on your phone as a **Progressive Web App**.
+
+> **Keep it on your home network.** The app has no login, so anyone who can reach it can see and change everything, including downloading backups. Don't expose port 8000 to the internet.
 
 ---
 
-## 🚀 Running with Docker Compose
+## 🚀 Getting started
 
-To apply code updates and run the application:
-```powershell
-docker-compose up -d --build
+You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose. From the project folder, run:
+
+```bash
+docker compose up -d --build
 ```
-Open **[http://localhost:8000](http://localhost:8000)** in your browser or phone.
+
+Then open **[http://localhost:8000](http://localhost:8000)**, or `http://YOUR-PC-IP:8000` from your phone.
+
+Run the same command to apply updates. Database changes are applied on startup, and your data stays in the `data` folder.
+
+### Settings
+
+Set these in `docker-compose.yml`, or put `API_SECRET_KEY` in a `.env` file beside it.
+
+| Setting | What it does |
+|---|---|
+| `TIME_ZONE` | Your time zone, used for schedules and log times. This repo's default is `America/Regina`, so change it to yours. |
+| `DJANGO_SECRET_KEY` | Change this to your own long random value. |
+| `CSRF_TRUSTED_ORIGINS` | Add the address you use from other devices, such as `http://192.168.1.50:8000`. Otherwise forms will be rejected from those devices. |
+| `API_SECRET_KEY` | Optional key required by the parameter logging API. Without it, anyone on your network can post readings. |
 
 ---
 
-## 🧰 Tools
+## ✨ Features
 
-Find these under the **Planner** and **Tools** tabs. On a phone, open **System** and scroll the tabs at the top.
+### Multiple systems
+Pick a system from the **System** menu at the top of any page. The dashboard, parameters, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that system. Your choice is remembered per device, and the menu flags other systems that have alerts.
 
-- **System Planner**: plan a new system or stocking for an existing tank, check it, then start tracking it.
-- **Fill Timers & RO Calculator**: estimate fill time from your RO specs and get a reminder. Timers can't shut off water.
-- **Phone Alerts & Webhooks**: send events to your phone (via ntfy), Home Assistant or your own devices.
-- **Backups**: save and restore your database and photos. Copy backups off this PC now and then.
-- **Quarantine Tracker**, **Power Cost**, plus a **Timeline** on each animal and a **Time-lapse** on each camera.
+- **Shared across systems:** the wishlist, plans, species catalog, parameter names and units, webhooks, backups and the quarantine list.
+- **All systems views:** Equipment and Power can show every system at once.
+- **System look:** tap 🎨 to give each system its own colour scheme and icon, from a stock set or your own image.
+- **Retiring a system:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and gives it a retiree icon. You can bring it back at any time.
 
-The app has no login, so anyone who can reach it can see and change everything, including downloading backups. Keep it on your home network and don't expose port 8000 to the internet.
+### Water parameters
+- Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges.
+- Each system can have its own target ranges, or use the shared defaults.
+- Change units and decimals, with automatic conversion of past readings.
 
-### Webhook payload
+### Livestock and species catalog
+- Track animals with photos, groups, health status and notes.
+- Browse **240+ built-in species** with care level, diet, reef safety, minimum tank size, adult size and temperament. Add one with a single tap.
+- See **compatibility warnings** when an animal may be too big for the tank, may fight, isn't reef safe, or would push the fish load too high.
+- **Quarantine tracker:** day counter, medication and observation log, and an alert when the period ends.
+- **Growth timeline:** dated photos of each animal with a before and after slider.
+
+The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spreadsheet (save as CSV UTF-8). Starting the app adds new rows and fills empty fields, but never overwrites your edits. To apply edited values to existing species, run `python manage.py seed_reef_data --update-species`. Care details are hobby rules of thumb, not checked against a reference, so please verify them before buying.
+
+### Planning
+- **System Planner:** design a new system or plan stocking for an existing tank, with checks for stocking, flow, heating and power. **Start tracking this system** then creates the real tank, sump, equipment and livestock.
+- **Wishlist:** save animals and gear with a priority, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
+
+### Equipment, dosing and maintenance
+- **Equipment:** service intervals, placement in the display or sump, and pump flow and turnover estimates.
+- **Dosing and top-off:** reservoir levels and run-out forecasts.
+- **Calculators:** the Dose Estimator, Salt Mixing Calculator and Fill Timer calculator use the selected system's volume, or a custom one.
+- **Routines:** manual checklists and automated schedules with flexible repeats, plus water change history.
+- **Power cost:** estimated electricity use and cost from equipment wattage. Set your price under **Tools > Settings**.
+
+### Fill timers
+Enter your RO/DI specs to estimate fill time and waste water, then start a timer that beeps on the page and can alert your phone.
+
+> A timer only reminds you. **It can't shut off water**, so use a float valve or a timed shut-off on anything that could overflow.
+
+### Phone alerts and webhooks
+Under **Tools > Phone Alerts & Webhooks**, send events to your phone through [ntfy](https://ntfy.sh), or to Home Assistant or your own devices. See [Webhooks](#-webhooks).
+
+### Backups
+Under **Tools > Backups**, make a zip of your database and photos, download it, or restore one. Your current data is saved first when you restore. Automatic backups run weekly by default.
+
+Backups are stored in `data/backups` on the same drive as your data, so copy one somewhere else now and then.
+
+### Webcams
+Add MJPEG, snapshot or embedded camera feeds, and assign each to a system or show it on all of them. **Time-lapse** captures frames on a schedule and plays them back in the browser. RTSP cameras need a converter such as [go2rtc](https://github.com/AlexxIT/go2rtc), and an example is commented out in `docker-compose.yml`.
+
+> ⚠️ **Handle with care.** Some nudibranchs steal stinging cells from the prey they eat and use them for defence. This one is no different: touch it three times and it stings. Mostly your wallet.
+
+<details>
+<summary>🤫 Spoiler: where it stings</summary>
+
+<br>
+
+Touch the nudibranch (the app icon) three times quickly, and it stings you with **The Damage**, a fire-themed spending ledger. Prices are hidden across the app until you **Light the match** inside it. After that:
+
+- Wishlist and plan items can have prices, and livestock and equipment get a "what you paid" field.
+- It all lands in the ledger automatically, and stays in sync with it.
+- Filter by system and dates, and watch a chart of your running total, with money under a line of flames.
+- **Put out the fire** to hide prices again. Nothing is deleted.
+
+</details>
+
+---
+
+## 🔗 Webhooks
+
+A connection receives events as they happen, from a background worker that starts with the app.
+
+| Event | When it fires |
+|---|---|
+| `parameter.critical` | A reading reaches a critical limit |
+| `parameter.out_of_range` | A reading leaves the optimal range |
+| `parameter.stale` | A probe stops reporting (set the hours per parameter) |
+| `reservoir.low` | A reservoir is running low |
+| `routine.due` | A manual routine comes due |
+| `routine.scheduled` | An automated schedule event's time arrives, such as a feeder |
+| `equipment.service_due` | Equipment needs service |
+| `animal.attention` | An animal is flagged sick or in quarantine |
+| `quarantine.complete` | A quarantine period ends |
+| `timer.finished` | A fill timer ends |
+
+Example JSON payload:
+
 ```json
 {
   "id": "unique-id-use-this-to-ignore-repeats",
@@ -37,39 +129,22 @@ The app has no login, so anyone who can reach it can see and change everything, 
   "title": "Feeder: Feed",
   "message": "Scheduled for 08:00.",
   "occurred_at": "2026-11-05T14:00:00+00:00",
-  "data": {"routine": "Feeder", "action": "Feed", "scheduled_for": "2026-11-05T08:00:00-06:00"}
+  "data": {"routine": "Feeder", "routine_id": 3, "action": "Feed", "scheduled_for": "2026-11-05T08:00:00-06:00"}
 }
 ```
-Headers: `X-Nudibranch-Event`, `X-Nudibranch-Delivery`, and `X-Nudibranch-Signature: sha256=...` when a secret is set.
 
-Keep any feeder's own schedule as the main one. If this PC or Docker is off, nothing is sent.
+Requests include `X-Nudibranch-Event` and `X-Nudibranch-Delivery` headers, plus `X-Nudibranch-Signature: sha256=...` (HMAC-SHA256 of the body) when you set a secret. Parameter events also include `tank` and `tank_id` in `data`, and timer events include `timer_id` and `reservoir_id`.
 
-To point a webhook at one device, edit the connection and tick only that routine or reservoir. With no event types ticked, it then receives only events about those targets. Routine events include `routine_id` in `data`, and timer events include `timer_id` and `reservoir_id`.
+**How sending works:**
+- Most events notify once, when the condition first happens, and failed sends retry up to 5 times.
+- `routine.scheduled` is sent once and never retried, and a missed one is dropped after 5 minutes, so a retry can't double-feed.
+- The first time the worker runs, it records existing problems without sending them.
 
----
-
-## 🐠 In-App Creature & Coral Tracking (GUI)
-
-You no longer need to use the Django Admin to manage your tank inhabitants:
-- Navigate to the **Livestock** tab in the app.
-- Click **"Browse Common Species"** to explore the built-in saltwater species catalog.
-- Click **"Add Custom"** to add an unlisted specimen with your own photo and details.
-- Features:
-  - **240+ Built-in Reef Species**: Pre-populated with popular fish, cleanup crew, invertebrates, corals, and anemones. Edit the list in `aquarium/species_catalog.csv`.
-  - **1-Click Quick Add**: Pick a species and quantity (e.g. `5x` Trochus Snails or `1x` Royal Gramma) to add it immediately with recommended groups, diet notes, and care level.
-  - **Form Autofill**: When manually adding or editing, select any common species from the dropdown to automatically prefill scientific names, care level, diet, and group tags.
-  - **Photo Upload**: Supports photos taken directly from your phone camera or desktop file picker.
-  - **In-App Editing & Deletion**: Update notes, change health status (Healthy, Quarantine, Sick), or remove creatures with confirmation.
-
----
-
-## 📖 Common Species Catalog
-
-The app includes a searchable, curated library of popular saltwater aquarium inhabitants. Examples:
-- **🐠 Fish**: Ocellaris & Percula Clowns, Blue-Green Chromis (School), Yellow Tang, Blue Hippo Tang, Royal Gramma, Firefish Goby, Yellow Watchman Goby, Diamond Sand-Sifter, Lawnmower Blenny, Tailspot Blenny, Six-Line Wrasse, Banggai Cardinal, etc.
-- **🐌 Cleanup Crew**: Trochus Snail, Nassarius Snail, Astraea Snail, Cerith Snail, Mexican Turbo, Blue Leg Hermit, Scarlet Reef Hermit, Emerald Crab, Peppermint Shrimp.
-- **🦐 Invertebrates & Shrimp**: Skunk Cleaner Shrimp, Blood Red Fire Shrimp, Tiger Pistol Shrimp, Bubble Tip Anemone (BTA), Tuxedo Urchin.
-- **🪸 Corals**: Green Star Polyps (GSP), Zoanthids & Palys, Duncan, Hammer, Torch, Frogspawn, Candy Cane, Montipora Cap, Toadstool Leather.
+**Using webhooks with hardware:**
+- **Target one device:** edit the connection and tick only that routine or reservoir. With no event types ticked, it receives only events about those targets, so a feeder webhook can't fire on a parameter alert.
+- **Keep the feeder's own schedule as the main one.** If this PC or Docker is off, nothing is sent.
+- **Limit it on the device too:** ignore repeated event IDs, and give anything that doses or feeds its own daily limit.
+- **Home Assistant:** use `http://YOUR-HA-IP:8123/api/webhook/YOUR-ID`. Names like `homeassistant.local` may not work from inside Docker.
 
 ---
 
@@ -100,6 +175,8 @@ You can log parameter readings programmatically via HTTP POST requests from auto
 ```http
 GET /api/parameters/types/
 ```
+Add `?tank=<ID or name>` to get that system's target ranges.
+
 **Example Response:**
 ```json
 {
@@ -211,10 +288,9 @@ print(response.status_code, response.json())
 ---
 
 ### Optional API Security Key
-If you want to protect the API from unauthorized external callers, set the `API_SECRET_KEY` environment variable in your `docker-compose.yml`:
-```yaml
-    environment:
-      - API_SECRET_KEY=my-super-secret-reef-token
+To protect the API from unauthorized callers, create a `.env` file beside `docker-compose.yml`, then restart the app:
+```bash
+API_SECRET_KEY=my-super-secret-reef-token
 ```
 Then pass the key in your requests:
 ```bash
@@ -222,4 +298,19 @@ curl -H "X-API-Key: my-super-secret-reef-token" ...
 # or
 curl -H "Authorization: Bearer my-super-secret-reef-token" ...
 ```
-*(If `API_SECRET_KEY` is omitted, the API allows local network requests without a key).*
+*(Without `API_SECRET_KEY`, the API accepts readings from anyone who can reach it).*
+
+---
+
+## 🧑‍💻 Development
+
+Run the tests against a temporary data folder, so your real data isn't touched:
+
+```bash
+docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python web manage.py test aquarium
+```
+
+- `aquarium/`: the Django app. Views for the newer tools are in `views_tools.py`, and background jobs are in `management/commands/run_worker.py`.
+- `aquarium/species_catalog.csv`: the built-in species list.
+- `static/icons/nudibranch/retired_*.svg`: **placeholder** retiree icons. Replace these files with final art, keeping the same names.
+- [CHANGES.md](CHANGES.md): what changed in each round.

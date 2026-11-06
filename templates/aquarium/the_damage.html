@@ -3,76 +3,335 @@
 {% block title %}The Damage | Nudibranch{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto space-y-6">
+<style>
+  /* Everything here sits behind the page and ignores taps. The flames stay low so the numbers stay readable. */
+  .damage-fire { position: fixed; inset: auto 0 0 0; height: 55vh; z-index: 0; pointer-events: none; overflow: hidden; }
+  .damage-glow { position: absolute; inset: auto 0 0 0; height: 100%;
+    background: radial-gradient(ellipse 90% 70% at 50% 100%, rgba(234, 88, 12, .38), rgba(153, 27, 27, .16) 55%, transparent 75%);
+    animation: damage-breathe 5s ease-in-out infinite; }
+  .damage-flame { position: absolute; bottom: -8%; border-radius: 50% 50% 35% 35% / 70% 70% 30% 30%; filter: blur(16px);
+    transform-origin: 50% 100%; opacity: .42; mix-blend-mode: screen;
+    background: linear-gradient(to top, #fde047, #f97316 40%, #dc2626 75%, transparent);
+    animation: damage-flicker var(--speed) ease-in-out infinite alternate; animation-delay: var(--delay); }
+  .damage-ember { position: absolute; bottom: 0; width: 4px; height: 4px; border-radius: 50%; background: #fdba74;
+    box-shadow: 0 0 6px 2px rgba(249, 115, 22, .7); opacity: 0;
+    animation: damage-rise var(--speed) linear infinite; animation-delay: var(--delay); }
+  @keyframes damage-flicker {
+    from { transform: scale(1, .82) skewX(-3deg); opacity: .3; }
+    to { transform: scale(.92, 1.08) skewX(4deg); opacity: .5; }
+  }
+  @keyframes damage-breathe { 50% { opacity: .72; } }
+  @keyframes damage-rise {
+    0% { transform: translate(0, 0); opacity: 0; }
+    12% { opacity: .9; }
+    100% { transform: translate(var(--drift), -52vh); opacity: 0; }
+  }
+  /* People who've asked for less motion get a still glow. */
+  @media (prefers-reduced-motion: reduce) {
+    .damage-glow, .damage-flame { animation: none; }
+    .damage-ember { display: none; }
+  }
+  .damage-card { background: rgba(12, 6, 4, .86); border: 1px solid rgba(154, 52, 18, .55); }
+  .damage-title { background: linear-gradient(to top, #ea580c, #f59e0b 55%, #fde047); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .damage-field input, .damage-field select { background: #1c0f0a; border-color: #7c2d12; }
+  .damage-field input:focus, .damage-field select:focus { --tw-ring-color: #f97316; }
+</style>
+
+<div class="damage-fire" aria-hidden="true">
+  <div class="damage-glow"></div>
+  <span class="damage-flame" style="left:-4%;  width:24%; height:58%; --speed:2.6s; --delay:-.4s"></span>
+  <span class="damage-flame" style="left:14%;  width:20%; height:78%; --speed:3.3s; --delay:-1.6s"></span>
+  <span class="damage-flame" style="left:30%;  width:24%; height:62%; --speed:2.9s; --delay:-.9s"></span>
+  <span class="damage-flame" style="left:48%;  width:20%; height:84%; --speed:3.6s; --delay:-2.2s"></span>
+  <span class="damage-flame" style="left:64%;  width:24%; height:60%; --speed:2.7s; --delay:-1.2s"></span>
+  <span class="damage-flame" style="left:82%;  width:24%; height:74%; --speed:3.1s; --delay:-.2s"></span>
+  <span class="damage-ember" style="left:12%; --speed:7s;   --delay:-1s;   --drift:30px"></span>
+  <span class="damage-ember" style="left:27%; --speed:9s;   --delay:-4s;   --drift:-40px"></span>
+  <span class="damage-ember" style="left:41%; --speed:6.5s; --delay:-2.5s; --drift:24px"></span>
+  <span class="damage-ember" style="left:58%; --speed:8.5s; --delay:-6s;   --drift:-20px"></span>
+  <span class="damage-ember" style="left:73%; --speed:7.5s; --delay:-3s;   --drift:36px"></span>
+  <span class="damage-ember" style="left:88%; --speed:10s;  --delay:-7s;   --drift:-30px"></span>
+</div>
+
+<div class="relative z-10 max-w-4xl mx-auto space-y-6">
   <div class="text-center space-y-1 pt-2">
-    <p class="text-4xl">🤫💸</p>
-    <h1 class="text-3xl font-black text-white tracking-tight">The Damage</h1>
-    <p class="text-xs text-slate-400">You found the secret ledger. What happens in here stays in here.</p>
+    <p class="text-4xl">🔥💸🔥</p>
+    <h1 class="damage-title text-4xl font-black tracking-tight">The Damage</h1>
+    <p class="text-xs text-orange-200/70">You found the secret ledger. What happens in here stays in here.</p>
   </div>
 
-  {% if multiple_systems %}
-  <div class="flex items-center justify-center gap-2">
-    <a href="{% url 'the_damage' %}" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if not show_all %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">{{ active_tank.name }}</a>
-    <a href="{% url 'the_damage' %}?all=1" class="px-3 py-1.5 rounded-lg text-xs font-semibold {% if show_all %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400{% endif %}">All systems</a>
+  {% if not costs_enabled %}
+  <div class="damage-card rounded-3xl p-8 text-center space-y-4">
+    <p class="text-sm text-orange-100">Right now, Nudibranch doesn't know what any of this costs. That's a very peaceful way to keep a reef.</p>
+    <p class="text-xs text-orange-200/70">Light the match and you can enter prices on the wishlist and in plans, log what you've spent, and see the running total here. You can put it out again later, and nothing you've entered is lost.</p>
+    <form method="POST" action="{% url 'damage_switch' %}">
+      {% csrf_token %}
+      <input type="hidden" name="enabled" value="1">
+      <button class="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white font-black text-sm shadow-lg shadow-orange-600/40 active:scale-95 transition-all">🔥 Light the match</button>
+    </form>
+  </div>
+  {% else %}
+
+  <form method="GET" class="damage-card damage-field rounded-2xl p-4 space-y-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+      {% if multiple_systems %}
+      <div class="col-span-2 sm:col-span-1">
+        <label for="damage-system" class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">System</label>
+        <select id="damage-system" name="tank" class="w-full px-3 py-2 border rounded-xl text-white text-sm">
+          <option value="all" {% if show_all %}selected{% endif %}>All systems</option>
+          {% for t in systems_all %}<option value="{{ t.id }}" {% if selected_tank.id == t.id %}selected{% endif %}>{{ t.name }}{% if t.is_archived %} (retired){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      {% elif selected_tank %}<input type="hidden" name="tank" value="{{ selected_tank.id }}">{% endif %}
+      <div>
+        <label for="damage-from" class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">From</label>
+        <input id="damage-from" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" class="w-full px-3 py-2 border rounded-xl text-white text-sm">
+      </div>
+      <div>
+        <label for="damage-to" class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">To</label>
+        <input id="damage-to" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" class="w-full px-3 py-2 border rounded-xl text-white text-sm">
+      </div>
+      <button class="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-black text-sm font-bold">Show</button>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      {% for preset in presets %}<a href="?{{ preset.query }}" class="px-3 py-1 rounded-lg text-xs font-semibold {% if preset.active %}bg-orange-500 text-black{% else %}bg-black/50 text-orange-200 hover:text-white{% endif %}">{{ preset.label }}</a>{% endfor %}
+    </div>
+  </form>
+
+  <div class="damage-card rounded-3xl p-6 text-center space-y-2">
+    <span class="text-[10px] uppercase font-bold text-orange-300/70">{% if show_all %}All systems{% else %}{{ selected_tank.name }}{% endif %}: {% if range_active %}sunk in this period{% else %}total sunk into saltwater{% endif %}</span>
+    <p class="damage-title text-5xl font-black">{{ currency }}{{ total|floatformat:2 }}</p>
+    <p class="text-sm font-semibold text-amber-300">{{ verdict }}</p>
+  </div>
+
+  {% if chart_points %}
+  <div class="damage-card rounded-3xl p-4 sm:p-5 space-y-2">
+    <h2 class="text-xs font-bold uppercase tracking-wider text-orange-300/80">Up in flames over time</h2>
+    <div class="relative h-64 sm:h-80"><canvas id="damage-chart" role="img" aria-label="Running total of spending over time"></canvas></div>
   </div>
   {% endif %}
 
-  <div class="bg-gradient-to-br from-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-6 text-center space-y-2">
-    <span class="text-[10px] uppercase font-bold text-slate-500">Total sunk into saltwater</span>
-    <p class="text-5xl font-black text-white">{{ currency }}{{ total|floatformat:2 }}</p>
-    <p class="text-sm font-semibold text-cyan-400">{{ verdict }}</p>
-  </div>
-
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">This year</span><p class="text-xl font-black text-white">{{ currency }}{{ this_year|floatformat:2 }}</p></div>
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Per gallon of water</span><p class="text-xl font-black text-white">{% if per_gallon is not None %}{{ currency }}{{ per_gallon|floatformat:2 }}{% else %}-{% endif %}</p></div>
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Per day since the first buy</span><p class="text-xl font-black text-white">{% if per_day is not None %}{{ currency }}{{ per_day|floatformat:2 }}{% else %}-{% endif %}</p></div>
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500">Power per month (estimate)</span><p class="text-xl font-black text-amber-400">{{ currency }}{{ power_month|floatformat:2 }}</p><p class="text-[10px] text-slate-500">Not in the total</p></div>
+    <div class="damage-card rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-orange-300/70">This year</span><p class="text-xl font-black text-white">{{ currency }}{{ this_year|floatformat:2 }}</p></div>
+    <div class="damage-card rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-orange-300/70">Per gallon of water</span><p class="text-xl font-black text-white">{% if per_gallon is not None %}{{ currency }}{{ per_gallon|floatformat:2 }}{% else %}-{% endif %}</p></div>
+    <div class="damage-card rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-orange-300/70">Per day</span><p class="text-xl font-black text-white">{% if per_day is not None %}{{ currency }}{{ per_day|floatformat:2 }}{% else %}-{% endif %}</p></div>
+    <div class="damage-card rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-orange-300/70">Power per month (estimate)</span><p class="text-xl font-black text-amber-400">{{ currency }}{{ power_month|floatformat:2 }}</p><p class="text-[10px] text-orange-200/50">Not in the total</p></div>
   </div>
 
   {% if by_category %}
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Where it went</h2>
+  <div class="damage-card rounded-2xl p-5 space-y-3">
+    <h2 class="text-xs font-bold uppercase tracking-wider text-orange-300/80">Where it went</h2>
     {% for row in by_category %}
     <div>
-      <div class="flex justify-between text-xs"><span class="text-slate-300">{{ row.label }}</span><span class="font-semibold text-white">{{ currency }}{{ row.total|floatformat:2 }}</span></div>
-      <div class="mt-1 h-2 bg-slate-800 rounded-full overflow-hidden"><div class="h-full bg-cyan-500" style="width: {{ row.percent }}%"></div></div>
+      <div class="flex justify-between text-xs"><span class="text-orange-100">{{ row.label }}</span><span class="font-semibold text-white">{{ currency }}{{ row.total|floatformat:2 }}</span></div>
+      <div class="mt-1 h-2 bg-black/60 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-600" style="width: {{ row.percent }}%"></div></div>
     </div>
     {% endfor %}
   </div>
   {% endif %}
 
-  <form method="POST" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+  <form method="POST" class="damage-card damage-field rounded-2xl p-5 space-y-3">
     {% csrf_token %}
-    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Confess a purchase</h2>
+    <h2 class="text-xs font-bold uppercase tracking-wider text-orange-300/80">Confess a purchase</h2>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">What was it</label>{{ form.description }}</div>
-      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cost</label>{{ form.amount }}</div>
-      <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Date</label>{{ form.spent_on }}</div>
-      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Category</label>{{ form.category }}</div>
-      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">System</label>{{ form.tank }}</div>
+      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">What was it</label>{{ form.description }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Cost</label>{{ form.amount }}</div>
+      <div><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Date</label>{{ form.spent_on }}</div>
+      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">Category</label>{{ form.category }}</div>
+      <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-orange-200/70 mb-1">System</label>{{ form.tank }}</div>
     </div>
-    <button class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-bold">Add it to the pile</button>
+    <button class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white text-sm font-bold">Throw it on the fire</button>
   </form>
 
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
-    <h2 class="p-4 text-xs font-bold uppercase tracking-wider text-slate-400">The receipts</h2>
+  <div class="damage-card rounded-2xl divide-y divide-orange-950">
+    <h2 class="p-4 text-xs font-bold uppercase tracking-wider text-orange-300/80">The receipts</h2>
     {% for entry in entries %}
     <div class="p-3 px-4 flex items-center justify-between gap-3">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-white truncate">{{ entry.description }}</p>
-        <p class="text-[11px] text-slate-500">{{ entry.spent_on|date:"M j, Y" }} · {{ entry.get_category_display }}{% if show_all and entry.tank %} · {{ entry.tank.name }}{% endif %}</p>
+        <p class="text-[11px] text-orange-200/60">{{ entry.spent_on|date:"M j, Y" }} · {{ entry.get_category_display }}{% if show_all and entry.tank %} · {{ entry.tank.name }}{% endif %}</p>
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <span class="text-sm font-bold text-amber-400">{{ currency }}{{ entry.amount|floatformat:2 }}</span>
-        <a href="{% url 'cost_edit' entry.id %}" class="text-xs text-slate-400 hover:text-cyan-400">Edit</a>
-        <form method="POST" action="{% url 'cost_delete' entry.id %}" onsubmit="return confirm('Delete this entry?')">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Delete</button></form>
+        <a href="{% url 'cost_edit' entry.id %}" class="text-xs text-orange-200/70 hover:text-white">Edit</a>
+        <form method="POST" action="{% url 'cost_delete' entry.id %}" onsubmit="return confirm('Delete this entry?')">{% csrf_token %}<button class="text-xs text-orange-200/50 hover:text-red-400">Delete</button></form>
       </div>
     </div>
     {% empty %}
-    <p class="p-8 text-center text-xs text-slate-500">Nothing yet. Blissful ignorance is a valid choice, too.</p>
+    <p class="p-8 text-center text-xs text-orange-200/60">{% if range_active %}Nothing burned in these dates.{% else %}Nothing burning yet. Blissful ignorance is a valid choice, too.{% endif %}</p>
     {% endfor %}
   </div>
-  <p class="text-center text-[11px] text-slate-600">Things you mark as bought from the wishlist or a plan, with a price, land here on their own.</p>
+
+  <p class="text-center text-[11px] text-orange-200/50">Whatever you enter as "what you paid" on livestock and equipment lands here on its own, and so do priced wishlist and plan purchases.</p>
+  <form method="POST" action="{% url 'damage_switch' %}" class="text-center" onsubmit="return confirm('Put out the fire? Prices disappear from the app until you light it again, but nothing is deleted.')">
+    {% csrf_token %}
+    <button class="text-xs font-semibold text-orange-200/60 hover:text-white">🧯 Put out the fire and hide all prices</button>
+  </form>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if chart_points %}
+{{ chart_points|json_script:"damage-points" }}
+{{ currency|json_script:"damage-currency" }}
+<script>
+  (function () {
+    const canvas = document.getElementById('damage-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const points = JSON.parse(document.getElementById('damage-points').textContent);
+    const currency = JSON.parse(document.getElementById('damage-currency').textContent);
+    const ctx = canvas.getContext('2d');
+    const stillOnly = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const money = amount => currency + Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const dateLabel = ms => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
+
+    // Under the line: a stack of banknotes, as a repeating pattern.
+    function moneyPattern() {
+      const tile = document.createElement('canvas');
+      tile.width = 96;
+      tile.height = 56;
+      const c = tile.getContext('2d');
+      c.fillStyle = '#0b2e17';
+      c.fillRect(0, 0, 96, 56);
+      function bill(x, y) {
+        c.fillStyle = '#2f8f55';
+        c.fillRect(x, y, 44, 24);
+        c.strokeStyle = '#bbf7d0';
+        c.lineWidth = 1;
+        c.strokeRect(x + 2.5, y + 2.5, 39, 19);
+        c.fillStyle = '#14532d';
+        c.beginPath();
+        c.arc(x + 22, y + 12, 7.5, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#dcfce7';
+        c.font = 'bold 12px sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('$', x + 22, y + 12.5);
+      }
+      bill(2, 2);
+      bill(50, 2);
+      bill(-22, 30);
+      bill(26, 30);
+      bill(74, 30);
+      return ctx.createPattern(tile, 'repeat');
+    }
+
+    // On the line: little flames that lick along it.
+    function drawFlames(chart, time) {
+      const line = chart.getDatasetMeta(0).data;
+      if (line.length < 2) return;
+      const c = chart.ctx;
+      const top = chart.chartArea.top - 18;
+      c.save();
+      c.globalCompositeOperation = 'lighter';
+      let index = 0;
+      for (let i = 1; i < line.length; i += 1) {
+        const a = line[i - 1], b = line[i];
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        const steps = Math.max(1, Math.floor(length / 11));
+        for (let s = 0; s < steps; s += 1) {
+          const x = a.x + (b.x - a.x) * (s / steps);
+          const y = a.y + (b.y - a.y) * (s / steps);
+          const seed = index * 1.73;
+          const height = 11 + 6 * Math.sin(time * 5 + seed) + 4 * Math.sin(time * 9 + seed * 2.1);
+          const sway = 3 * Math.sin(time * 4 + seed * 1.3);
+          const tip = Math.max(top, y - height);
+          const flame = c.createLinearGradient(0, y, 0, tip);
+          flame.addColorStop(0, 'rgba(253, 224, 71, .95)');
+          flame.addColorStop(0.45, 'rgba(249, 115, 22, .8)');
+          flame.addColorStop(1, 'rgba(220, 38, 38, 0)');
+          c.fillStyle = flame;
+          c.beginPath();
+          c.moveTo(x - 5, y + 1);
+          c.quadraticCurveTo(x - 6, y - height * 0.45, x + sway, tip);
+          c.quadraticCurveTo(x + 6, y - height * 0.45, x + 5, y + 1);
+          c.closePath();
+          c.fill();
+          index += 1;
+        }
+      }
+      c.restore();
+    }
+
+    const fireLine = {
+      id: 'fireLine',
+      beforeDatasetsDraw(chart) {
+        chart.ctx.save();
+        chart.ctx.shadowColor = 'rgba(249, 115, 22, .95)';
+        chart.ctx.shadowBlur = 14;
+      },
+      afterDatasetsDraw(chart) {
+        chart.ctx.restore();
+        drawFlames(chart, performance.now() / 1000);
+      },
+    };
+
+    const lineGradient = () => {
+      const g = ctx.createLinearGradient(0, canvas.clientHeight, 0, 0);
+      g.addColorStop(0, '#dc2626');
+      g.addColorStop(0.5, '#f97316');
+      g.addColorStop(1, '#fde047');
+      return g;
+    };
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          data: points,
+          parsing: false,
+          borderColor: lineGradient(),
+          borderWidth: 4,
+          tension: 0,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#fde047',
+          fill: 'origin',
+          backgroundColor: moneyPattern(),
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        layout: { padding: { top: 20, right: 8 } },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(12, 6, 4, .95)',
+            borderColor: '#9a3412',
+            borderWidth: 1,
+            callbacks: {
+              title: items => points[items[0].dataIndex].label,
+              label: item => money(item.parsed.y) + ' so far',
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: points[0].x,
+            max: points[points.length - 1].x,
+            grid: { color: 'rgba(154, 52, 18, .18)' },
+            ticks: { color: '#fdba74', maxTicksLimit: 6, callback: dateLabel },
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(154, 52, 18, .18)' },
+            ticks: { color: '#fdba74', callback: value => currency + Number(value).toLocaleString() },
+          },
+        },
+      },
+      plugins: [fireLine],
+    });
+
+    if (!stillOnly) {
+      setInterval(() => { if (!document.hidden) chart.draw(); }, 90);
+    }
+  })();
+</script>
+{% endif %}
 {% endblock %}

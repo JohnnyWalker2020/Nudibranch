@@ -149,7 +149,7 @@
 
         <!-- Add to Tank Action Form -->
         <div class="pt-3 border-t border-slate-800/80 space-y-2">
-          <form method="POST" action="{% url 'species_add_to_tank' s.id %}" class="flex items-center justify-between gap-2">
+          <form method="POST" action="{% url 'species_add_to_tank' s.id %}" class="flex flex-wrap items-center justify-between gap-2">
             {% csrf_token %}
             <div class="flex items-center gap-1.5">
               <label class="text-[11px] text-slate-400 font-medium">Qty:</label>
@@ -160,6 +160,10 @@
                      max="100" 
                      class="w-12 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-center font-bold text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500">
             </div>
+
+            {% if costs_enabled %}
+              <input type="number" name="paid" min="0" step="0.01" inputmode="decimal" placeholder="Paid" aria-label="What you paid in total" class="w-20 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500">
+            {% endif %}
 
             {% if tanks|length > 1 %}
               <select name="tank" class="px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-slate-300 text-xs focus:ring-1 focus:ring-cyan-500 max-w-[110px] truncate" title="Select tank">

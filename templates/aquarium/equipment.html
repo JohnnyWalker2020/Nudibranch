@@ -54,6 +54,7 @@
               <span class="text-[11px] text-slate-500 font-semibold uppercase block">{{ eq.get_category_display }}</span>
               <h3 class="text-base font-bold text-white tracking-tight mt-0.5">{{ eq.name }}</h3>
               {% if eq.brand %}<p class="text-xs text-slate-400">{{ eq.brand }}</p>{% endif %}
+              {% if costs_enabled and eq.paid is not None %}<p class="text-[11px] font-semibold text-amber-400 mt-0.5">💸 Paid {{ currency_symbol }}{{ eq.paid|floatformat:2 }}</p>{% endif %}
             </div>
             <div class="flex flex-col items-end gap-1">
               {% if eq.wattage %}<span class="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30">{{ eq.wattage }}W</span>{% endif %}
@@ -170,6 +171,7 @@
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Installed</label>{{ equipment_form.installed_date }}</div>
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Status</label>{{ equipment_form.status }}</div>
         </div>
+        {% if costs_enabled %}<div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">What you paid</label>{{ equipment_form.paid }}</div>{% endif %}
         <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ equipment_form.notes }}</div>
 
         <div class="pt-3 flex justify-end gap-2">

@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import threading
 import zipfile
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -1281,8 +1281,225 @@ class SystemLookTests(TestCase):
             self.assertContains(page, text)
 
 
+class CostSwitchTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=50, capacity_is_manual=True, is_primary=True)
+        self.fish = species('F', 'Fishus one')
+
+    def switch(self, on):
+        return self.client.post(reverse('damage_switch'), {'enabled': '1'} if on else {})
+
+    def test_off_by_default_and_blocks_entries(self):
+        page = self.client.get(reverse('the_damage'))
+        self.assertContains(page, 'Light the match')
+        self.assertNotContains(page, 'Confess a purchase')
+        self.client.post(reverse('the_damage'), {
+            'description': 'x', 'amount': '5', 'spent_on': timezone.localdate().isoformat(), 'category': 'other'})
+        self.assertEqual(CostEntry.objects.count(), 0)
+
+    def test_price_fields_hidden_until_enabled(self):
+        plan = PlannedSystem.objects.create(name='P', volume_gallons=10, capacity_is_manual=True)
+        urls = [reverse('wishlist'), reverse('plan_detail', args=[plan.pk]), reverse('plan_create')]
+        for url in urls:
+            self.assertNotContains(self.client.get(url), 'Price each', msg_prefix=url)
+        self.assertNotContains(self.client.get(reverse('plan_create')), 'budget')
+        self.switch(True)
+        for url in urls[:2]:
+            self.assertContains(self.client.get(url), 'Price each', msg_prefix=url)
+        self.assertContains(self.client.get(reverse('plan_create')), 'budget')
+
+    def test_prices_posted_while_off_are_ignored(self):
+        self.client.post(reverse('wishlist_add_livestock'), {'species': self.fish.pk, 'quantity': 1, 'priority': 'want', 'est_price': '50'})
+        self.assertIsNone(WishlistItem.objects.get().est_price)
+
+    def test_no_ledger_entries_while_off(self):
+        item = WishlistItem.objects.create(species=self.fish, name='F', est_price=Decimal('25'))
+        self.client.post(reverse('wishlist_bought', args=[item.pk]), {'tank': self.tank.pk})
+        self.assertEqual(CostEntry.objects.count(), 0)
+        self.assertEqual(Animal.objects.count(), 1)
+
+    def test_putting_it_out_hides_but_keeps_everything(self):
+        self.switch(True)
+        item = WishlistItem.objects.create(species=self.fish, name='F', est_price=Decimal('25'))
+        entry = CostEntry.objects.create(description='Secret', amount=Decimal('9'), tank=self.tank)
+        self.assertContains(self.client.get(reverse('wishlist')), '25.00')
+        self.assertContains(self.client.get(reverse('the_damage')), 'Secret')
+        self.switch(False)
+        self.assertNotContains(self.client.get(reverse('wishlist')), '25.00')
+        self.assertNotContains(self.client.get(reverse('the_damage')), 'Secret')
+        self.assertRedirects(self.client.get(reverse('cost_edit', args=[entry.pk])), reverse('the_damage'))
+        # Editing while hidden must not wipe the stored price.
+        self.client.post(reverse('wishlist_edit', args=[item.pk]), {'species': self.fish.pk, 'quantity': 3, 'priority': 'want'})
+        item.refresh_from_db()
+        self.assertEqual((item.quantity, item.est_price), (3, Decimal('25')))
+        self.switch(True)
+        self.assertContains(self.client.get(reverse('the_damage')), 'Secret')
+
+    def test_flames_are_decorative(self):
+        page = self.client.get(reverse('the_damage'))
+        self.assertContains(page, 'damage-fire')
+        self.assertContains(page, 'pointer-events: none')
+        self.assertContains(page, 'prefers-reduced-motion')
+
+
+class WhatYouPaidTests(TestCase):
+    def setUp(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'costs_enabled': True})
+        self.main = Tank.objects.create(name='Main', volume_gallons=50, capacity_is_manual=True, is_primary=True)
+        self.qt = Tank.objects.create(name='QT', volume_gallons=10, capacity_is_manual=True, is_primary=False)
+
+    def test_animal_paid_creates_and_follows_ledger_entry(self):
+        fish = Animal.objects.create(name='Tang', tank=self.main, paid=Decimal('80'), acquired_date=date(2026, 3, 1))
+        entry = CostEntry.objects.get()
+        self.assertEqual((entry.amount, entry.category, entry.tank, entry.spent_on), (Decimal('80'), 'livestock', self.main, date(2026, 3, 1)))
+        fish.paid = Decimal('95')
+        fish.tank = self.qt
+        fish.count = 2
+        fish.save()
+        entry = CostEntry.objects.get()
+        self.assertEqual((entry.amount, entry.tank, entry.description), (Decimal('95'), self.qt, '2x Tang'))
+        fish.paid = None
+        fish.save()
+        self.assertEqual(CostEntry.objects.count(), 0)
+
+    def test_ledger_edits_flow_back(self):
+        fish = Animal.objects.create(name='Tang', paid=Decimal('80'))
+        pump = Equipment.objects.create(name='Pump', paid=Decimal('200'))
+        entry = fish.cost_entry
+        entry.amount = Decimal('75')
+        entry.save()
+        fish.refresh_from_db()
+        self.assertEqual(fish.paid, Decimal('75'))
+        self.client.post(reverse('cost_delete', args=[pump.cost_entry.pk]))
+        pump.refresh_from_db()
+        self.assertIsNone(pump.paid)
+        self.assertEqual(CostEntry.objects.count(), 1)
+
+    def test_deleting_the_animal_keeps_the_money_spent(self):
+        fish = Animal.objects.create(name='Tang', paid=Decimal('80'))
+        fish.delete()
+        self.assertEqual(CostEntry.objects.get().amount, Decimal('80'))
+
+    def test_forms_show_field_only_when_lit(self):
+        fish = Animal.objects.create(name='Tang', tank=self.main)
+        pump = Equipment.objects.create(name='Pump', tank=self.main)
+        pages = [reverse('animal_create'), reverse('animal_edit', args=[fish.pk]), reverse('equipment_edit', args=[pump.pk]), reverse('equipment_create')]
+        for url in pages:
+            self.assertContains(self.client.get(url), 'name="paid"', msg_prefix=url)
+        self.assertContains(self.client.get(reverse('equipment')), 'name="paid"')
+        AppSettings.objects.filter(pk=1).update(costs_enabled=False)
+        for url in pages + [reverse('equipment')]:
+            self.assertNotContains(self.client.get(url), 'name="paid"', msg_prefix=url)
+
+    def test_edit_form_saves_paid(self):
+        pump = Equipment.objects.create(name='Pump', tank=self.main)
+        response = self.client.post(reverse('equipment_edit', args=[pump.pk]), {
+            'location': f'tank:{self.main.pk}', 'name': 'Pump', 'category': 'other', 'power_setting_percent': 100,
+            'flow_derate_percent': 0, 'maintenance_interval_days': 90, 'status': 'operational', 'paid': '149.99'})
+        self.assertEqual(response.status_code, 302)
+        pump.refresh_from_db()
+        self.assertEqual(pump.paid, Decimal('149.99'))
+        self.assertEqual(pump.cost_entry.tank, self.main)
+        self.assertContains(self.client.get(reverse('equipment')), 'Paid $149.99')
+
+    def test_negative_rejected(self):
+        response = self.client.post(reverse('animal_create'), {'name': 'Fish', 'count': 1, 'status': 'healthy', 'paid': '-5'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Animal.objects.count(), 0)
+
+    def test_hidden_edit_keeps_paid(self):
+        pump = Equipment.objects.create(name='Pump', tank=self.main, paid=Decimal('50'))
+        AppSettings.objects.filter(pk=1).update(costs_enabled=False)
+        self.client.post(reverse('equipment_edit', args=[pump.pk]), {
+            'location': f'tank:{self.main.pk}', 'name': 'Renamed', 'category': 'other', 'power_setting_percent': 100,
+            'flow_derate_percent': 0, 'maintenance_interval_days': 90, 'status': 'operational'})
+        pump.refresh_from_db()
+        self.assertEqual((pump.name, pump.paid), ('Renamed', Decimal('50')))
+
+    def test_catalog_quick_add_with_paid(self):
+        fish = species('F', 'Fishus one')
+        url = reverse('species_add_to_tank', args=[fish.pk])
+        self.assertContains(self.client.get(reverse('species_catalog')), 'name="paid"')
+        self.client.post(url, {'tank': self.main.pk, 'count': 2, 'paid': '60'})
+        self.assertEqual(CostEntry.objects.get().description, '2x F')
+        self.client.post(url, {'tank': self.main.pk, 'count': 1, 'paid': 'nonsense'})
+        self.client.post(url, {'tank': self.main.pk, 'count': 1, 'paid': '-3'})
+        self.assertEqual(CostEntry.objects.count(), 1)
+        AppSettings.objects.filter(pk=1).update(costs_enabled=False)
+        self.client.post(url, {'tank': self.main.pk, 'count': 1, 'paid': '60'})
+        self.assertEqual(CostEntry.objects.count(), 1)
+
+
+class DamageFilterTests(TestCase):
+    def setUp(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'costs_enabled': True})
+        self.main = Tank.objects.create(name='Main', volume_gallons=50, capacity_is_manual=True, is_primary=True)
+        self.qt = Tank.objects.create(name='QT', volume_gallons=10, capacity_is_manual=True, is_primary=False)
+        today = timezone.localdate()
+        self.today = today
+        CostEntry.objects.create(tank=self.main, description='Old', amount=Decimal('100'), spent_on=today - timedelta(days=200))
+        CostEntry.objects.create(tank=self.main, description='New', amount=Decimal('50'), spent_on=today - timedelta(days=5))
+        CostEntry.objects.create(tank=self.qt, description='QT buy', amount=Decimal('25'), spent_on=today - timedelta(days=5))
+
+    def get(self, **query):
+        return self.client.get(reverse('the_damage'), query).context
+
+    def test_system_filter(self):
+        self.assertEqual(self.get()['total'], 150.0)
+        self.assertEqual(self.get(tank=self.qt.pk)['total'], 25.0)
+        self.assertEqual(self.get(tank='all')['total'], 175.0)
+        self.assertEqual(self.get(tank=99999)['total'], 150.0)
+
+    def test_date_filter(self):
+        start = (self.today - timedelta(days=30)).isoformat()
+        context = self.get(**{'from': start})
+        self.assertEqual(context['total'], 50.0)
+        self.assertTrue(context['range_active'])
+        self.assertEqual([e.description for e in context['entries']], ['New'])
+        end = (self.today - timedelta(days=30)).isoformat()
+        self.assertEqual(self.get(to=end)['total'], 100.0)
+
+    def test_bad_and_backwards_dates(self):
+        self.assertEqual(self.get(**{'from': 'garbage', 'to': '2026-99-99'})['total'], 150.0)
+        early, late = (self.today - timedelta(days=30)).isoformat(), self.today.isoformat()
+        self.assertEqual(self.get(**{'from': late, 'to': early})['total'], 50.0)
+
+    def test_chart_is_running_total(self):
+        points = self.get()['chart_points']
+        self.assertEqual(points[0]['y'], 0.0)
+        self.assertEqual([p['y'] for p in points[1:3]], [100.0, 150.0])
+        self.assertEqual(points[-1]['y'], 150.0)
+        self.assertEqual(points, sorted(points, key=lambda p: p['x']))
+
+    def test_chart_range_and_empty(self):
+        start = self.today - timedelta(days=30)
+        points = self.get(**{'from': start.isoformat()})['chart_points']
+        self.assertEqual((points[0]['y'], points[-1]['y']), (0.0, 50.0))
+        self.assertEqual(self.get(to=(self.today - timedelta(days=400)).isoformat())['chart_points'], [])
+        page = self.client.get(reverse('the_damage'), {'to': (self.today - timedelta(days=400)).isoformat()})
+        self.assertNotContains(page, 'damage-chart')
+        self.assertContains(page, 'Nothing burned in these dates')
+
+    def test_page_has_chart_and_filters(self):
+        page = self.client.get(reverse('the_damage'))
+        for text in ('id="damage-chart"', 'moneyPattern', 'drawFlames', 'name="from"', 'name="to"', 'name="tank"', 'Last 30 days'):
+            self.assertContains(page, text)
+
+    def test_adding_keeps_the_filter(self):
+        url = reverse('the_damage') + f'?tank={self.qt.pk}'
+        response = self.client.post(url, {'description': 'x', 'amount': '1', 'spent_on': self.today.isoformat(), 'category': 'other', 'tank': self.qt.pk})
+        self.assertRedirects(response, url)
+
+    def test_retired_system_is_filterable(self):
+        self.qt.is_archived = True
+        self.qt.save()
+        self.assertContains(self.client.get(reverse('the_damage')), 'QT (retired)')
+        self.assertEqual(self.get(tank=self.qt.pk)['total'], 25.0)
+
+
 class DamageTests(TestCase):
     def setUp(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'costs_enabled': True})
         self.main = Tank.objects.create(name='Main', volume_gallons=50, capacity_is_manual=True, is_primary=True)
         self.qt = Tank.objects.create(name='QT', volume_gallons=10, capacity_is_manual=True, is_primary=False)
 
@@ -1329,12 +1546,15 @@ class DamageTests(TestCase):
         PlannedItem.objects.create(plan=plan, kind='equipment', name='Free', category='other')
         planner.track_plan(plan)
         planner.track_plan(plan)
-        entry = CostEntry.objects.get()
-        self.assertEqual((entry.amount, entry.category, entry.tank), (Decimal('20'), 'equipment', self.main))
+        entries = list(CostEntry.objects.all())
+        self.assertEqual([e.amount for e in entries], [Decimal('10'), Decimal('10')])
+        self.assertEqual({(e.category, e.tank) for e in entries}, {('equipment', self.main)})
+        self.assertEqual(Equipment.objects.filter(paid=Decimal('10')).count(), 2)
 
 
 class WishlistTests(TestCase):
     def setUp(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'costs_enabled': True})
         self.tank = Tank.objects.create(name='Main', volume_gallons=30, capacity_is_manual=True, is_primary=True)
         self.big = species('Big', 'Bigus fish', min_tank_gallons=100, suggested_group='Fish')
         self.small = species('Small', 'Smallus fish', max_size_inches=Decimal('2'))

@@ -1,7 +1,7 @@
 from .active import get_active_tank
 from .alerts import compute_alert_state
 from .forms import QuickParameterLogForm
-from .models import Tank
+from .models import AppSettings, Tank
 from .themes import DEFAULT_THEME, background_color, theme_colors_json
 
 
@@ -37,6 +37,7 @@ def system_processor(request):
     """The selected system, every system's alert count for the selector, and this system's look."""
     try:
         active = get_active_tank(request)
+        settings_obj = AppSettings.load()
         systems = []
         tanks = list(Tank.objects.all())
         current_count = sum(1 for tank in tanks if not tank.is_archived)
@@ -51,7 +52,9 @@ def system_processor(request):
             'theme_colors_json': theme_colors_json(theme),
             'theme_background': background_color(theme),
             'system_icon_url': active.icon_url if active else '',
+            'costs_enabled': settings_obj.costs_enabled,
+            'currency_symbol': settings_obj.currency_symbol,
         }
     except Exception:
         # Fallback during initial migrations.
-        return {'active_tank': None, 'systems': [], 'theme_colors_json': '{}', 'theme_background': '#0f172a', 'system_icon_url': ''}
+        return {'active_tank': None, 'systems': [], 'theme_colors_json': '{}', 'theme_background': '#0f172a', 'system_icon_url': '', 'costs_enabled': False}

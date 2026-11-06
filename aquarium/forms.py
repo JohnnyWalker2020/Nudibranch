@@ -4,7 +4,7 @@ from django import forms
 from django.utils import timezone
 
 from .models import (
-    ParameterLog, Animal, AnimalGroup, ParameterType, Tank, Sump, SumpChamber,
+    AppSettings, ParameterLog, Animal, AnimalGroup, ParameterType, Tank, Sump, SumpChamber,
     Equipment, DosingReservoir, MaintenanceRoutine, WaterChangeLog, WebcamFeed,
     PlumbingRun, WEEKDAYS,
 )
@@ -214,8 +214,24 @@ class AnimalGroupForm(forms.ModelForm):
         }
 
 
-class AnimalForm(forms.ModelForm):
+class CostGatedMixin:
+    """Removes price fields until costs are turned on in The Damage. Stored prices are left untouched."""
+    cost_fields = ()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not AppSettings.load().costs_enabled:
+            for name in self.cost_fields:
+                self.fields.pop(name, None)
+
+
+class AnimalForm(CostGatedMixin, forms.ModelForm):
     """Rich in-app form for adding/editing aquarium livestock."""
+    cost_fields = ('paid',)
+
+    def clean_paid(self):
+        return _clean_paid(self.cleaned_data.get('paid'))
+
     new_group_name = forms.CharField(
         required=False,
         label="Or Create New Group",
@@ -227,8 +243,9 @@ class AnimalForm(forms.ModelForm):
 
     class Meta:
         model = Animal
-        fields = ['name', 'species', 'tank', 'groups', 'count', 'acquired_date', 'status', 'photo', 'notes']
+        fields = ['name', 'species', 'tank', 'groups', 'count', 'acquired_date', 'status', 'paid', 'photo', 'notes']
         widgets = {
+            'paid': forms.NumberInput(attrs={'class': INPUT, 'min': '0', 'step': '0.01', 'inputmode': 'decimal', 'placeholder': 'Total for all of them'}),
             'name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-base focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'placeholder': 'e.g. Ocellaris Clownfish Pair, Blue Tang, Turbo Snail',
@@ -408,6 +425,12 @@ class SumpChamberForm(forms.ModelForm):
         return value
 
 
+def _clean_paid(value):
+    if value is not None and value < 0:
+        raise forms.ValidationError("What you paid can't be negative.")
+    return value
+
+
 def equipment_location_choices():
     """Grouped choices: each tank, then its sumps and their chambers."""
     choices = [('', '— Not placed in a tank —')]
@@ -422,7 +445,8 @@ def equipment_location_choices():
     return choices
 
 
-class EquipmentForm(forms.ModelForm):
+class EquipmentForm(CostGatedMixin, forms.ModelForm):
+    cost_fields = ('paid',)
     location = forms.ChoiceField(
         required=False,
         widget=forms.Select(attrs={'class': INPUT}),
@@ -433,8 +457,10 @@ class EquipmentForm(forms.ModelForm):
         model = Equipment
         fields = ['location', 'name', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
                   'flow_derate_percent', 'installed_date', 'maintenance_interval_days', 'last_serviced_date',
-                  'status', 'notes']
+                  'status', 'paid', 'notes']
+        labels = {'paid': 'What you paid'}
         widgets = {
+            'paid': forms.NumberInput(attrs={'class': INPUT, 'min': '0', 'step': '0.01', 'inputmode': 'decimal'}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Radion XR30 G6 Pro'}),
             'category': forms.Select(attrs={'class': INPUT}),
             'brand': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. EcoTech Marine'}),
@@ -481,6 +507,9 @@ class EquipmentForm(forms.ModelForm):
             self.instance.sump = placement['sump']
             self.instance.chamber = placement['chamber']
         return super().save(commit=commit)
+
+    def clean_paid(self):
+        return _clean_paid(self.cleaned_data.get('paid'))
 
     def clean_power_setting_percent(self):
         value = self.cleaned_data['power_setting_percent']
