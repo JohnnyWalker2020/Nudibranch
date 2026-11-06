@@ -60,6 +60,7 @@
 
 {% block extra_js %}
 <script>
+  // Empty code = "All Parameters" (the default view).
   let activeCode = "{{ selected_param.code|default:''|escapejs }}";
   let activeDays = 30;
   let chartInstance = null;
@@ -76,33 +77,27 @@
   }
 
   async function fetchAndRender() {
-    if (!activeCode) { document.getElementById('chart-subtitle').innerText = 'No parameters configured.'; return; }
+    const title = document.getElementById('chart-title');
+    const subtitle = document.getElementById('chart-subtitle');
     try {
-      const res = await fetch('/api/parameters/chart-data/?code=' + encodeURIComponent(activeCode) + '&days=' + activeDays);
-      const data = await res.json();
-      const param = data.parameter;
-      document.getElementById('chart-title').innerText = `${param.name} (${param.unit})`;
-      document.getElementById('chart-subtitle').innerText = `Target range: ${param.formatted_min} – ${param.formatted_max} ${param.unit}` + (data.values.length ? '' : ' · no readings in this period');
-
-      if (chartInstance) chartInstance.destroy();
-      const color = param.color || '#38bdf8';
-      chartInstance = new Chart(document.getElementById('detailedChart').getContext('2d'), {
-        type: 'line',
-        data: { labels: data.labels, datasets: [{
-          label: param.name, data: data.values, borderColor: color, backgroundColor: color + '15',
-          fill: true, tension: 0.3, pointBackgroundColor: color, pointRadius: 5, pointHoverRadius: 7,
-        }]},
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false },
-            tooltip: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1, titleColor: '#fff', bodyColor: '#cbd5e1' } },
-          scales: {
-            x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', maxRotation: 45, font: { size: 10 } } },
-            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
-          },
-        },
-      });
-    } catch (err) { console.error(err); }
+      const result = await NudiCharts.loadParameterChart(document.getElementById('detailedChart'), activeCode, activeDays, chartInstance);
+      chartInstance = result.chart;
+      if (result.all) {
+        title.innerText = 'All Parameters';
+        subtitle.innerText = result.empty
+          ? 'No readings in this period.'
+          : 'Each line is scaled to its own ideal range (shaded band = in range). Hover a point for the real value.';
+      } else {
+        const p = result.data.parameter;
+        title.innerText = `${p.name} (${p.unit})`;
+        const limits = (p.low_limit != null || p.high_limit != null)
+          ? ` · alert limits ${p.low_limit != null ? '≤' + p.low_limit : '—'} / ${p.high_limit != null ? '≥' + p.high_limit : '—'}` : '';
+        subtitle.innerText = `Optimal: ${p.formatted_min} – ${p.formatted_max} ${p.unit}` + limits + (result.empty ? ' · no readings in this period' : '');
+      }
+    } catch (err) {
+      console.error(err);
+      subtitle.innerText = 'Could not load chart data.';
+    }
   }
 
   document.addEventListener('DOMContentLoaded', fetchAndRender);

@@ -62,22 +62,53 @@
       </div>
     </div>
 
-    <!-- Ideal Target Range -->
+    <!-- Ranges: low alert / optimal / high alert -->
     <div class="pt-4 border-t border-slate-800 space-y-3">
       <div>
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Ideal Target Range</label>
-        <p class="text-xs text-slate-500">Values outside this range will be flagged as Low or High</p>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Ranges</label>
+        <p class="text-xs text-slate-500">Inside the optimal range = <span class="text-emerald-400">OPTIMAL</span>. Outside it = <span class="text-amber-400">LOW / HIGH</span>. At or past an alert limit = <span class="text-rose-400">CRITICAL</span>. Alert limits are optional.</p>
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      {% if form.non_field_errors %}
+        <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="space-y-1">
-          <label class="block text-[11px] text-slate-400 font-medium">Minimum Target</label>
+          <label class="block text-[11px] text-rose-300 font-medium">Low alert at or below</label>
+          {{ form.low_limit }}
+          {% for err in form.low_limit.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+        </div>
+        <div class="space-y-1">
+          <label class="block text-[11px] text-emerald-300 font-medium">Optimal from</label>
           {{ form.min_ideal }}
+          {% for err in form.min_ideal.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
         </div>
         <div class="space-y-1">
-          <label class="block text-[11px] text-slate-400 font-medium">Maximum Target</label>
+          <label class="block text-[11px] text-emerald-300 font-medium">Optimal to</label>
           {{ form.max_ideal }}
+          {% for err in form.max_ideal.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
         </div>
+        <div class="space-y-1">
+          <label class="block text-[11px] text-rose-300 font-medium">High alert at or above</label>
+          {{ form.high_limit }}
+          {% for err in form.high_limit.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <!-- Live preview of the zones -->
+      <div>
+        <div class="flex h-3 rounded-full overflow-hidden border border-slate-800" aria-hidden="true">
+          <span id="zone-crit-low" class="bg-rose-500/70" style="flex:1"></span>
+          <span class="bg-amber-500/70" style="flex:1.5"></span>
+          <span class="bg-emerald-500/80" style="flex:3"></span>
+          <span class="bg-amber-500/70" style="flex:1.5"></span>
+          <span id="zone-crit-high" class="bg-rose-500/70" style="flex:1"></span>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+          <span id="lbl-crit-low">critical low</span><span>low</span><span class="text-emerald-400">optimal</span><span>high</span><span id="lbl-crit-high">critical high</span>
+        </div>
+        <p id="zone-summary" class="text-[11px] text-slate-400 mt-1"></p>
       </div>
     </div>
 
@@ -114,6 +145,28 @@
 </div>
 
 <script>
+  (function () {
+    const $ = id => document.getElementById(id);
+    const ids = ['id_low_limit', 'id_min_ideal', 'id_max_ideal', 'id_high_limit'];
+    function refresh() {
+      const [lo, min, max, hi] = ids.map(id => $(id) && $(id).value !== '' ? parseFloat($(id).value) : null);
+      const unit = ($('id_unit') || {}).value || '';
+      $('zone-crit-low').style.display = lo === null ? 'none' : '';
+      $('zone-crit-high').style.display = hi === null ? 'none' : '';
+      $('lbl-crit-low').style.visibility = lo === null ? 'hidden' : 'visible';
+      $('lbl-crit-high').style.visibility = hi === null ? 'hidden' : 'visible';
+      const parts = [];
+      if (lo !== null) parts.push(`critical ≤ ${lo}`);
+      if (min !== null) parts.push(`low < ${min}`);
+      if (min !== null && max !== null) parts.push(`optimal ${min}–${max}`);
+      if (max !== null) parts.push(`high > ${max}`);
+      if (hi !== null) parts.push(`critical ≥ ${hi}`);
+      $('zone-summary').textContent = parts.join(' · ') + (unit ? ' ' + unit : '');
+    }
+    ids.concat(['id_unit']).forEach(id => $(id) && $(id).addEventListener('input', refresh));
+    refresh();
+  })();
+
   function applyUnitPreset(unit, decimals) {
     const unitInput = document.getElementById('id_unit');
     const decimalInput = document.getElementById('id_decimal_places');

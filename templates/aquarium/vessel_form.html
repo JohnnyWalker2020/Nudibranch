@@ -88,6 +88,10 @@
       </div>
     </div>
 
+    {% if kind == 'tank' %}
+      <p class="text-[11px] text-slate-500">Plumbing (pipe runs that add to the system volume) is managed on the tank page after saving.</p>
+    {% endif %}
+
     <div class="space-y-1.5">
       <label for="{{ form.notes.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Notes</label>
       {{ form.notes }}
@@ -128,6 +132,7 @@
     }
     [w, d, h, unit, fill, manual, vol].forEach(el => { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
     refresh();
+
   })();
 </script>
 {% endblock %}

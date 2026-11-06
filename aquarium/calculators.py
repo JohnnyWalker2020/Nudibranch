@@ -43,9 +43,11 @@ SALT_MIX_RECIPES = {
         'cups_per_gallon': 0.50,
     },
     'aquaforest': {
+        # Label: about 390 g per 10 L of RO/DI for 33 ppt (1.025 SG).
+        # 39 g/L at 33 ppt -> 41.36 g/L at 35 ppt -> 156.6 g per US gallon.
         'name': 'AquaForest Reef Salt',
-        'grams_per_gallon': 148.0,
-        'cups_per_gallon': 0.51,
+        'grams_per_gallon': 156.6,
+        'cups_per_gallon': 0.54,
     },
 }
 
@@ -136,6 +138,33 @@ def estimate_capacity_gallons(width, depth, height, unit='in', fill_percent=90.0
         return None
     pct = max(1.0, min(100.0, float(fill_percent)))
     return round(box_volume_gallons(width, depth, height, unit) * pct / 100.0, 1)
+
+
+# ---------------------------------------------------------------------------
+# Plumbing volume
+# ---------------------------------------------------------------------------
+
+# Nominal PVC pipe size -> (label, Schedule 40 inside diameter in inches).
+PIPE_SIZES = {
+    '0.5': ('1/2"', 0.622),
+    '0.75': ('3/4"', 0.824),
+    '1': ('1"', 1.049),
+    '1.25': ('1-1/4"', 1.380),
+    '1.5': ('1-1/2"', 1.610),
+    '2': ('2"', 2.067),
+}
+
+
+def pipe_volume_gallons(length_ft, inside_diameter_in, fill_percent=100):
+    """
+    Water held in a pipe: cross-section area x length x how full it runs.
+    `inside_diameter_in` is the real inside diameter in inches (see PIPE_SIZES for Sch 40 PVC).
+    """
+    if not length_ft or not inside_diameter_in:
+        return 0.0
+    fill = max(0.0, min(100.0, float(fill_percent if fill_percent is not None else 100)))
+    area_in2 = math.pi * (float(inside_diameter_in) / 2.0) ** 2
+    return round(area_in2 * float(length_ft) * 12.0 / IN3_PER_GALLON * fill / 100.0, 2)
 
 
 # ---------------------------------------------------------------------------

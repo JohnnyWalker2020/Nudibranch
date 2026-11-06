@@ -20,7 +20,7 @@
             <span class="text-xs font-medium text-slate-400">{{ pt.unit }}</span>
           </div>
           <div class="mt-2 flex items-center justify-between">
-            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border {{ latest.status_color_class }}">{{ latest.status|upper }}</span>
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border {{ latest.status_color_class }}">{{ latest.status_label }}</span>
             <span class="text-[10px] text-slate-500">{{ latest.measured_at|timesince }} ago</span>
           </div>
         {% else %}
@@ -29,7 +29,7 @@
         {% endif %}
 
         <div class="mt-2 text-[10px] text-slate-500 border-t border-slate-800/80 pt-1.5">
-          Ideal: {{ pt.formatted_min_ideal }} – {{ pt.formatted_max_ideal }} {{ pt.unit }}
+          Ideal: {{ pt.formatted_min_ideal }} – {{ pt.formatted_max_ideal }} {{ pt.unit }}{% if pt.low_limit is not None or pt.high_limit is not None %}<span class="block text-rose-400/70">Alert: ≤{{ pt.formatted_low_limit|default:"—" }} · ≥{{ pt.formatted_high_limit|default:"—" }}</span>{% endif %}
         </div>
       </div>
     {% endwith %}

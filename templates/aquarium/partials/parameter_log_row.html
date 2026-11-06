@@ -4,7 +4,7 @@
     <div class="min-w-0">
       <div class="flex items-center gap-2">
         <span class="text-sm font-semibold text-white">{{ log.parameter_type.name }}</span>
-        <span class="text-xs font-medium px-2 py-0.5 rounded-md border {{ log.status_color_class }}">{{ log.status|upper }}</span>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-md border {{ log.status_color_class }}">{{ log.status_label }}</span>
       </div>
       <p class="text-xs text-slate-400 mt-0.5 truncate">
         {{ log.measured_at|date:"M d, Y · g:i A" }}

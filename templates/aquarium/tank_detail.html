@@ -36,6 +36,7 @@
     <div class="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total system</span>
       <span class="text-2xl font-black text-cyan-400">{{ tank.total_system_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
+      <span class="block text-[11px] text-slate-500">{{ tank.total_system_liters }} L{% if tank.plumbing_gallons %} · incl. {{ tank.plumbing_gallons|floatformat:"-1" }} gal plumbing{% else %} · <a href="{% url 'plumbing_create' tank.id %}" class="text-cyan-400 hover:underline">add plumbing</a>{% endif %}</span>
     </div>
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Dimensions</span>
@@ -117,8 +118,60 @@
     </div>
   </div>
 
+  <!-- Plumbing runs -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+    <div class="flex items-center justify-between gap-2">
+      <div>
+        <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🔧</span> Plumbing</h2>
+        <p class="text-[11px] text-slate-500">{% with runs=tank.plumbing_runs.all %}{% if runs %}{{ runs|length }} run{{ runs|length|pluralize }} · {{ tank.plumbing_feet }} ft · {{ tank.plumbing_gallons|floatformat:"-2" }} gal in pipes (included in total system){% else %}Add pipe runs to include the water in your plumbing in the system volume{% endif %}{% endwith %}</p>
+      </div>
+      <a href="{% url 'plumbing_create' tank.id %}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700">+ Run</a>
+    </div>
+    {% if tank.plumbing_runs.all %}
+      <div class="divide-y divide-slate-800/80">
+        {% for run in tank.plumbing_runs.all %}
+          <div class="py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span class="text-slate-300">
+              <span class="font-bold text-white">{{ run.display_name }}</span>
+              <span class="text-slate-500">· {% if run.count > 1 %}{{ run.count }} × {% endif %}{{ run.length|floatformat:"-1" }} {{ run.length_unit }} of {{ run.size_label }}{% if run.fill_percent < 100 %} · {{ run.fill_percent|floatformat:"-1" }}% full{% endif %}</span>
+            </span>
+            <span class="flex items-center gap-3">
+              <span class="text-cyan-400 font-semibold">{{ run.gallons|floatformat:"-2" }} gal <span class="text-slate-500 font-normal">({{ run.liters }} L)</span></span>
+              <a href="{% url 'plumbing_edit' run.id %}" class="text-cyan-400 hover:underline">Edit</a>
+              <a href="{% url 'plumbing_delete' run.id %}" class="text-rose-400 hover:underline">Delete</a>
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Display tank equipment -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+    <div class="flex items-center justify-between gap-2">
+      <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🐠</span> In the display tank</h2>
+      <a href="{% url 'equipment_create' %}?location=tank:{{ tank.id }}&next={{ request.path|urlencode }}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700">+ Equipment</a>
+    </div>
+    {% if display_equipment %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {% for eq in display_equipment %}
+          <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="flex items-center justify-between gap-2 p-2.5 bg-slate-950/60 border border-slate-800 hover:border-cyan-500/40 rounded-xl {% if eq.status == 'offline' %}opacity-50{% endif %}">
+            <span class="min-w-0">
+              <span class="block text-xs font-bold text-white truncate">{{ eq.name }}</span>
+              <span class="block text-[10px] text-slate-500">{{ eq.get_category_display }}</span>
+            </span>
+            {% if eq.is_service_due %}<span class="text-[10px] font-bold text-amber-400 shrink-0">service due</span>{% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-xs text-slate-500">Nothing placed in the display yet (lights, wavemakers, heaters...).</p>
+    {% endif %}
+  </div>
+
   <!-- Sumps -->
-  {% for sump in tank.sumps.all %}
+  {% for row in sump_rows %}
+    {% with sump=row.sump %}
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -127,6 +180,7 @@
           {% if sump.notes %}<p class="text-[11px] text-slate-500 mt-0.5">{{ sump.notes }}</p>{% endif %}
         </div>
         <div class="flex items-center gap-2">
+          <a href="{% url 'equipment_create' %}?location=sump:{{ sump.id }}&next={{ request.path|urlencode }}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700 transition-colors">+ Equipment</a>
           <a href="{% url 'sump_edit' sump.id %}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700 transition-colors">Edit sump</a>
         </div>
       </div>
@@ -134,12 +188,17 @@
       <!-- Chamber diagram -->
       {% if sump.chambers.all %}
         <div class="flex items-stretch gap-1 overflow-x-auto no-scrollbar">
-          {% for c in sump.chambers.all %}
+          {% for cr in row.chambers %}
+            {% with c=cr.chamber %}
             <a href="{% url 'chamber_edit' c.id %}" style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0; min-width: 5.5rem;" class="p-2.5 bg-slate-950/70 border border-slate-700 hover:border-cyan-500/50 rounded-xl text-center transition-colors">
               <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
               <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
               <span class="text-[11px] text-cyan-400 block">{{ c.volume_gallons }} gal · {{ c.share_percent|floatformat:"-1" }}%</span>
+              {% for eq in cr.equipment %}
+                <span class="mt-1 block text-[10px] leading-tight px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 truncate {% if eq.status == 'offline' %}line-through opacity-60{% endif %}" title="{{ eq.name }}">⚙️ {{ eq.name }}</span>
+              {% endfor %}
             </a>
+            {% endwith %}
           {% endfor %}
         </div>
         {% if sump.chamber_share_total != 100 %}
@@ -193,7 +252,7 @@
 
         <div class="flex items-center justify-between gap-2">
           <span class="split-total text-[11px] text-slate-400"></span>
-          <button type="submit" onclick="return confirm('Replace this sump\'s chambers with the list above?')" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg active:scale-95 transition-all">Save chambers</button>
+          <button type="submit" onclick="return confirm('Save these chambers? If you reduced the number, the extra chambers are removed (their equipment stays in the sump).')" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg active:scale-95 transition-all">Save chambers</button>
         </div>
         <p class="text-[11px] text-slate-500">Order = the path the water takes (1 is first). Shares are each chamber's part of the sump's water volume.</p>
       </form>
@@ -205,6 +264,7 @@
               <span class="text-slate-300"><span class="text-slate-500">#{{ c.position }}</span> {{ c.get_chamber_type_display }}{% if c.name %} · {{ c.name }}{% endif %}</span>
               <span class="flex items-center gap-3">
                 <span class="text-slate-400">{{ c.volume_gallons }} gal</span>
+                <a href="{% url 'equipment_create' %}?location=chamber:{{ c.id }}&next={{ request.path|urlencode }}" class="text-cyan-400 hover:underline">+ Equipment</a>
                 <a href="{% url 'chamber_edit' c.id %}" class="text-cyan-400 hover:underline">Edit</a>
                 <a href="{% url 'chamber_delete' c.id %}" class="text-rose-400 hover:underline">Delete</a>
               </span>
@@ -212,7 +272,19 @@
           {% endfor %}
         </div>
       {% endif %}
+
+      {% if row.equipment %}
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">In this sump (no specific chamber)</h3>
+          <div class="flex flex-wrap gap-1.5">
+            {% for eq in row.equipment %}
+              <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:text-cyan-400 {% if eq.status == 'offline' %}line-through opacity-60{% endif %}">⚙️ {{ eq.name }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
     </div>
+    {% endwith %}
   {% empty %}
     <div class="p-8 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
       <span class="text-3xl">🧫</span>

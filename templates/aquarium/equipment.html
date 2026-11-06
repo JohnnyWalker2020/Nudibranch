@@ -100,10 +100,18 @@
             </div>
             <p class="text-[10px] text-slate-500">Last cleaned: {% if eq.last_serviced_date %}{{ eq.last_serviced_date|date:"M d, Y" }}{% else %}Never logged{% endif %}</p>
           </div>
+
+          {% if eq.routines.all %}
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              {% for rt in eq.routines.all %}
+                <a href="{% url 'routine_edit' rt.id %}" class="text-[10px] font-semibold px-2 py-1 rounded-lg {% if rt.is_automated %}bg-violet-500/10 text-violet-300 border border-violet-500/30{% else %}bg-slate-800 text-slate-300 border border-slate-700{% endif %} hover:text-white">{% if rt.is_automated %}🤖{% else %}📋{% endif %} {{ rt.title }}</a>
+              {% endfor %}
+            </div>
+          {% endif %}
         </div>
 
         <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-          <span class="text-[10px] text-slate-500 truncate">{% if eq.tank %}Tank: {{ eq.tank.name }}{% endif %}</span>
+          <span class="text-[10px] text-slate-500 truncate" title="{% if eq.tank %}{{ eq.tank.name }} · {{ eq.location_label }}{% endif %}">{% if eq.tank %}📍 {{ eq.tank.name }}{% if eq.sump_id %} · {{ eq.location_label }}{% endif %}{% endif %}</span>
           <div class="flex items-center gap-1.5">
             <a href="{% url 'equipment_edit' eq.id %}" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 font-semibold text-xs rounded-xl border border-slate-700 transition-colors">Edit</a>
             <form method="POST" action="{% url 'service_equipment' eq.id %}">
@@ -135,7 +143,7 @@
       <form method="POST" action="{% url 'equipment_create' %}" class="mt-4 space-y-4">
         {% csrf_token %}
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ equipment_form.tank }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Location</label>{{ equipment_form.location }}</div>
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>{{ equipment_form.category }}</div>
         </div>
         <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Hardware Name *</label>{{ equipment_form.name }}</div>

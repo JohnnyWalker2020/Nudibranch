@@ -1,0 +1,161 @@
+{% comment %}
+  Shared fields for creating / editing a routine. Include inside a <form data-routine-form>.
+  Sections marked data-show="manual" or data-show="automated" are toggled by the routine type.
+{% endcomment %}
+{% if form.non_field_errors %}
+  <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">{{ form.non_field_errors }}</div>
+{% endif %}
+
+<div>
+  <span class="block text-xs font-bold uppercase text-slate-400 mb-1.5">Type</span>
+  <div class="grid grid-cols-2 gap-2">
+    {% for radio in form.routine_type %}
+      <label class="routine-type-option flex items-center gap-2 p-3 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-cyan-500/50 has-[:checked]:border-cyan-500 has-[:checked]:bg-cyan-500/10">
+        {{ radio.tag }}
+        <span class="text-xs font-semibold text-white">{{ radio.choice_label }}</span>
+      </label>
+    {% endfor %}
+  </div>
+  <p class="text-[11px] text-slate-500 mt-1" data-show="manual">Something you do by hand every few days. Shows as due and gets ticked off.</p>
+  <p class="text-[11px] text-slate-500 mt-1" data-show="automated">Something your equipment does on a timer (feeder, lights, skimmer, pumps). Never shows as due; shows what runs next.</p>
+</div>
+
+<div>
+  <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Title *</label>{{ form.title }}
+  {% for err in form.title.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>{{ form.category }}</div>
+  <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ form.tank }}</div>
+</div>
+
+<!-- Repeat schedule (both types) -->
+<div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+  <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">📅 Schedule</span>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div>
+      <label class="block text-[11px] text-slate-400 mb-1">Repeat</label>
+      {{ form.repeat_preset }}
+    </div>
+    <div>
+      <label class="block text-[11px] text-slate-400 mb-1">Starting</label>
+      {{ form.start_date }}
+      {% for err in form.start_date.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
+    </div>
+  </div>
+  <div data-repeat-custom class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="block text-[11px] text-slate-400 mb-1">Every</label>
+      {{ form.repeat_every }}
+      {% for err in form.repeat_every.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
+    </div>
+    <div>
+      <label class="block text-[11px] text-slate-400 mb-1">Unit</label>
+      {{ form.repeat_unit }}
+      {% for err in form.repeat_unit.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
+    </div>
+  </div>
+  <div data-repeat-weekly>
+    <span class="block text-[11px] text-slate-400 mb-1.5">On</span>
+    <div class="flex flex-wrap gap-1.5">
+      {% for cb in form.schedule_days %}
+        <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 cursor-pointer text-xs text-slate-300 has-[:checked]:border-cyan-500 has-[:checked]:text-cyan-300">
+          {{ cb.tag }} {{ cb.choice_label }}
+        </label>
+      {% endfor %}
+    </div>
+    <span class="text-[11px] text-slate-500 mt-1 block">{{ form.schedule_days.help_text }}</span>
+  </div>
+  <div data-show="manual">
+    <label class="block text-[11px] text-slate-400 mb-1">Due at <span class="text-slate-500">(optional time of day)</span></label>
+    <div class="sm:w-1/2">{{ form.due_time }}</div>
+  </div>
+  <p class="text-[11px] text-slate-500" data-repeat-hint></p>
+</div>
+
+<!-- Manual: checklist -->
+<div data-show="manual" class="space-y-4">
+  <div>
+    <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Checklist steps</label>
+    {{ form.checklist_raw }}
+    <span class="text-[11px] text-cyan-400/90 mt-1 block">One task per line</span>
+  </div>
+</div>
+
+<!-- Automated: times of day -->
+<div data-show="automated" class="space-y-4">
+  <div>
+    <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Times on each scheduled day *</label>
+    {{ form.schedule_raw }}
+    <span class="text-[11px] text-cyan-400/90 mt-1 block">{{ form.schedule_raw.help_text }}</span>
+    {% for err in form.schedule_raw.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
+  </div>
+</div>
+
+<!-- Linked equipment -->
+<div>
+  <span class="block text-xs font-bold uppercase text-slate-400 mb-1.5">Equipment</span>
+  {% if form.equipment.field.queryset.exists %}
+    <div class="max-h-44 overflow-y-auto space-y-1 p-2 bg-slate-950/60 border border-slate-800 rounded-xl">
+      {% for cb in form.equipment %}
+        <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-800/60 cursor-pointer text-xs text-slate-300">
+          {{ cb.tag }} <span>{{ cb.choice_label }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    <span class="text-[11px] text-slate-500 mt-1 block">The feeder, light or pump this runs on, or the gear a checklist services</span>
+  {% else %}
+    <p class="text-[11px] text-slate-500">No equipment yet. <a href="{% url 'equipment' %}" class="text-cyan-400 underline">Add some</a> to link it here.</p>
+  {% endif %}
+</div>
+
+<label class="flex items-center gap-3 cursor-pointer">
+  {{ form.is_active }}
+  <span class="text-sm font-semibold text-white">Active</span>
+  <span class="text-[11px] text-slate-500">Untick to pause without deleting</span>
+</label>
+
+<div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ form.notes }}</div>
+
+<script>
+  (function () {
+    document.querySelectorAll('form[data-routine-form]').forEach(function (form) {
+      if (form.dataset.bound) return;
+      form.dataset.bound = '1';
+      var preset = form.querySelector('select[name="repeat_preset"]');
+      var unitSel = form.querySelector('select[name="repeat_unit"]');
+      var everyIn = form.querySelector('input[name="repeat_every"]');
+      var startIn = form.querySelector('input[name="start_date"]');
+      var hint = form.querySelector('[data-repeat-hint]');
+      var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+      function sync() {
+        var checked = form.querySelector('input[name="routine_type"]:checked');
+        var type = checked ? checked.value : 'manual';
+        form.querySelectorAll('[data-show]').forEach(function (el) {
+          el.classList.toggle('hidden', el.dataset.show !== type);
+        });
+
+        // Repeat: preset "2:week" or Custom (every + unit fields)
+        var custom = preset.value === 'custom';
+        var unit = custom ? unitSel.value : preset.value.split(':')[1];
+        if (!custom) {
+          everyIn.value = preset.value.split(':')[0];
+          unitSel.value = unit;
+        }
+        form.querySelector('[data-repeat-custom]').classList.toggle('hidden', !custom);
+        form.querySelector('[data-repeat-weekly]').classList.toggle('hidden', unit !== 'week');
+
+        var start = startIn.value ? new Date(startIn.value + 'T00:00') : null;
+        var text = '';
+        if (start && unit === 'month') text = 'Lands on day ' + start.getDate() + ' of the month (or the last day of shorter months).';
+        if (start && unit === 'year') text = 'Lands on ' + start.toLocaleDateString(undefined, { month: 'long', day: 'numeric' }) + ' each time.';
+        if (start && unit === 'week' && !form.querySelector('input[name="schedule_days"]:checked')) text = 'Repeats on ' + DAYS[start.getDay()] + 's (the start date\'s weekday).';
+        hint.textContent = text;
+      }
+      form.querySelectorAll('input[name="routine_type"], input[name="schedule_days"]').forEach(function (r) { r.addEventListener('change', sync); });
+      [preset, unitSel, startIn].forEach(function (el) { el.addEventListener('change', sync); });
+      sync();
+    });
+  })();
+</script>

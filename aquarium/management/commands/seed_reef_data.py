@@ -12,14 +12,14 @@ class Command(BaseCommand):
         self.stdout.write("Seeding default reef parameters...")
 
         default_parameters = [
-            {"name": "Salinity", "code": "salinity", "unit": "SG", "decimal_places": 3, "min_ideal": 1.025, "max_ideal": 1.026, "color": "#0284c7", "display_order": 1},
-            {"name": "Alkalinity", "code": "alkalinity", "unit": "dKH", "decimal_places": 1, "min_ideal": 8.0, "max_ideal": 9.0, "color": "#06b6d4", "display_order": 2},
-            {"name": "Calcium", "code": "calcium", "unit": "ppm", "decimal_places": 0, "min_ideal": 420.0, "max_ideal": 450.0, "color": "#3b82f6", "display_order": 3},
-            {"name": "Magnesium", "code": "magnesium", "unit": "ppm", "decimal_places": 0, "min_ideal": 1300.0, "max_ideal": 1400.0, "color": "#8b5cf6", "display_order": 4},
-            {"name": "Nitrate", "code": "nitrate", "unit": "ppm", "decimal_places": 1, "min_ideal": 2.0, "max_ideal": 15.0, "color": "#f97316", "display_order": 5},
-            {"name": "Phosphate", "code": "phosphate", "unit": "ppm", "decimal_places": 2, "min_ideal": 0.03, "max_ideal": 0.10, "color": "#eab308", "display_order": 6},
-            {"name": "Temperature", "code": "temperature", "unit": "°F", "decimal_places": 1, "min_ideal": 77.0, "max_ideal": 79.0, "color": "#ef4444", "display_order": 7},
-            {"name": "pH", "code": "ph", "unit": "pH", "decimal_places": 2, "min_ideal": 8.0, "max_ideal": 8.4, "color": "#10b981", "display_order": 8},
+            {"name": "Salinity", "code": "salinity", "unit": "SG", "decimal_places": 3, "low_limit": 1.023, "min_ideal": 1.025, "max_ideal": 1.026, "high_limit": 1.028, "color": "#0284c7", "display_order": 1},
+            {"name": "Alkalinity", "code": "alkalinity", "unit": "dKH", "decimal_places": 1, "low_limit": 7.0, "min_ideal": 8.0, "max_ideal": 9.0, "high_limit": 11.0, "color": "#06b6d4", "display_order": 2},
+            {"name": "Calcium", "code": "calcium", "unit": "ppm", "decimal_places": 0, "low_limit": 380.0, "min_ideal": 420.0, "max_ideal": 450.0, "high_limit": 480.0, "color": "#3b82f6", "display_order": 3},
+            {"name": "Magnesium", "code": "magnesium", "unit": "ppm", "decimal_places": 0, "low_limit": 1250.0, "min_ideal": 1300.0, "max_ideal": 1400.0, "high_limit": 1450.0, "color": "#8b5cf6", "display_order": 4},
+            {"name": "Nitrate", "code": "nitrate", "unit": "ppm", "decimal_places": 1, "low_limit": 0.5, "min_ideal": 2.0, "max_ideal": 15.0, "high_limit": 25.0, "color": "#f97316", "display_order": 5},
+            {"name": "Phosphate", "code": "phosphate", "unit": "ppm", "decimal_places": 2, "low_limit": 0.01, "min_ideal": 0.03, "max_ideal": 0.10, "high_limit": 0.2, "color": "#eab308", "display_order": 6},
+            {"name": "Temperature", "code": "temperature", "unit": "°F", "decimal_places": 1, "low_limit": 75.0, "min_ideal": 77.0, "max_ideal": 79.0, "high_limit": 81.0, "color": "#ef4444", "display_order": 7},
+            {"name": "pH", "code": "ph", "unit": "pH", "decimal_places": 2, "low_limit": 7.8, "min_ideal": 8.0, "max_ideal": 8.4, "high_limit": 8.5, "color": "#10b981", "display_order": 8},
         ]
 
         for p in default_parameters:
@@ -295,7 +295,7 @@ class Command(BaseCommand):
             {
                 "title": "Weekly Water Change & Sump Siphon",
                 "category": "water_change",
-                "frequency_days": 7,
+                "repeat_every": 1, "repeat_unit": "week",
                 "tank": default_tank,
                 "checklist_items": [
                     "Heat and aerate new saltwater (check salinity with refractometer)",
@@ -312,7 +312,7 @@ class Command(BaseCommand):
             {
                 "title": "Weekly Parameter Testing Routine",
                 "category": "testing",
-                "frequency_days": 7,
+                "repeat_every": 1, "repeat_unit": "week",
                 "tank": default_tank,
                 "checklist_items": [
                     "Clean test vials with RO/DI water",
@@ -329,7 +329,7 @@ class Command(BaseCommand):
             {
                 "title": "Monthly Pump & Equipment Vinegar Bath",
                 "category": "equipment",
-                "frequency_days": 30,
+                "repeat_every": 1, "repeat_unit": "month",
                 "tank": default_tank,
                 "checklist_items": [
                     "Remove wavemaker powerheads from display",

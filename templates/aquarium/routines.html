@@ -69,11 +69,92 @@
     </div>
   </div>
 
-  <!-- Routines -->
+  <!-- Automated schedules -->
+  {% if automated_routines %}
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-bold text-white">🤖 Automated Schedules</h2>
+      <span class="text-[11px] text-slate-500">Feeders, lights, skimmer and pump timers</span>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {% for routine in automated_routines %}
+        {% with nxt=routine.upcoming %}
+        <div class="bg-slate-900 border {% if routine.is_active %}border-violet-500/30{% else %}border-slate-800 opacity-60{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ routine.get_category_display }}</span>
+                  {% if routine.tank %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{{ routine.tank.name }}</span>{% endif %}
+                  {% if not routine.is_active %}<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">PAUSED</span>{% endif %}
+                </div>
+                <h3 class="text-base font-bold text-white mt-0.5">{{ routine.title }}</h3>
+                <p class="text-[11px] text-slate-400">{{ routine.days_display }}</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <a href="{% url 'routine_edit' routine.id %}" class="text-[11px] font-semibold text-slate-400 hover:text-cyan-400">Edit</a>
+                <form method="POST" action="{% url 'routine_delete' routine.id %}" onsubmit="return confirm('Delete this schedule?');">
+                  {% csrf_token %}
+                  <button type="submit" class="text-[11px] font-semibold text-slate-500 hover:text-rose-400">Delete</button>
+                </form>
+              </div>
+            </div>
+
+            {% if nxt %}
+              <div class="mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/30">
+                <span class="text-xs text-violet-200"><span class="font-bold">Next:</span> {{ nxt.action|default:"Event" }}</span>
+                <span class="text-xs font-bold text-violet-300">{{ nxt.at|date:"D H:i" }} <span class="font-normal text-violet-300/70">· in {{ nxt.at|timeuntil }}</span></span>
+              </div>
+            {% endif %}
+
+            <!-- 24h timeline -->
+            <div class="mt-3 relative h-7 rounded-lg bg-slate-950/70 border border-slate-800 overflow-hidden" aria-hidden="true">
+              <span class="absolute inset-y-0 left-1/4 border-l border-slate-800"></span>
+              <span class="absolute inset-y-0 left-1/2 border-l border-slate-800"></span>
+              <span class="absolute inset-y-0 left-3/4 border-l border-slate-800"></span>
+              {% for e in routine.sorted_events %}
+                <span class="schedule-tick absolute top-1 bottom-1 w-1 -ml-0.5 rounded-full {% if nxt and nxt.time == e.time %}bg-violet-300{% else %}bg-cyan-400/80{% endif %}" data-time="{{ e.time }}" title="{{ e.time }} {{ e.action }}"></span>
+              {% endfor %}
+              <span class="schedule-now absolute inset-y-0 w-px bg-rose-400/80"></span>
+            </div>
+            <div class="flex justify-between text-[9px] text-slate-600 px-0.5 mt-0.5"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+
+            <div class="mt-3 space-y-1">
+              {% for e in routine.sorted_events %}
+                <div class="flex items-center gap-3 px-2.5 py-1.5 rounded-lg {% if nxt and nxt.time == e.time %}bg-slate-800/80{% else %}bg-slate-950/40{% endif %}">
+                  <span class="font-mono text-xs font-bold text-cyan-400 w-11">{{ e.time }}</span>
+                  <span class="text-xs text-slate-300">{{ e.action|default:"—" }}</span>
+                </div>
+              {% endfor %}
+            </div>
+
+            {% if routine.equipment.all %}
+              <div class="mt-3 flex flex-wrap gap-1.5">
+                {% for eq in routine.equipment.all %}
+                  <a href="{% url 'equipment_edit' eq.id %}" class="text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:text-cyan-400 {% if eq.status == 'offline' %}line-through opacity-60{% endif %}">{{ eq.name }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if routine.notes %}<p class="text-xs text-slate-400 mt-3 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ routine.notes }}</p>{% endif %}
+          </div>
+          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+            <form method="POST" action="{% url 'routine_toggle' routine.id %}">
+              {% csrf_token %}
+              <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-lg border border-slate-700">{% if routine.is_active %}⏸ Pause{% else %}▶ Resume{% endif %}</button>
+            </form>
+          </div>
+        </div>
+        {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Manual routines -->
   <div class="space-y-4">
     <h2 class="text-base font-bold text-white">📋 Routines &amp; Checklists</h2>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {% for routine in routines %}
+      {% for routine in manual_routines %}
         <div class="bg-slate-900 border {% if routine.is_due %}border-amber-500/50{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4">
           <div>
             <div class="flex items-start justify-between gap-2">
@@ -83,13 +164,20 @@
                   {% if routine.tank %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{{ routine.tank.name }}</span>{% endif %}
                 </div>
                 <h3 class="text-base font-bold text-white mt-0.5">{{ routine.title }}</h3>
+                <p class="text-[11px] text-slate-400">📅 {{ routine.recurrence_label }}{% if routine.due_time %} · at {{ routine.due_time|time:"H:i" }}{% endif %}</p>
               </div>
               <div class="flex items-center gap-2 shrink-0">
-                {% if routine.is_due %}
+                {% with days=routine.days_until_due %}
+                {% if not routine.is_active %}
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">PAUSED</span>
+                {% elif routine.is_overdue %}
+                  <span class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40">OVERDUE {{ days|stringformat:"d"|slice:"1:" }}d</span>
+                {% elif routine.is_due %}
                   <span class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40">DUE</span>
-                {% else %}
-                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">Every {{ routine.frequency_days }}d</span>
+                {% elif days is not None %}
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">{% if days == 0 %}Later today{% elif days == 1 %}Tomorrow{% else %}In {{ days }}d{% endif %}</span>
                 {% endif %}
+                {% endwith %}
                 <a href="{% url 'routine_edit' routine.id %}" class="text-[11px] font-semibold text-slate-400 hover:text-cyan-400">Edit</a>
                 <form method="POST" action="{% url 'routine_delete' routine.id %}" onsubmit="return confirm('Delete this routine?');">
                   {% csrf_token %}
@@ -97,6 +185,13 @@
                 </form>
               </div>
             </div>
+            {% if routine.equipment.all %}
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                {% for eq in routine.equipment.all %}
+                  <a href="{% url 'equipment_edit' eq.id %}" class="text-[10px] font-semibold px-2 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:text-cyan-400">⚙️ {{ eq.name }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
             {% if routine.notes %}<p class="text-xs text-slate-400 mt-2 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ routine.notes }}</p>{% endif %}
             <div class="mt-4 space-y-2">
               {% for item in routine.checklist_items %}
@@ -110,7 +205,10 @@
             </div>
           </div>
           <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-            <span class="text-[11px] text-slate-500">Last done: {% if routine.last_completed %}{{ routine.last_completed|timesince }} ago{% else %}never{% endif %}</span>
+            <span class="text-[11px] text-slate-500">
+              {% if routine.next_due_date %}Next due {{ routine.next_due_date|date:"D M j" }}<br>{% endif %}
+              Last done: {% if routine.last_completed %}{{ routine.last_completed|timesince }} ago{% else %}never{% endif %}
+            </span>
             <form method="POST" action="{% url 'complete_routine' routine.id %}">
               {% csrf_token %}
               <button type="submit" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl active:scale-95 transition-all">✓ Mark completed</button>
@@ -119,7 +217,7 @@
         </div>
       {% empty %}
         <div class="col-span-full p-12 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
-          <p class="text-xs text-slate-400">No routines yet.</p>
+          <p class="text-xs text-slate-400">No checklists yet.</p>
           <button type="button" onclick="openModal('add-routine-modal')" class="mt-3 text-cyan-400 underline font-semibold text-xs">+ Create your first routine</button>
         </div>
       {% endfor %}
@@ -162,20 +260,9 @@
         <h3 class="text-lg font-bold text-white">Create Routine</h3>
         <button type="button" onclick="closeModal('add-routine-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
       </div>
-      <form method="POST" action="{% url 'routine_create' %}" class="mt-4 space-y-4">
+      <form method="POST" action="{% url 'routine_create' %}" data-routine-form class="mt-4 space-y-4">
         {% csrf_token %}
-        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Title *</label>{{ routine_form.title }}</div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>{{ routine_form.category }}</div>
-          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ routine_form.tank }}</div>
-        </div>
-        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Repeat every (days) *</label>{{ routine_form.frequency_days }}</div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Checklist steps</label>
-          {{ routine_form.checklist_raw }}
-          <span class="text-[11px] text-cyan-400/90 mt-1 block">One task per line</span>
-        </div>
-        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ routine_form.notes }}</div>
+        {% include 'aquarium/partials/routine_fields.html' with form=routine_form %}
         <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
           <button type="button" onclick="closeModal('add-routine-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
           <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Save Routine</button>
@@ -218,6 +305,14 @@
   const ON = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950';
   const OFF = 'px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white';
   const $ = id => document.getElementById(id);
+
+  // Position automated-schedule ticks and the "now" marker on each 24h timeline.
+  (function () {
+    const pct = t => { const [h, m] = t.split(':').map(Number); return (h * 60 + m) / 1440 * 100; };
+    document.querySelectorAll('.schedule-tick').forEach(el => { el.style.left = pct(el.dataset.time) + '%'; });
+    const now = new Date();
+    document.querySelectorAll('.schedule-now').forEach(el => { el.style.left = ((now.getHours() * 60 + now.getMinutes()) / 1440 * 100) + '%'; });
+  })();
 
   function toggleItemStrike(cb) {
     cb.closest('label').querySelector('.item-text').classList.toggle('line-through', cb.checked);

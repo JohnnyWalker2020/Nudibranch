@@ -16,7 +16,7 @@
     <a href="{% url 'parameters' %}?param={{ item.param.code }}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
       <span class="text-xl">⚠️</span>
       <div>
-        <p class="text-xs font-bold text-white">{{ item.param.name }} is {{ item.log.status|upper }}</p>
+        <p class="text-xs font-bold {% if item.critical %}text-rose-300{% else %}text-white{% endif %}">{{ item.param.name }} is {{ item.log.status_label }}</p>
         <p class="text-[11px] text-amber-400/90">{{ item.log.formatted_value }} {{ item.param.unit }} (Ideal: {{ item.param.formatted_min_ideal }}-{{ item.param.formatted_max_ideal }})</p>
       </div>
     </a>
@@ -37,7 +37,7 @@
       <span class="text-xl">📋</span>
       <div>
         <p class="text-xs font-bold text-white">{{ rt.title }}</p>
-        <p class="text-[11px] text-amber-400/90">Routine is due (every {{ rt.frequency_days }}d)</p>
+        <p class="text-[11px] text-amber-400/90">Routine is {% if rt.is_overdue %}overdue{% else %}due{% endif %} ({{ rt.recurrence_label|lower }})</p>
       </div>
     </a>
     {% endfor %}

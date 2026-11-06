@@ -65,11 +65,15 @@ urlpatterns = [
     path('equipment/<int:eq_id>/power/', views.equipment_power_view, name='equipment_power'),
 
     # Maintenance Routines & Water Changes
+    path('tanks/<int:tank_id>/plumbing/add/', views.plumbing_create_view, name='plumbing_create'),
+    path('plumbing/<int:run_id>/edit/', views.plumbing_edit_view, name='plumbing_edit'),
+    path('plumbing/<int:run_id>/delete/', views.plumbing_delete_view, name='plumbing_delete'),
     path('routines/', views.routines_view, name='routines'),
     path('routines/add/', views.routine_create_view, name='routine_create'),
     path('routines/<int:routine_id>/edit/', views.routine_edit_view, name='routine_edit'),
     path('routines/<int:routine_id>/complete/', views.complete_routine_view, name='complete_routine'),
     path('routines/<int:routine_id>/delete/', views.routine_delete_view, name='routine_delete'),
+    path('routines/<int:routine_id>/toggle/', views.routine_toggle_view, name='routine_toggle'),
     path('routines/water-change/add/', views.water_change_log_create, name='water_change_log_create'),
     path('routines/water-change/<int:wc_id>/edit/', views.water_change_edit_view, name='water_change_edit'),
     path('routines/water-change/<int:wc_id>/delete/', views.water_change_delete_view, name='water_change_delete'),

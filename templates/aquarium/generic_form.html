@@ -22,6 +22,7 @@
   <form method="POST" {% if multipart %}enctype="multipart/form-data"{% endif %} class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ back_url }}">
+    {% if full_page %}<input type="hidden" name="full_page" value="1">{% endif %}
 
     {% if form.non_field_errors %}
       <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">{{ form.non_field_errors }}</div>

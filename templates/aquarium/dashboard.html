@@ -125,45 +125,20 @@
       activeBtn.classList.remove('bg-slate-800', 'text-slate-300');
       activeBtn.classList.add('bg-cyan-500', 'text-slate-950');
     }
+    const sub = document.getElementById('trend-subtitle');
     try {
-      const res = await fetch(`/api/parameters/chart-data/?code=${encodeURIComponent(paramCode)}&days=30`);
-      if (!res.ok) return;
-      renderChart(await res.json());
+      const result = await NudiCharts.loadParameterChart(document.getElementById('parameterChart'), paramCode, 30, chartInstance);
+      chartInstance = result.chart;
+      if (sub) {
+        if (result.all) sub.innerText = result.empty ? 'Last 30 days · no readings yet' : 'Last 30 days · each line scaled to its ideal range (shaded band)';
+        else sub.innerText = 'Last 30 days' + (result.empty ? ' · no readings yet' : '');
+      }
     } catch (e) { console.error('Failed to load chart data:', e); }
   }
 
-  function renderChart(data) {
-    const ctx = document.getElementById('parameterChart').getContext('2d');
-    if (chartInstance) chartInstance.destroy();
-    const param = data.parameter;
-    const color = param.color || '#06b6d4';
-    chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: data.labels,
-        datasets: [{
-          label: `${param.name} (${param.unit})`, data: data.values, borderColor: color,
-          backgroundColor: `${color}20`, tension: 0.35, fill: true,
-          pointBackgroundColor: color, pointRadius: 4, pointHoverRadius: 6,
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { color: '#94a3b8', font: { size: 12, weight: 'bold' } } },
-          tooltip: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1, titleColor: '#fff', bodyColor: '#cbd5e1' }
-        },
-        scales: {
-          x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', maxRotation: 45, font: { size: 10 } } },
-          y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } }
-        }
-      }
-    });
-  }
-
+  // Default view: every parameter on one chart.
   document.addEventListener('DOMContentLoaded', () => {
-    const first = document.querySelector('.chart-param-btn');
-    if (first) loadChartData(first.dataset.code);
+    if (document.getElementById('parameterChart')) loadChartData('all');
   });
 </script>
 {% endblock %}

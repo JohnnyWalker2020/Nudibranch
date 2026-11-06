@@ -42,19 +42,19 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {% for item in out_of_range_params %}
-          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 flex flex-col justify-between space-y-3">
+          <div class="bg-slate-900 border {% if item.critical %}border-rose-500/50{% else %}border-amber-500/40{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-3">
             <div>
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <div class="w-3 h-3 rounded-full" style="background-color: {{ item.param.color }}"></div>
                   <h3 class="text-base font-bold text-white">{{ item.param.name }}</h3>
                 </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border {{ item.log.status_color_class }}">{{ item.log.status|upper }}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border {{ item.log.status_color_class }}">{{ item.log.status_label }}</span>
               </div>
               <div class="mt-3 flex items-baseline gap-2">
                 <span class="text-2xl font-black text-white">{{ item.log.formatted_value }}</span>
                 <span class="text-xs text-slate-400">{{ item.param.unit }}</span>
-                <span class="text-xs text-slate-500 ml-auto">Target {{ item.param.formatted_min_ideal }} – {{ item.param.formatted_max_ideal }}</span>
+                <span class="text-xs text-slate-500 ml-auto">Target {{ item.param.formatted_min_ideal }} – {{ item.param.formatted_max_ideal }}{% if item.param.low_limit is not None or item.param.high_limit is not None %} · limits {{ item.param.formatted_low_limit|default:"—" }} / {{ item.param.formatted_high_limit|default:"—" }}{% endif %}</span>
               </div>
               <p class="text-[11px] text-slate-500 mt-1">Measured {{ item.log.measured_at|timesince }} ago</p>
             </div>
@@ -100,7 +100,7 @@
                 <h3 class="text-base font-bold text-white">📋 {{ routine.title }}</h3>
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40">DUE</span>
               </div>
-              <p class="text-xs text-slate-400 mt-2">Every {{ routine.frequency_days }} days.
+              <p class="text-xs text-slate-400 mt-2">{{ routine.recurrence_label }}{% if routine.next_due_date %}, due {{ routine.next_due_date|date:"M j" }}{% endif %}.
                 {% if routine.last_completed %}Last done {{ routine.last_completed|timesince }} ago.{% else %}Never completed.{% endif %}</p>
             </div>
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">

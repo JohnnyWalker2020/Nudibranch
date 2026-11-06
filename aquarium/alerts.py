@@ -14,7 +14,9 @@ def compute_alert_state(request=None):
     for pt in ParameterType.objects.all():
         latest = pt.latest_log()
         if latest and latest.status in ('low', 'high'):
-            out_of_range.append({'param': pt, 'log': latest})
+            out_of_range.append({'param': pt, 'log': latest, 'critical': latest.severity == 'critical'})
+    out_of_range.sort(key=lambda item: not item['critical'])  # critical first
+    critical_params = sum(1 for item in out_of_range if item['critical'])
 
     low_reservoirs = [r for r in DosingReservoir.objects.select_related('tank') if r.is_low]
     due_routines = [r for r in MaintenanceRoutine.objects.select_related('tank') if r.is_due]
@@ -23,7 +25,7 @@ def compute_alert_state(request=None):
 
     total = (len(out_of_range) + len(low_reservoirs) + len(due_routines)
              + len(due_equipment) + len(sick_animals))
-    penalty = (len(out_of_range) * 12 + len(low_reservoirs) * 8 + len(due_routines) * 6
+    penalty = (len(out_of_range) * 10 + critical_params * 10 + len(low_reservoirs) * 8 + len(due_routines) * 6
                + len(due_equipment) * 6 + len(sick_animals) * 15)
 
     state = {

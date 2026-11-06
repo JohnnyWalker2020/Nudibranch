@@ -1,10 +1,14 @@
+import re
+
 from django import forms
 from django.utils import timezone
 
 from .models import (
     ParameterLog, Animal, AnimalGroup, ParameterType, Tank, Sump, SumpChamber,
     Equipment, DosingReservoir, MaintenanceRoutine, WaterChangeLog, WebcamFeed,
+    PlumbingRun, WEEKDAYS,
 )
+from .schedule import REPEAT_PRESETS, preset_key
 
 # Shared Tailwind class strings
 INPUT = 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
@@ -80,8 +84,16 @@ class ParameterSettingsForm(forms.ModelForm):
 
     class Meta:
         model = ParameterType
-        fields = ['unit', 'decimal_places', 'min_ideal', 'max_ideal']
+        fields = ['unit', 'decimal_places', 'low_limit', 'min_ideal', 'max_ideal', 'high_limit']
         widgets = {
+            'low_limit': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-rose-500/40 rounded-xl text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-rose-500',
+                'step': 'any', 'placeholder': 'optional'
+            }),
+            'high_limit': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-rose-500/40 rounded-xl text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-rose-500',
+                'step': 'any', 'placeholder': 'optional'
+            }),
             'unit': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'placeholder': 'e.g. ppm, dKH, SG, °F, °C'
@@ -109,18 +121,34 @@ class ParameterSettingsForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        low, high = cleaned.get('min_ideal'), cleaned.get('max_ideal')
-        if low is not None and high is not None and low > high:
-            raise forms.ValidationError("Minimum target can't be higher than the maximum target.")
+        validate_parameter_ranges(self, cleaned)
         return cleaned
+
+
+def validate_parameter_ranges(form, cleaned):
+    """low limit < min ideal <= max ideal < high limit (limits optional)."""
+    low_lim, low, high, high_lim = (cleaned.get(k) for k in ('low_limit', 'min_ideal', 'max_ideal', 'high_limit'))
+    if low is not None and high is not None and low > high:
+        form.add_error(None, "Minimum target can't be higher than the maximum target.")
+    if low_lim is not None and low is not None and low_lim >= low:
+        form.add_error('low_limit', "The low alert limit must be below the minimum target.")
+    if high_lim is not None and high is not None and high_lim <= high:
+        form.add_error('high_limit', "The high alert limit must be above the maximum target.")
 
 
 class ParameterTypeForm(forms.ModelForm):
     """Create or edit a custom parameter (Nitrite, Ammonia, Potassium, Iodine...)."""
     class Meta:
         model = ParameterType
-        fields = ['name', 'code', 'unit', 'decimal_places', 'min_ideal', 'max_ideal', 'color', 'display_order']
+        fields = ['name', 'code', 'unit', 'decimal_places', 'low_limit', 'min_ideal', 'max_ideal', 'high_limit',
+                  'color', 'display_order']
+        labels = {
+            'low_limit': 'Low alert limit', 'min_ideal': 'Optimal range: minimum',
+            'max_ideal': 'Optimal range: maximum', 'high_limit': 'High alert limit',
+        }
         widgets = {
+            'low_limit': forms.NumberInput(attrs={'class': INPUT, 'step': 'any', 'placeholder': 'optional'}),
+            'high_limit': forms.NumberInput(attrs={'class': INPUT, 'step': 'any', 'placeholder': 'optional'}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Nitrite'}),
             'code': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. nitrite (lowercase, no spaces)'}),
             'unit': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. ppm'}),
@@ -133,9 +161,7 @@ class ParameterTypeForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        low, high = cleaned.get('min_ideal'), cleaned.get('max_ideal')
-        if low is not None and high is not None and low > high:
-            raise forms.ValidationError("Minimum target can't be higher than the maximum target.")
+        validate_parameter_ranges(self, cleaned)
         if cleaned.get('decimal_places') is not None and cleaned['decimal_places'] > 4:
             self.add_error('decimal_places', "Use between 0 and 4 decimal places.")
         return cleaned
@@ -315,6 +341,39 @@ class TankForm(VesselFormMixin, forms.ModelForm):
         }
 
 
+class PlumbingRunForm(forms.ModelForm):
+    class Meta:
+        model = PlumbingRun
+        fields = ['name', 'length', 'length_unit', 'pipe_size', 'custom_diameter', 'custom_diameter_unit',
+                  'count', 'fill_percent']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Return line, Main drain'}),
+            'length': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'min': '0.1', 'inputmode': 'decimal'}),
+            'length_unit': forms.Select(attrs={'class': INPUT}),
+            'pipe_size': forms.Select(attrs={'class': INPUT}),
+            'custom_diameter': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'Inside diameter'}),
+            'custom_diameter_unit': forms.Select(attrs={'class': INPUT}),
+            'count': forms.NumberInput(attrs={'class': INPUT, 'min': '1', 'max': '50'}),
+            'fill_percent': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '5', 'min': '1', 'max': '100'}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('length') is not None and cleaned['length'] <= 0:
+            self.add_error('length', "Must be greater than zero.")
+        if cleaned.get('pipe_size') == 'custom':
+            d = cleaned.get('custom_diameter')
+            if not d or d <= 0:
+                self.add_error('custom_diameter', "Enter the pipe's inside diameter.")
+        count = cleaned.get('count')
+        if count is not None and not 1 <= count <= 50:
+            self.add_error('count', "Use between 1 and 50.")
+        fill = cleaned.get('fill_percent')
+        if fill is not None and not 1 <= fill <= 100:
+            self.add_error('fill_percent', "Use a value between 1 and 100.")
+        return cleaned
+
+
 class SumpForm(VesselFormMixin, forms.ModelForm):
     class Meta:
         model = Sump
@@ -346,14 +405,33 @@ class SumpChamberForm(forms.ModelForm):
         return value
 
 
+def equipment_location_choices():
+    """Grouped choices: each tank, then its sumps and their chambers."""
+    choices = [('', '— Not placed in a tank —')]
+    tanks = Tank.objects.prefetch_related('sumps__chambers')
+    for tank in tanks:
+        group = [(f'tank:{tank.id}', f'{tank.name} · display tank')]
+        for sump in tank.sumps.all():
+            group.append((f'sump:{sump.id}', f'{sump.name} (whole sump)'))
+            for chamber in sump.chambers.all():
+                group.append((f'chamber:{chamber.id}', f'{sump.name} › #{chamber.position} {chamber.display_name}'))
+        choices.append((tank.name, group))
+    return choices
+
+
 class EquipmentForm(forms.ModelForm):
+    location = forms.ChoiceField(
+        required=False,
+        widget=forms.Select(attrs={'class': INPUT}),
+        help_text="Display tank, a sump, or a specific sump chamber",
+    )
+
     class Meta:
         model = Equipment
-        fields = ['tank', 'name', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
+        fields = ['location', 'name', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
                   'flow_derate_percent', 'installed_date', 'maintenance_interval_days', 'last_serviced_date',
                   'status', 'notes']
         widgets = {
-            'tank': forms.Select(attrs={'class': INPUT}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Radion XR30 G6 Pro'}),
             'category': forms.Select(attrs={'class': INPUT}),
             'brand': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. EcoTech Marine'}),
@@ -367,6 +445,39 @@ class EquipmentForm(forms.ModelForm):
             'status': forms.Select(attrs={'class': INPUT}),
             'notes': forms.Textarea(attrs={'class': TEXTAREA, 'rows': 2}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['location'].choices = equipment_location_choices()
+        if self.instance and self.instance.pk and not self.is_bound:
+            self.initial['location'] = self.instance.location_key
+
+    def clean_location(self):
+        """Turns 'tank:3' / 'sump:5' / 'chamber:9' into the matching objects."""
+        raw = self.cleaned_data.get('location') or ''
+        self._placement = {'tank': None, 'sump': None, 'chamber': None}
+        if not raw:
+            return raw
+        kind, _, pk = raw.partition(':')
+        model = {'tank': Tank, 'sump': Sump, 'chamber': SumpChamber}.get(kind)
+        obj = model.objects.filter(pk=pk).first() if model and pk.isdigit() else None
+        if obj is None:
+            raise forms.ValidationError("That location no longer exists. Pick another.")
+        if kind == 'chamber':
+            self._placement = {'tank': obj.sump.tank, 'sump': obj.sump, 'chamber': obj}
+        elif kind == 'sump':
+            self._placement = {'tank': obj.tank, 'sump': obj, 'chamber': None}
+        else:
+            self._placement = {'tank': obj, 'sump': None, 'chamber': None}
+        return raw
+
+    def save(self, commit=True):
+        placement = getattr(self, '_placement', None)
+        if placement is not None:
+            self.instance.tank = placement['tank']
+            self.instance.sump = placement['sump']
+            self.instance.chamber = placement['chamber']
+        return super().save(commit=commit)
 
     def clean_power_setting_percent(self):
         value = self.cleaned_data['power_setting_percent']
@@ -445,8 +556,62 @@ class WebcamFeedForm(forms.ModelForm):
         }
 
 
+SCHEDULE_LINE = re.compile(r'^(\d{1,2})(?:[:.h](\d{2}))?\s*(am|pm|a|p)?\b\s*[-–—:]?\s*(.*)$', re.IGNORECASE)
+
+
+def parse_schedule_lines(text):
+    """
+    '8:00 Lights on' / '6pm Feed' / '21:30 - Skimmer off' -> [{'time': 'HH:MM', 'action': ...}], errors.
+    """
+    events, errors = [], []
+    for n, line in enumerate((text or '').splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue
+        m = SCHEDULE_LINE.match(line)
+        if not m:
+            errors.append(f"Line {n}: start with a time, e.g. '08:00 Lights on'")
+            continue
+        hh, mm, ampm, action = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or '').lower(), m.group(4).strip()
+        if ampm:
+            if not 1 <= hh <= 12:
+                errors.append(f"Line {n}: {hh} isn't a valid 12-hour time")
+                continue
+            hh = hh % 12 + (12 if ampm.startswith('p') else 0)
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            errors.append(f"Line {n}: {line!r} isn't a valid time")
+            continue
+        events.append({'time': f"{hh:02d}:{mm:02d}", 'action': action[:120]})
+    events.sort(key=lambda e: e['time'])
+    return events, errors
+
+
 class MaintenanceRoutineForm(forms.ModelForm):
-    """Form to create and edit custom maintenance routines and interactive checklists."""
+    """Manual checklists (every N days) and automated equipment schedules (times of day)."""
+    schedule_raw = forms.CharField(
+        label="Schedule",
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': TEXTAREA + ' font-mono',
+            'rows': 5,
+            'placeholder': "08:00 Feed (1 turn)\n10:00 Lights ramp up\n13:00 Lights 100%\n18:00 Feed\n20:00 Lights off",
+        }),
+        help_text="One event per line: a time, then what happens. 24-hour or am/pm both work.",
+    )
+    repeat_preset = forms.ChoiceField(
+        label="Repeat",
+        choices=REPEAT_PRESETS,
+        initial='1:week',
+        widget=forms.Select(attrs={'class': INPUT}),
+    )
+    schedule_days = forms.TypedMultipleChoiceField(
+        label="On",
+        choices=WEEKDAYS,
+        coerce=int,
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Weekly schedules. None ticked = the start date's weekday",
+    )
     checklist_raw = forms.CharField(
         widget=forms.Textarea(attrs={
             'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono',
@@ -459,8 +624,16 @@ class MaintenanceRoutineForm(forms.ModelForm):
 
     class Meta:
         model = MaintenanceRoutine
-        fields = ['title', 'category', 'tank', 'frequency_days', 'notes']
+        fields = ['routine_type', 'title', 'category', 'tank', 'equipment', 'repeat_every', 'repeat_unit',
+                  'start_date', 'due_time', 'is_active', 'notes']
         widgets = {
+            'routine_type': forms.RadioSelect,
+            'equipment': forms.CheckboxSelectMultiple,
+            'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX}),
+            'repeat_every': forms.NumberInput(attrs={'class': INPUT, 'min': '1', 'max': '999'}),
+            'repeat_unit': forms.Select(attrs={'class': INPUT}),
+            'start_date': forms.DateInput(format='%Y-%m-%d', attrs={'class': INPUT, 'type': 'date'}),
+            'due_time': forms.TimeInput(format='%H:%M', attrs={'class': INPUT, 'type': 'time'}),
             'title': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'placeholder': 'e.g. Weekly Water Change & Sump Siphon'
@@ -471,11 +644,6 @@ class MaintenanceRoutineForm(forms.ModelForm):
             'tank': forms.Select(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
             }),
-            'frequency_days': forms.NumberInput(attrs={
-                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500',
-                'min': '1',
-                'placeholder': 'e.g. 7 for weekly, 14 for bi-weekly, 30 for monthly'
-            }),
             'notes': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'rows': 2,
@@ -485,19 +653,53 @@ class MaintenanceRoutineForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk and self.instance.checklist_items:
-            self.fields['checklist_raw'].initial = "\n".join(self.instance.checklist_items)
-
-    def clean_frequency_days(self):
-        value = self.cleaned_data['frequency_days']
-        if value < 1:
-            raise forms.ValidationError("Must repeat at least every 1 day.")
-        return value
+        # Filled from the preset when it isn't "Custom".
+        self.fields['repeat_every'].required = False
+        self.fields['repeat_unit'].required = False
+        self.fields['start_date'].required = False
+        self.fields['equipment'].queryset = Equipment.objects.select_related('tank').order_by('tank__name', 'category', 'name')
+        self.fields['equipment'].label_from_instance = (
+            lambda eq: f"{eq.get_category_display()} · {eq.name}" + (f" ({eq.tank.name})" if eq.tank else ""))
+        inst = self.instance
+        if inst and inst.pk:
+            if inst.checklist_items:
+                self.fields['checklist_raw'].initial = "\n".join(inst.checklist_items)
+            if inst.schedule_events:
+                self.fields['schedule_raw'].initial = "\n".join(
+                    f"{e['time']} {e.get('action', '')}".strip() for e in inst.sorted_events)
+            self.fields['schedule_days'].initial = inst.schedule_days or []
+            self.fields['repeat_preset'].initial = preset_key(inst.repeat_every, inst.repeat_unit)
 
     def clean(self):
         cleaned_data = super().clean()
+        automated = cleaned_data.get('routine_type') == 'automated'
+
+        # Checklist steps (manual routines)
         raw_text = cleaned_data.get('checklist_raw') or ''
-        # Split lines, strip whitespace, and discard blank lines
-        items = [line.strip() for line in raw_text.splitlines() if line.strip()]
-        self.instance.checklist_items = items
+        self.instance.checklist_items = [line.strip() for line in raw_text.splitlines() if line.strip()]
+
+        # Schedule (automated routines)
+        events, errors = parse_schedule_lines(cleaned_data.get('schedule_raw'))
+        for err in errors:
+            self.add_error('schedule_raw', err)
+        if automated and not events and not errors:
+            self.add_error('schedule_raw', "Add at least one time, e.g. '08:00 Lights on'.")
+        self.instance.schedule_events = events
+
+        # Repeat schedule
+        preset = cleaned_data.get('repeat_preset') or 'custom'
+        if preset != 'custom':
+            every, unit = preset.split(':')
+            cleaned_data['repeat_every'], cleaned_data['repeat_unit'] = int(every), unit
+        else:
+            if not cleaned_data.get('repeat_every') or cleaned_data['repeat_every'] < 1:
+                self.add_error('repeat_every', "Repeat every 1 or more.")
+            if not cleaned_data.get('repeat_unit'):
+                self.add_error('repeat_unit', "Pick days, weeks, months or years.")
+        if not cleaned_data.get('start_date'):
+            cleaned_data['start_date'] = timezone.localdate()
+        days = sorted(set(cleaned_data.get('schedule_days') or []))
+        self.instance.schedule_days = days if cleaned_data.get('repeat_unit') == 'week' else []
+        if automated:
+            cleaned_data['due_time'] = None
         return cleaned_data

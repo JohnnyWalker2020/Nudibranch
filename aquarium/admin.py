@@ -2,14 +2,14 @@ from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
     ParameterType, ParameterLog, AnimalGroup, Animal, WebcamFeed, SpeciesCatalog,
-    Tank, Sump, SumpChamber, Equipment, DosingReservoir, MaintenanceRoutine,
+    Tank, Sump, SumpChamber, Equipment, DosingReservoir, MaintenanceRoutine, PlumbingRun,
     WaterChangeLog, DashboardWidget,
 )
 
 
 @admin.register(ParameterType)
 class ParameterTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'unit', 'decimal_places', 'min_ideal', 'max_ideal', 'color_badge', 'display_order')
+    list_display = ('name', 'code', 'unit', 'decimal_places', 'low_limit', 'min_ideal', 'max_ideal', 'high_limit', 'color_badge', 'display_order')
     list_editable = ('decimal_places', 'display_order')
     search_fields = ('name', 'code')
 
@@ -36,11 +36,11 @@ class ParameterLogAdmin(admin.ModelAdmin):
         return obj.parameter_type.unit
 
     def status_badge(self, obj):
-        colors = {'optimal': '#10b981', 'low': '#f59e0b', 'high': '#ef4444'}
-        color = colors.get(obj.status, '#64748b')
+        colors = {'ok': '#10b981', 'warning': '#f59e0b', 'critical': '#ef4444'}
+        color = colors.get(obj.severity, '#64748b')
         return format_html(
             '<span style="background:{}; color:#fff; padding:2px 8px; border-radius:12px; font-weight:600; font-size:11px;">{}</span>',
-            color, obj.status.upper()
+            color, obj.status_label
         )
     status_badge.short_description = "Range Status"
 
@@ -96,12 +96,17 @@ class SumpInline(admin.TabularInline):
     extra = 0
 
 
+class PlumbingRunInline(admin.TabularInline):
+    model = PlumbingRun
+    extra = 0
+
+
 @admin.register(Tank)
 class TankAdmin(admin.ModelAdmin):
     list_display = ('name', 'volume_gallons', 'capacity_is_manual', 'is_primary', 'created_at')
     list_filter = ('is_primary', 'capacity_is_manual')
     search_fields = ('name', 'notes')
-    inlines = [SumpInline]
+    inlines = [SumpInline, PlumbingRunInline]
 
 
 class SumpChamberInline(admin.TabularInline):
@@ -134,8 +139,9 @@ class DosingReservoirAdmin(admin.ModelAdmin):
 
 @admin.register(MaintenanceRoutine)
 class MaintenanceRoutineAdmin(admin.ModelAdmin):
-    list_display = ('title', 'tank', 'category', 'frequency_days', 'last_completed', 'is_due')
-    list_filter = ('category', 'frequency_days', 'tank')
+    list_display = ('title', 'routine_type', 'tank', 'category', 'recurrence_label', 'is_active', 'last_completed', 'is_due')
+    list_filter = ('routine_type', 'repeat_unit', 'category', 'is_active', 'tank')
+    filter_horizontal = ('equipment',)
     search_fields = ('title', 'notes')
 
 

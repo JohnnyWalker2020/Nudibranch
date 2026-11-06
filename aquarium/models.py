@@ -6,8 +6,17 @@ from django.utils import timezone
 
 from .calculators import (
     estimate_capacity_gallons, estimate_flow_gph, gph_to_lph, turnover_summary,
-    LITERS_PER_GAL,
+    pipe_volume_gallons, LITERS_PER_GAL, PIPE_SIZES,
 )
+from . import schedule as sched
+
+WEEKDAYS = [(0, 'Mon'), (1, 'Tue'), (2, 'Wed'), (3, 'Thu'), (4, 'Fri'), (5, 'Sat'), (6, 'Sun')]
+PIPE_SIZE_CHOICES = [(key, f"{label} PVC") for key, (label, _id) in PIPE_SIZES.items()]
+
+
+def all_weekdays():
+    # Kept because migration 0007 references it.
+    return [0, 1, 2, 3, 4, 5, 6]
 
 
 class ParameterType(models.Model):
@@ -15,8 +24,12 @@ class ParameterType(models.Model):
     name = models.CharField(max_length=60, unique=True)
     code = models.SlugField(max_length=30, unique=True, help_text="Short identifier e.g. alk, sal, ca")
     unit = models.CharField(max_length=20, help_text="e.g. dKH, SG, ppm, °F, pH")
+    low_limit = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True,
+                                    help_text="At or below this is critically low (optional)")
     min_ideal = models.DecimalField(max_digits=10, decimal_places=3, help_text="Lower bound of target range")
     max_ideal = models.DecimalField(max_digits=10, decimal_places=3, help_text="Upper bound of target range")
+    high_limit = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True,
+                                     help_text="At or above this is critically high (optional)")
     color = models.CharField(max_length=20, default="#0ea5e9", help_text="Hex color code for charts and badges")
     decimal_places = models.PositiveSmallIntegerField(default=1, help_text="Number of decimal places (e.g. 0 for ppm, 3 for SG)")
     display_order = models.PositiveIntegerField(default=0)
@@ -51,6 +64,29 @@ class ParameterType(models.Model):
         return self.format_value(self.max_ideal)
 
     @property
+    def formatted_low_limit(self):
+        return self.format_value(self.low_limit)
+
+    @property
+    def formatted_high_limit(self):
+        return self.format_value(self.high_limit)
+
+    def classify(self, value):
+        """
+        (status, severity) for a reading.
+        status: 'low' | 'optimal' | 'high' (relative to the ideal range)
+        severity: 'ok' | 'warning' (outside ideal, inside limits) | 'critical' (at/past a limit).
+        With no limit set on that side, outside the ideal range is a warning.
+        """
+        if value < self.min_ideal:
+            critical = self.low_limit is not None and value <= self.low_limit
+            return 'low', 'critical' if critical else 'warning'
+        if value > self.max_ideal:
+            critical = self.high_limit is not None and value >= self.high_limit
+            return 'high', 'critical' if critical else 'warning'
+        return 'optimal', 'ok'
+
+    @property
     def step_size(self):
         """Returns input step attribute for HTML numeric fields."""
         if self.decimal_places == 0:
@@ -78,21 +114,29 @@ class ParameterLog(models.Model):
 
     @property
     def status(self):
-        """Returns whether the reading is optimal, low, or high."""
-        if self.value < self.parameter_type.min_ideal:
-            return "low"
-        elif self.value > self.parameter_type.max_ideal:
-            return "high"
-        return "optimal"
+        """'low', 'optimal' or 'high' relative to the ideal range."""
+        return self.parameter_type.classify(self.value)[0]
+
+    @property
+    def severity(self):
+        """'ok', 'warning' (outside ideal) or 'critical' (past the low/high limit)."""
+        return self.parameter_type.classify(self.value)[1]
+
+    @property
+    def status_label(self):
+        status, severity = self.parameter_type.classify(self.value)
+        if severity == 'critical':
+            return f"CRITICAL {status.upper()}"
+        return status.upper()
 
     @property
     def status_color_class(self):
-        if self.status == "optimal":
+        severity = self.severity
+        if severity == 'ok':
             return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
-        elif self.status == "low":
+        if severity == 'warning':
             return "text-amber-400 bg-amber-500/10 border-amber-500/30"
-        else:
-            return "text-rose-400 bg-rose-500/10 border-rose-500/30"
+        return "text-rose-400 bg-rose-500/10 border-rose-500/30"
 
 
 class AnimalGroup(models.Model):
@@ -292,9 +336,22 @@ class Tank(DimensionedVessel):
         return sum(float(s.volume_gallons or 0) for s in self.sumps.all())
 
     @property
+    def plumbing_gallons(self):
+        """Water held in all plumbing runs."""
+        return round(sum(run.gallons for run in self.plumbing_runs.all()), 2)
+
+    @property
+    def plumbing_feet(self):
+        return round(sum(run.total_length_ft for run in self.plumbing_runs.all()), 1)
+
+    @property
     def total_system_gallons(self):
-        """Display tank + all sump water volume. Used for dosing and return-pump turnover."""
-        return round(float(self.volume_gallons or 0) + self.sump_gallons, 1)
+        """Display tank + sumps + plumbing. Used for dosing and return-pump turnover."""
+        return round(float(self.volume_gallons or 0) + self.sump_gallons + self.plumbing_gallons, 1)
+
+    @property
+    def total_system_liters(self):
+        return round(self.total_system_gallons * LITERS_PER_GAL, 1)
 
     def flow_summary(self):
         """Turnover figures based on the equipment assigned to this tank."""
@@ -309,6 +366,70 @@ class Tank(DimensionedVessel):
             elif eq.category == 'wavemaker':
                 wave_gph += flow
         return turnover_summary(self.volume_gallons, self.total_system_gallons, return_gph, wave_gph)
+
+
+class PlumbingRun(models.Model):
+    """A stretch of pipe holding system water (return line, drains, manifold...)."""
+    LENGTH_UNITS = [('ft', 'Feet'), ('m', 'Meters')]
+    DIAMETER_UNITS = [('in', 'Inches'), ('mm', 'Millimeters')]
+    SIZE_CHOICES = PIPE_SIZE_CHOICES + [('custom', 'Custom inside diameter')]
+
+    tank = models.ForeignKey(Tank, on_delete=models.CASCADE, related_name='plumbing_runs')
+    name = models.CharField(max_length=80, blank=True, help_text="e.g. Return line, Main drain, Emergency drain")
+    length = models.DecimalField(max_digits=7, decimal_places=1, help_text="Length of one pipe")
+    length_unit = models.CharField(max_length=2, choices=LENGTH_UNITS, default='ft')
+    pipe_size = models.CharField(max_length=6, choices=SIZE_CHOICES, default='1',
+                                 help_text="Nominal Schedule 40 PVC size, or enter a custom inside diameter")
+    custom_diameter = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True,
+                                          help_text="Inside diameter, when the size is Custom")
+    custom_diameter_unit = models.CharField(max_length=2, choices=DIAMETER_UNITS, default='in')
+    count = models.PositiveSmallIntegerField(default=1, help_text="Number of identical pipes (e.g. 2 drains)")
+    fill_percent = models.DecimalField(max_digits=5, decimal_places=1, default=100,
+                                       help_text="How full the pipe runs. Return lines are 100%; drains often 50-80%")
+
+    class Meta:
+        ordering = ['tank', 'id']
+
+    def __str__(self):
+        return f"{self.display_name} ({self.length} {self.length_unit}, {self.size_label})"
+
+    @property
+    def display_name(self):
+        return self.name or "Plumbing run"
+
+    @property
+    def inside_diameter_in(self):
+        if self.pipe_size == 'custom':
+            if not self.custom_diameter:
+                return None
+            d = float(self.custom_diameter)
+            return d / 25.4 if self.custom_diameter_unit == 'mm' else d
+        size = PIPE_SIZES.get(self.pipe_size)
+        return size[1] if size else None
+
+    @property
+    def size_label(self):
+        if self.pipe_size == 'custom':
+            if not self.custom_diameter:
+                return "custom (no diameter)"
+            return f"{self.custom_diameter.normalize():f} {self.custom_diameter_unit} ID"
+        size = PIPE_SIZES.get(self.pipe_size)
+        return f'{size[0]} PVC' if size else self.pipe_size
+
+    @property
+    def total_length_ft(self):
+        length = float(self.length or 0)
+        if self.length_unit == 'm':
+            length = length / 0.3048
+        return length * (self.count or 1)
+
+    @property
+    def gallons(self):
+        return pipe_volume_gallons(self.total_length_ft, self.inside_diameter_in, self.fill_percent)
+
+    @property
+    def liters(self):
+        return round(self.gallons * LITERS_PER_GAL, 1)
 
 
 class Sump(DimensionedVessel):
@@ -381,6 +502,7 @@ class Equipment(models.Model):
         ('heater', '🌡️ Heater & Temperature Controller'),
         ('dosing', '🧪 Dosing Pump'),
         ('ato', '💧 Auto Top-Off (ATO) Unit'),
+        ('feeder', '🍤 Auto Feeder'),
         ('filtration', '🧽 Filtration & Media Reactor'),
         ('monitoring', '📊 Monitor / Controller (Apex, ReefBot)'),
         ('other', '⚙️ Other Equipment'),
@@ -395,6 +517,10 @@ class Equipment(models.Model):
     FLOW_CATEGORIES = ('return_pump', 'wavemaker')
 
     tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipment')
+    sump = models.ForeignKey(Sump, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipment',
+                             help_text="Sump this sits in (blank = display tank)")
+    chamber = models.ForeignKey(SumpChamber, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipment',
+                                help_text="Sump chamber this sits in")
     name = models.CharField(max_length=120, help_text="e.g. Radion XR30 Pro, Vectra M2 Return Pump")
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='other')
     brand = models.CharField(max_length=100, blank=True, help_text="Manufacturer or brand")
@@ -415,6 +541,35 @@ class Equipment(models.Model):
     def __str__(self):
         tank_str = f" [{self.tank.name}]" if self.tank else ""
         return f"{self.name}{tank_str}"
+
+    def save(self, *args, **kwargs):
+        # Keep tank / sump / chamber consistent: a chamber implies its sump, a sump implies its tank.
+        if self.chamber_id:
+            self.sump_id = self.chamber.sump_id
+        if self.sump_id:
+            self.tank_id = self.sump.tank_id
+        super().save(*args, **kwargs)
+
+    @property
+    def location_label(self):
+        """Where it sits, e.g. 'Display tank', 'Sump', 'Sump › Return Pump'."""
+        if self.chamber_id:
+            return f"{self.chamber.sump.name} › {self.chamber.display_name}"
+        if self.sump_id:
+            return self.sump.name
+        if self.tank_id:
+            return "Display tank"
+        return ""
+
+    @property
+    def location_key(self):
+        if self.chamber_id:
+            return f"chamber:{self.chamber_id}"
+        if self.sump_id:
+            return f"sump:{self.sump_id}"
+        if self.tank_id:
+            return f"tank:{self.tank_id}"
+        return ""
 
     @property
     def estimated_flow_gph(self):
@@ -511,33 +666,142 @@ class DosingReservoir(models.Model):
 
 
 class MaintenanceRoutine(models.Model):
-    """Recurring tank checklists and maintenance routines (Water changes, testing, pump cleanings)."""
+    """
+    Either a manual checklist you tick off every N days (water changes, testing, cleaning),
+    or an automated schedule your equipment runs on its own (feeders, lights, skimmer, pumps).
+    """
+    TYPE_CHOICES = [
+        ('manual', '📋 Manual checklist'),
+        ('automated', '🤖 Automated schedule'),
+    ]
     CATEGORY_CHOICES = [
         ('water_change', '🌊 Water Change'),
         ('testing', '🧪 Water Testing'),
         ('equipment', '⚙️ Equipment Maintenance'),
         ('general', '📋 General Care'),
+        ('feeding', '🍤 Feeding'),
+        ('lighting', '💡 Lighting'),
+        ('skimmer', '🫧 Skimmer'),
+        ('flow', '🌀 Pumps & Flow'),
+        ('dosing', '🧪 Dosing'),
+        ('ato', '💧 Top-Off'),
     ]
 
     tank = models.ForeignKey(Tank, on_delete=models.CASCADE, null=True, blank=True, related_name='routines')
     title = models.CharField(max_length=120, help_text="e.g. Weekly Water Change & Sump Siphon")
+    routine_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='manual')
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='general')
-    frequency_days = models.PositiveIntegerField(default=7, help_text="How often to repeat in days (e.g. 7 for weekly)")
+    equipment = models.ManyToManyField(Equipment, blank=True, related_name='routines',
+                                       help_text="Equipment this routine runs on or services")
+    # Repeat schedule (both types): every N days / weeks / months / years from the start date.
+    repeat_every = models.PositiveIntegerField(default=1, help_text="Repeat every N units")
+    repeat_unit = models.CharField(max_length=5, choices=sched.UNITS, default='week')
+    start_date = models.DateField(default=timezone.localdate, help_text="First day the schedule applies")
+    schedule_days = models.JSONField(default=list, blank=True,
+                                     help_text="Weekly schedules: weekdays it runs, 0 = Monday ... 6 = Sunday")
+    due_time = models.TimeField(null=True, blank=True, help_text="Manual routines: time of day it's due (optional)")
     checklist_items = models.JSONField(default=list, help_text="List of task strings")
+    schedule_events = models.JSONField(default=list, blank=True,
+                                       help_text='Automated events: [{"time": "08:00", "action": "Lights on"}]')
+    is_active = models.BooleanField(default=True, help_text="Untick to pause this routine")
     last_completed = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:
-        ordering = ['frequency_days', 'title']
+        ordering = ['title']
 
     def __str__(self):
-        return f"{self.title} (Every {self.frequency_days}d)"
+        return f"{self.title} ({self.recurrence_label})"
+
+    @property
+    def is_automated(self):
+        return self.routine_type == 'automated'
+
+    @property
+    def recurrence_label(self):
+        return sched.describe(self.start_date, self.repeat_every, self.repeat_unit, self.schedule_days)
+
+    def _occurs_on(self, day):
+        return sched.occurs_on(day, self.start_date, self.repeat_every, self.repeat_unit, self.schedule_days)
+
+    # ---- manual routines ----
+
+    @property
+    def next_due_date(self):
+        if self.is_automated:
+            return None
+        last = timezone.localtime(self.last_completed).date() if self.last_completed else None
+        return sched.next_due_date(self.start_date, self.repeat_every, self.repeat_unit, self.schedule_days, last)
+
+    @property
+    def days_until_due(self):
+        due = self.next_due_date
+        return (due - timezone.localdate()).days if due else None
 
     @property
     def is_due(self):
-        if not self.last_completed:
+        # Automated schedules run themselves, and paused routines never nag.
+        if self.is_automated or not self.is_active:
+            return False
+        due = self.next_due_date
+        if due is None:
+            return False
+        today = timezone.localdate()
+        if due < today:
             return True
-        return timezone.now() >= self.last_completed + timedelta(days=self.frequency_days)
+        if due == today:
+            return self.due_time is None or timezone.localtime().time() >= self.due_time
+        return False
+
+    @property
+    def is_overdue(self):
+        days = self.days_until_due
+        return self.is_due and days is not None and days < 0
+
+    @property
+    def frequency_days(self):
+        """Approximate interval in days (for sorting)."""
+        return sched.period_days(self.repeat_every, self.repeat_unit)
+
+    # ---- automated schedule helpers ----
+
+    @property
+    def sorted_events(self):
+        events = [e for e in (self.schedule_events or []) if isinstance(e, dict) and e.get('time')]
+        return sorted(events, key=lambda e: e['time'])
+
+    @property
+    def days_display(self):
+        return self.recurrence_label
+
+    def next_event(self, now=None):
+        """Next scheduled event as {'at': aware datetime, 'time': 'HH:MM', 'action': str}, or None."""
+        events = self.sorted_events
+        if not (self.is_automated and self.is_active and events):
+            return None
+        now = timezone.localtime(now or timezone.now())
+        for offset in range(sched.period_days(self.repeat_every, self.repeat_unit) + 8):
+            day = (now + timedelta(days=offset)).date()
+            if not self._occurs_on(day):
+                continue
+            for e in events:
+                try:
+                    hh, mm = (int(x) for x in e['time'].split(':'))
+                except (ValueError, AttributeError):
+                    continue
+                at = now.replace(year=day.year, month=day.month, day=day.day,
+                                 hour=hh, minute=mm, second=0, microsecond=0)
+                if at > now:
+                    return {'at': at, 'time': e['time'], 'action': e.get('action', '')}
+        return None
+
+    @property
+    def upcoming(self):
+        return self.next_event()
+
+    @property
+    def runs_today(self):
+        return self._occurs_on(timezone.localdate())
 
     @property
     def days_since_completed(self):

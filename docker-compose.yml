@@ -16,6 +16,7 @@ services:
       - ALLOWED_HOSTS=*
       - CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
       - DATA_DIR=/app/data
+      - TIME_ZONE=America/Regina
 
   # Optional Webcam Streaming Engine (go2rtc):
   # Converts RTSP/USB cameras to low-latency WebRTC/MJPEG/HLS for browser viewing.

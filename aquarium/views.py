@@ -25,12 +25,12 @@ from .dashboard_widgets import get_dashboard_layout, reset_dashboard_layout, sav
 from .forms import (
     AnimalForm, AnimalGroupForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
     ParameterLogEditForm, ParameterSettingsForm, ParameterTypeForm, QuickParameterLogForm,
-    SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm,
+    SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
 )
 from .models import (
     Animal, AnimalGroup, DosingReservoir, Equipment, MaintenanceRoutine, ParameterLog,
     ParameterType, SpeciesCatalog, Sump, SumpChamber, Tank, WaterChangeLog, WebcamFeed,
-    reef2reef_search,
+    PlumbingRun, reef2reef_search,
 )
 
 
@@ -224,8 +224,7 @@ def parameters_view(request):
     if param_code:
         logs_query = logs_query.filter(parameter_type__code=param_code)
         selected_param = ParameterType.objects.filter(code=param_code).first()
-    elif types.exists():
-        selected_param = types.first()
+    # No ?param= means the "All Parameters" view: every parameter on one chart.
 
     recent_logs = logs_query[:50]
     form = QuickParameterLogForm()
@@ -264,13 +263,14 @@ def parameter_settings_view(request, param_id):
                         new_val = convert_value(float(log.value), old_unit, new_unit, code)
                         log.value = Decimal(f"{new_val:.4f}")
                         log.save(update_fields=['value'])
-                    # Convert the ideal range too, unless the user typed a new one.
-                    if 'min_ideal' not in form.changed_data:
-                        ptype.min_ideal = Decimal(f"{convert_value(float(old.min_ideal), old_unit, new_unit, code):.3f}")
-                    if 'max_ideal' not in form.changed_data:
-                        ptype.max_ideal = Decimal(f"{convert_value(float(old.max_ideal), old_unit, new_unit, code):.3f}")
+                    # Convert the ranges and limits too, unless the user typed new ones.
+                    for field in ('low_limit', 'min_ideal', 'max_ideal', 'high_limit'):
+                        old_val = getattr(old, field)
+                        if field not in form.changed_data and old_val is not None:
+                            setattr(ptype, field, Decimal(f"{convert_value(float(old_val), old_unit, new_unit, code):.3f}"))
                     if ptype.min_ideal > ptype.max_ideal:  # e.g. an inverted conversion
                         ptype.min_ideal, ptype.max_ideal = ptype.max_ideal, ptype.min_ideal
+                        ptype.low_limit, ptype.high_limit = ptype.high_limit, ptype.low_limit
                 form.save()
 
             messages.success(request, f"{ptype.name} settings saved.")
@@ -335,6 +335,7 @@ def api_chart_data(request):
 
     local = timezone.localtime
     labels = [local(log.measured_at).strftime('%m/%d %H:%M') for log in logs]
+    timestamps = [int(log.measured_at.timestamp() * 1000) for log in logs]
     values = [round(float(log.value), ptype.decimal_places) if ptype.decimal_places > 0 else round(float(log.value)) for log in logs]
 
     return JsonResponse({
@@ -344,11 +345,14 @@ def api_chart_data(request):
             'decimal_places': ptype.decimal_places,
             'min_ideal': float(ptype.min_ideal),
             'max_ideal': float(ptype.max_ideal),
+            'low_limit': float(ptype.low_limit) if ptype.low_limit is not None else None,
+            'high_limit': float(ptype.high_limit) if ptype.high_limit is not None else None,
             'formatted_min': ptype.formatted_min_ideal,
             'formatted_max': ptype.formatted_max_ideal,
             'color': ptype.color,
         },
         'labels': labels,
+        'timestamps': timestamps,
         'values': values,
     })
 
@@ -372,7 +376,10 @@ def api_all_chart_data(request):
             'color': ptype.color,
             'min_ideal': float(ptype.min_ideal),
             'max_ideal': float(ptype.max_ideal),
+            'low_limit': float(ptype.low_limit) if ptype.low_limit is not None else None,
+            'high_limit': float(ptype.high_limit) if ptype.high_limit is not None else None,
             'labels': [local(log.measured_at).strftime('%m/%d %H:%M') for log in logs],
+            'timestamps': [int(log.measured_at.timestamp() * 1000) for log in logs],
             'values': [
                 round(float(log.value), ptype.decimal_places) if ptype.decimal_places > 0
                 else round(float(log.value))
@@ -979,19 +986,37 @@ def _tank_equipment_flow(tank):
 
 
 def tanks_view(request):
-    tanks = Tank.objects.prefetch_related('sumps', 'equipment', 'animals')
+    tanks = Tank.objects.prefetch_related('sumps', 'equipment', 'animals', 'plumbing_runs')
     return render(request, 'aquarium/tanks.html', {
         'tank_cards': [{'tank': t, 'flow': t.flow_summary()} for t in tanks],
     })
 
 
 def tank_detail_view(request, tank_id):
-    tank = get_object_or_404(Tank.objects.prefetch_related('sumps__chambers', 'equipment'), id=tank_id)
+    tank = get_object_or_404(Tank.objects.prefetch_related('sumps__chambers', 'equipment', 'plumbing_runs'), id=tank_id)
+
+    # Group this tank's equipment by where it sits.
+    all_equipment = list(tank.equipment.all())
+    by_sump, by_chamber, display_equipment = {}, {}, []
+    for eq in all_equipment:
+        if eq.chamber_id:
+            by_chamber.setdefault(eq.chamber_id, []).append(eq)
+        elif eq.sump_id:
+            by_sump.setdefault(eq.sump_id, []).append(eq)
+        else:
+            display_equipment.append(eq)
+    sumps = []
+    for sump in tank.sumps.all():
+        chambers = [{'chamber': c, 'equipment': by_chamber.get(c.id, [])} for c in sump.chambers.all()]
+        sumps.append({'sump': sump, 'equipment': by_sump.get(sump.id, []), 'chambers': chambers})
+
     return render(request, 'aquarium/tank_detail.html', {
         'tank': tank,
         'flow': tank.flow_summary(),
         'flow_equipment': _tank_equipment_flow(tank),
         'chamber_types': [{'value': k, 'label': v} for k, v in SumpChamber.CHAMBER_TYPES],
+        'display_equipment': display_equipment,
+        'sump_rows': sumps,
     })
 
 
@@ -1077,6 +1102,47 @@ def sump_delete_view(request, sump_id):
                           warning="Its chambers are deleted too.")
 
 
+def _plumbing_form_page(request, form, tank, title, delete_url=None):
+    return render(request, 'aquarium/plumbing_form.html', {
+        'form': form, 'tank': tank, 'title': title,
+        'back_url': f'/tanks/{tank.id}/', 'delete_url': delete_url,
+    })
+
+
+def plumbing_create_view(request, tank_id):
+    tank = get_object_or_404(Tank, id=tank_id)
+    if request.method == 'POST':
+        form = PlumbingRunForm(request.POST)
+        if form.is_valid():
+            run = form.save(commit=False)
+            run.tank = tank
+            run.save()
+            messages.success(request, f"Added {run.display_name}: {run.gallons} gal.")
+            return redirect('tank_detail', tank_id=tank.id)
+    else:
+        form = PlumbingRunForm()
+    return _plumbing_form_page(request, form, tank, f'Add Plumbing Run · {tank.name}')
+
+
+def plumbing_edit_view(request, run_id):
+    run = get_object_or_404(PlumbingRun.objects.select_related('tank'), id=run_id)
+    if request.method == 'POST':
+        form = PlumbingRunForm(request.POST, instance=run)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Plumbing run saved.")
+            return redirect('tank_detail', tank_id=run.tank_id)
+    else:
+        form = PlumbingRunForm(instance=run)
+    return _plumbing_form_page(request, form, run.tank, f'Edit {run.display_name}',
+                               delete_url=f'/plumbing/{run.id}/delete/')
+
+
+def plumbing_delete_view(request, run_id):
+    run = get_object_or_404(PlumbingRun, id=run_id)
+    return _delete_object(request, PlumbingRun, run_id, label=run.display_name, back_url=f'/tanks/{run.tank_id}/')
+
+
 @require_POST
 def sump_split_view(request, sump_id):
     """Replace a sump's chambers with N chambers, each with a type, name and share of the volume."""
@@ -1105,16 +1171,19 @@ def sump_split_view(request, sump_id):
         shares = [p if p is not None else Decimal(0) for p in parsed]
 
     with transaction.atomic():
-        sump.chambers.all().delete()
+        # Update existing chambers in order rather than recreating them, so equipment
+        # placed in a chamber stays there. Extra chambers are deleted; equipment in
+        # them falls back to the sump as a whole.
+        existing = list(sump.chambers.order_by('position', 'id'))
         for i in range(count):
-            chamber_type = types[i] if types[i] in valid_types else 'other'
-            SumpChamber.objects.create(
-                sump=sump,
-                position=i + 1,
-                name=(names[i] if i < len(names) else '').strip()[:80],
-                chamber_type=chamber_type,
-                share_percent=shares[i],
-            )
+            chamber = existing[i] if i < len(existing) else SumpChamber(sump=sump)
+            chamber.position = i + 1
+            chamber.name = (names[i] if i < len(names) else '').strip()[:80]
+            chamber.chamber_type = types[i] if types[i] in valid_types else 'other'
+            chamber.share_percent = shares[i]
+            chamber.save()
+        for chamber in existing[count:]:
+            chamber.delete()
 
     total = sum(shares)
     if abs(total - 100) > Decimal('0.5'):
@@ -1148,7 +1217,8 @@ def equipment_view(request):
     selected_tank_id = _to_int(request.GET.get('tank'), None)
     selected_category = request.GET.get('category')
 
-    equipment_list = Equipment.objects.select_related('tank').all()
+    equipment_list = (Equipment.objects.select_related('tank', 'sump', 'chamber__sump')
+                      .prefetch_related('routines'))
     if selected_tank_id:
         equipment_list = equipment_list.filter(tank_id=selected_tank_id)
     if selected_category:
@@ -1161,7 +1231,7 @@ def equipment_view(request):
         'equipment_list': equipment_list,
         'selected_tank_id': selected_tank_id,
         'selected_category': selected_category,
-        'equipment_form': EquipmentForm(initial={'tank': Tank.objects.filter(is_primary=True).first()}),
+        'equipment_form': EquipmentForm(initial={'location': _primary_tank_location()}),
         'total_watts': total_watts,
         'categories': Equipment.CATEGORY_CHOICES,
     })
@@ -1186,15 +1256,31 @@ def equipment_power_view(request, eq_id):
     return redirect(_safe_next(request, 'equipment'))
 
 
+def _primary_tank_location():
+    primary = Tank.objects.filter(is_primary=True).first()
+    return f"tank:{primary.id}" if primary else ''
+
+
 def equipment_create_view(request):
+    """POST from the equipment-page modal, or a full page (GET ?location=sump:3) from a tank page."""
+    next_url = _safe_next(request, '/equipment/')
     if request.method == 'POST':
         form = EquipmentForm(request.POST)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Equipment added.")
-        else:
-            _flash_form_errors(request, form)
-    return redirect('equipment')
+            eq = form.save()
+            messages.success(request, f"Added {eq.name}" + (f" to {eq.location_label}." if eq.location_label else "."))
+            return redirect(next_url)
+        if request.POST.get('full_page'):
+            return render(request, 'aquarium/generic_form.html', {
+                'form': form, 'title': 'Add Equipment', 'back_url': next_url, 'full_page': True})
+        _flash_form_errors(request, form)
+        return redirect('equipment')
+    form = EquipmentForm(initial={'location': request.GET.get('location') or _primary_tank_location()})
+    return render(request, 'aquarium/generic_form.html', {
+        'form': form, 'title': 'Add Equipment',
+        'subtitle': 'Placed where you chose; change the location below if needed',
+        'back_url': next_url, 'full_page': True,
+    })
 
 
 def equipment_edit_view(request, eq_id):
@@ -1213,13 +1299,22 @@ def equipment_delete_view(request, eq_id):
 
 def routines_view(request):
     """Recurring tank checklists, water change preparation calculator, and change logs."""
-    routines = MaintenanceRoutine.objects.select_related('tank')
+    routines = list(MaintenanceRoutine.objects.select_related('tank').prefetch_related('equipment__tank'))
+    far = timezone.localdate() + timedelta(days=10000)
+    manual_routines = sorted(
+        (r for r in routines if not r.is_automated),
+        key=lambda r: (not r.is_active, r.next_due_date or far))
+    automated_routines = sorted(
+        (r for r in routines if r.is_automated),
+        key=lambda r: (not r.is_active, r.upcoming['at'] if r.upcoming else timezone.now() + timedelta(days=30)))
     water_changes = WaterChangeLog.objects.select_related('tank')[:10]
     sample_mix = calculate_salt_mix(volume=10.0, volume_unit='gal', brand_key='tropic_marin_pro',
                                     target_salinity=1.026, salinity_unit='sg')
 
     return render(request, 'aquarium/routines.html', {
         'routines': routines,
+        'manual_routines': manual_routines,
+        'automated_routines': automated_routines,
         'water_changes': water_changes,
         'tanks': Tank.objects.all(),
         'wc_form': WaterChangeLogForm(initial={'tank': Tank.objects.filter(is_primary=True).first()}),
@@ -1251,8 +1346,26 @@ def routine_create_view(request):
 
 
 def routine_edit_view(request, routine_id):
-    return _edit_object(request, MaintenanceRoutine, MaintenanceRoutineForm, routine_id,
-                        title='Edit Routine', back_url='/routines/')
+    routine = get_object_or_404(MaintenanceRoutine, id=routine_id)
+    if request.method == 'POST':
+        form = MaintenanceRoutineForm(request.POST, instance=routine)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Routine saved.")
+            return redirect('routines')
+    else:
+        form = MaintenanceRoutineForm(instance=routine)
+    return render(request, 'aquarium/routine_form.html', {'form': form, 'routine': routine})
+
+
+@require_POST
+def routine_toggle_view(request, routine_id):
+    """Pause or resume a routine."""
+    routine = get_object_or_404(MaintenanceRoutine, id=routine_id)
+    routine.is_active = not routine.is_active
+    routine.save(update_fields=['is_active'])
+    messages.success(request, f"{routine.title} {'resumed' if routine.is_active else 'paused'}.")
+    return redirect(_safe_next(request, 'routines'))
 
 
 @require_POST
