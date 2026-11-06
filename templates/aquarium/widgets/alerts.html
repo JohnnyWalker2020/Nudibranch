@@ -1,0 +1,71 @@
+{% if total_alerts %}
+<div class="bg-gradient-to-r from-amber-950/40 to-slate-900 border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-500/5">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-sm font-bold text-amber-300 flex items-center gap-2">
+      <span class="flex h-2.5 w-2.5 relative">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+      </span>
+      System Alerts &amp; Action Items
+    </h2>
+    <a href="{% url 'notifications' %}" class="text-[11px] font-semibold text-amber-300 hover:underline">{{ total_alerts }} open →</a>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    {% for item in out_of_range_params %}
+    <a href="{% url 'parameters' %}?param={{ item.param.code }}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+      <span class="text-xl">⚠️</span>
+      <div>
+        <p class="text-xs font-bold text-white">{{ item.param.name }} is {{ item.log.status|upper }}</p>
+        <p class="text-[11px] text-amber-400/90">{{ item.log.formatted_value }} {{ item.param.unit }} (Ideal: {{ item.param.formatted_min_ideal }}-{{ item.param.formatted_max_ideal }})</p>
+      </div>
+    </a>
+    {% endfor %}
+
+    {% for res in low_reservoirs %}
+    <a href="{% url 'dosing' %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+      <span class="text-xl">🧪</span>
+      <div>
+        <p class="text-xs font-bold text-white">{{ res.name }}</p>
+        <p class="text-[11px] text-rose-400 font-semibold">{{ res.percent_remaining }}% remaining{% if res.days_remaining is not None %} (~{{ res.days_remaining }} days){% endif %}</p>
+      </div>
+    </a>
+    {% endfor %}
+
+    {% for rt in due_routines %}
+    <a href="{% url 'routines' %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+      <span class="text-xl">📋</span>
+      <div>
+        <p class="text-xs font-bold text-white">{{ rt.title }}</p>
+        <p class="text-[11px] text-amber-400/90">Routine is due (every {{ rt.frequency_days }}d)</p>
+      </div>
+    </a>
+    {% endfor %}
+
+    {% for eq in due_equipment %}
+    <a href="{% url 'equipment' %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+      <span class="text-xl">⚙️</span>
+      <div>
+        <p class="text-xs font-bold text-white">{{ eq.name }}</p>
+        <p class="text-[11px] text-amber-400/90">Service overdue</p>
+      </div>
+    </a>
+    {% endfor %}
+
+    {% for animal in sick_animals %}
+    <a href="{% url 'animal_edit' animal.id %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-rose-500/30 hover:border-rose-400/60 transition-colors">
+      <span class="text-xl">🩺</span>
+      <div>
+        <p class="text-xs font-bold text-white">{{ animal.name }}</p>
+        <p class="text-[11px] text-rose-400">{{ animal.get_status_display }}</p>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="bg-slate-900 border border-emerald-500/20 rounded-2xl px-5 py-3 flex items-center gap-3">
+  <span class="text-xl">🌊</span>
+  <p class="text-xs text-emerald-400 font-semibold">All clear: parameters in range, reservoirs stocked, nothing overdue.</p>
+</div>
+{% endif %}

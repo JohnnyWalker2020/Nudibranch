@@ -4,381 +4,210 @@
 
 {% block content %}
 <div class="space-y-8">
+  {% include 'aquarium/partials/system_tabs.html' with active='routines' %}
 
-  <!-- Header -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-black text-white tracking-tight">Routines & Water Changes</h1>
-      <p class="text-xs text-slate-400 mt-0.5">Interactive checklists, salt mixing calculator, and maintenance history</p>
+      <h1 class="text-2xl font-black text-white tracking-tight">Routines &amp; Water Changes</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Checklists, salt mixing calculator, and water change history</p>
     </div>
-
     <div class="flex flex-wrap items-center gap-2">
-      <button onclick="document.getElementById('add-routine-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 font-bold text-xs rounded-xl border border-slate-700/80 shadow-sm active:scale-95 transition-all">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-        + Add Custom Routine
-      </button>
-
-      <button onclick="document.getElementById('log-wc-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-        Log Completed Water Change
-      </button>
+      <button type="button" onclick="openModal('add-routine-modal')" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700/80 active:scale-95 transition-all">+ Add Routine</button>
+      <button type="button" onclick="openModal('log-wc-modal')" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">Log Water Change</button>
     </div>
   </div>
 
-  <!-- Interactive Salt Mixing Prep Calculator -->
+  <!-- Salt mixing calculator -->
   <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
       <div>
-        <h2 class="text-lg font-bold text-white flex items-center gap-2">
-          <span>🧂</span> Salt Mixing Calculator
-        </h2>
-        <p class="text-xs text-slate-400">Calculate exact salt weight and cup measurements for your target salinity</p>
+        <h2 class="text-lg font-bold text-white">🧂 Salt Mixing Calculator</h2>
+        <p class="text-xs text-slate-400">Salt weight and cups for your target salinity</p>
       </div>
-
-      <!-- Unit Selector Toggles -->
       <div class="flex flex-wrap items-center gap-3">
-        <!-- Volume Unit Toggle -->
         <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
           <span class="text-[10px] uppercase font-bold text-slate-500 px-2">Volume:</span>
-          <button type="button" 
-                  id="btn-unit-gal"
-                  onclick="setVolumeUnit('gal')"
-                  class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all">
-            Gallons
-          </button>
-          <button type="button" 
-                  id="btn-unit-L"
-                  onclick="setVolumeUnit('L')"
-                  class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all">
-            Liters
-          </button>
+          <button type="button" id="btn-unit-gal" onclick="setVolumeUnit('gal')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950">Gallons</button>
+          <button type="button" id="btn-unit-L" onclick="setVolumeUnit('L')" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white">Liters</button>
         </div>
-
-        <!-- Salinity Unit Toggle -->
         <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
           <span class="text-[10px] uppercase font-bold text-slate-500 px-2">Salinity:</span>
-          <button type="button" 
-                  id="btn-unit-sg"
-                  onclick="setSalinityUnit('sg')"
-                  class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all">
-            SG (1.026)
-          </button>
-          <button type="button" 
-                  id="btn-unit-ppt"
-                  onclick="setSalinityUnit('ppt')"
-                  class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all">
-            ppt (35)
-          </button>
+          <button type="button" id="btn-unit-sg" onclick="setSalinityUnit('sg')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950">SG</button>
+          <button type="button" id="btn-unit-ppt" onclick="setSalinityUnit('ppt')" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white">ppt</button>
         </div>
       </div>
     </div>
 
-    <!-- 3-Column Grid: Salt Brand (LEFT) | Water Volume (MIDDLE) | Target Salinity (RIGHT) -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      
-      <!-- 1. LEFT: Salt Brand Recipe -->
       <div class="space-y-1.5">
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">1. Salt Brand Recipe</label>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">1. Salt brand</label>
         <select id="calc-brand" onchange="recalculateSalt()" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-medium text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
-          {% for b_key, b in salt_brands.items %}
-            <option value="{{ b_key }}">{{ b.name }}</option>
-          {% endfor %}
+          {% for b_key, b in salt_brands.items %}<option value="{{ b_key }}">{{ b.name }}</option>{% endfor %}
         </select>
       </div>
-
-      <!-- 2. MIDDLE: Water Volume (With clean separated badge, no arrow overlap) -->
       <div class="space-y-1.5">
-        <label id="label-volume" class="block text-xs font-bold uppercase tracking-wider text-slate-400">2. Water Volume (Gallons)</label>
+        <label id="label-volume" class="block text-xs font-bold uppercase tracking-wider text-slate-400">2. Water volume (gallons)</label>
         <div class="flex rounded-xl overflow-hidden border border-slate-800 bg-slate-950 focus-within:ring-2 focus-within:ring-cyan-500">
-          <input type="number" 
-                 id="calc-volume" 
-                 value="10" 
-                 min="0.5" 
-                 max="1000" 
-                 step="0.5" 
-                 oninput="recalculateSalt()" 
-                 class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
-          <span id="badge-volume-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase tracking-wider select-none">
-            GAL
-          </span>
+          <input type="number" id="calc-volume" value="10" min="0.5" max="1000" step="0.5" oninput="recalculateSalt()" class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
+          <span id="badge-volume-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase">GAL</span>
         </div>
       </div>
-
-      <!-- 3. RIGHT: Target Salinity (With clean separated badge, no arrow overlap) -->
       <div class="space-y-1.5">
-        <label id="label-salinity" class="block text-xs font-bold uppercase tracking-wider text-slate-400">3. Target Salinity (SG)</label>
+        <label id="label-salinity" class="block text-xs font-bold uppercase tracking-wider text-slate-400">3. Target salinity (SG)</label>
         <div class="flex rounded-xl overflow-hidden border border-slate-800 bg-slate-950 focus-within:ring-2 focus-within:ring-cyan-500">
-          <input type="number" 
-                 id="calc-salinity" 
-                 value="1.026" 
-                 min="1.015" 
-                 max="1.035" 
-                 step="0.001" 
-                 oninput="recalculateSalt()" 
-                 class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
-          <span id="badge-salinity-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase tracking-wider select-none">
-            SG
-          </span>
+          <input type="number" id="calc-salinity" value="1.026" min="1.015" max="1.035" step="0.001" oninput="recalculateSalt()" class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
+          <span id="badge-salinity-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase">SG</span>
         </div>
       </div>
-
     </div>
 
-    <!-- Calculated Output Banner (4-Stat Grid: Grams, Ounces, Pounds, Cups) -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-center">
-      <div>
-        <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Grams)</span>
-        <span id="output-grams" class="text-2xl sm:text-3xl font-black text-cyan-400 tracking-tight">{{ sample_mix.grams }}</span>
-        <span class="text-xs text-slate-500 block">grams (g)</span>
-      </div>
-      <div>
-        <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Ounces)</span>
-        <span id="output-ounces" class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ sample_mix.ounces }}</span>
-        <span class="text-xs text-slate-500 block">ounces (oz)</span>
-      </div>
-      <div>
-        <span class="text-[10px] uppercase font-bold text-slate-400 block">Salt Weight (Pounds)</span>
-        <span id="output-lbs" class="text-2xl sm:text-3xl font-black text-white tracking-tight">{{ sample_mix.lbs }}</span>
-        <span class="text-xs text-slate-500 block">pounds (lbs)</span>
-      </div>
-      <div>
-        <span class="text-[10px] uppercase font-bold text-slate-400 block">Volume (Approx)</span>
-        <span id="output-cups" class="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">{{ sample_mix.cups }}</span>
-        <span class="text-xs text-slate-500 block">standard measuring cups</span>
-      </div>
+      <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Grams</span><span id="output-grams" class="text-2xl sm:text-3xl font-black text-cyan-400">{{ sample_mix.grams }}</span></div>
+      <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Ounces</span><span id="output-ounces" class="text-2xl sm:text-3xl font-black text-white">{{ sample_mix.ounces }}</span></div>
+      <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Pounds</span><span id="output-lbs" class="text-2xl sm:text-3xl font-black text-white">{{ sample_mix.lbs }}</span></div>
+      <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Cups (approx)</span><span id="output-cups" class="text-2xl sm:text-3xl font-black text-emerald-400">{{ sample_mix.cups }}</span></div>
     </div>
   </div>
 
-  <!-- Recurring Maintenance Routines & Checklists -->
+  <!-- Routines -->
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="text-lg">📋</span>
-        <h2 class="text-base font-bold text-white">Active Routines & Checklists</h2>
-      </div>
-      <button onclick="document.getElementById('add-routine-modal').classList.remove('hidden')" class="text-xs font-semibold text-cyan-400 hover:underline">
-        + Add Routine
-      </button>
-    </div>
-
+    <h2 class="text-base font-bold text-white">📋 Routines &amp; Checklists</h2>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {% for routine in routines %}
-        <div class="bg-slate-900 border {% if routine.is_due %}border-amber-500/50 shadow-lg shadow-amber-500/5{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm">
+        <div class="bg-slate-900 border {% if routine.is_due %}border-amber-500/50{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4">
           <div>
-            <!-- Header -->
             <div class="flex items-start justify-between gap-2">
               <div>
                 <div class="flex items-center gap-2">
                   <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ routine.get_category_display }}</span>
-                  {% if routine.tank %}
-                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{{ routine.tank.name }}</span>
-                  {% endif %}
+                  {% if routine.tank %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{{ routine.tank.name }}</span>{% endif %}
                 </div>
-                <h3 class="text-base font-bold text-white tracking-tight mt-0.5">{{ routine.title }}</h3>
+                <h3 class="text-base font-bold text-white mt-0.5">{{ routine.title }}</h3>
               </div>
-
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 shrink-0">
                 {% if routine.is_due %}
-                  <span class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse">
-                    DUE TODAY
-                  </span>
+                  <span class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40">DUE</span>
                 {% else %}
-                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
-                    Every {{ routine.frequency_days }} days
-                  </span>
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">Every {{ routine.frequency_days }}d</span>
                 {% endif %}
-
-                <!-- Delete Routine Button -->
-                <form method="POST" action="{% url 'routine_delete' routine.id %}" onsubmit="return confirm('Delete this routine checklist?');">
+                <a href="{% url 'routine_edit' routine.id %}" class="text-[11px] font-semibold text-slate-400 hover:text-cyan-400">Edit</a>
+                <form method="POST" action="{% url 'routine_delete' routine.id %}" onsubmit="return confirm('Delete this routine?');">
                   {% csrf_token %}
-                  <button type="submit" class="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors" title="Delete Routine">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                  </button>
+                  <button type="submit" class="text-[11px] font-semibold text-slate-500 hover:text-rose-400">Delete</button>
                 </form>
               </div>
             </div>
-
-            <!-- Notes if present -->
-            {% if routine.notes %}
-              <p class="text-xs text-slate-400 mt-2 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ routine.notes }}</p>
-            {% endif %}
-
-            <!-- Interactive Checklist Items -->
+            {% if routine.notes %}<p class="text-xs text-slate-400 mt-2 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ routine.notes }}</p>{% endif %}
             <div class="mt-4 space-y-2">
               {% for item in routine.checklist_items %}
-                <label class="flex items-center gap-3 p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl hover:border-slate-700 cursor-pointer transition-colors group">
-                  <input type="checkbox" onchange="toggleItemStrike(this)" class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500 cursor-pointer">
-                  <span class="text-xs text-slate-300 group-hover:text-white transition-colors item-text">{{ item }}</span>
+                <label class="flex items-center gap-3 p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl hover:border-slate-700 cursor-pointer group">
+                  <input type="checkbox" onchange="toggleItemStrike(this)" class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-cyan-500 cursor-pointer">
+                  <span class="text-xs text-slate-300 group-hover:text-white item-text">{{ item }}</span>
                 </label>
               {% empty %}
-                <p class="text-xs text-slate-500 italic">No specific steps defined.</p>
+                <p class="text-xs text-slate-500 italic">No steps defined.</p>
               {% endfor %}
             </div>
           </div>
-
-          <!-- Completion Action Footer -->
           <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-            <span class="text-[11px] text-slate-500">
-              Last done: {% if routine.last_completed %}{{ routine.last_completed|timesince }} ago{% else %}Never completed{% endif %}
-            </span>
-
+            <span class="text-[11px] text-slate-500">Last done: {% if routine.last_completed %}{{ routine.last_completed|timesince }} ago{% else %}never{% endif %}</span>
             <form method="POST" action="{% url 'complete_routine' routine.id %}">
               {% csrf_token %}
-              <button type="submit" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all">
-                ✓ Mark Routine Completed
-              </button>
+              <button type="submit" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl active:scale-95 transition-all">✓ Mark completed</button>
             </form>
           </div>
         </div>
       {% empty %}
         <div class="col-span-full p-12 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
-          <span class="text-3xl">📋</span>
-          <p class="text-xs text-slate-400 mt-2">No routines configured yet.</p>
-          <button onclick="document.getElementById('add-routine-modal').classList.remove('hidden')" class="mt-3 text-cyan-400 underline font-semibold text-xs">
-            + Create your first custom routine
-          </button>
+          <p class="text-xs text-slate-400">No routines yet.</p>
+          <button type="button" onclick="openModal('add-routine-modal')" class="mt-3 text-cyan-400 underline font-semibold text-xs">+ Create your first routine</button>
         </div>
       {% endfor %}
     </div>
   </div>
 
-  <!-- Water Change History Table -->
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+  <!-- Water change history -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
     <div class="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
-      <h3 class="text-base font-bold text-white flex items-center gap-2">
-        <span>🌊</span> Recent Water Change History
-      </h3>
-      <span class="text-xs text-slate-500">{{ water_changes|length }} logs recorded</span>
+      <h3 class="text-base font-bold text-white">🌊 Recent Water Changes</h3>
+      <span class="text-xs text-slate-500">{{ water_changes|length }} shown</span>
     </div>
-
     <div class="divide-y divide-slate-800/80">
       {% for wc in water_changes %}
-        <div class="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
-          <div>
+        <div class="p-4 flex items-center justify-between gap-3 hover:bg-slate-800/30">
+          <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-bold text-white">{{ wc.gallons }} Gallon Change</span>
-              {% if wc.target_salinity %}
-                <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700">
-                  {{ wc.target_salinity }} SG
-                </span>
-              {% endif %}
+              <span class="text-sm font-bold text-white">{{ wc.gallons|floatformat:"-1" }} gal change</span>
+              {% if wc.target_salinity %}<span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700">{{ wc.target_salinity }} SG</span>{% endif %}
+              {% if wc.tank %}<span class="text-[10px] text-slate-500">{{ wc.tank.name }}</span>{% endif %}
             </div>
-            <p class="text-xs text-slate-400 mt-0.5">
-              {{ wc.performed_at|date:"M d, Y · g:i A" }}
-              {% if wc.salt_brand %} · <span class="text-slate-300 font-medium">{{ wc.salt_brand }}</span>{% endif %}
-              {% if wc.notes %} — <span class="italic text-slate-400">{{ wc.notes }}</span>{% endif %}
-            </p>
+            <p class="text-xs text-slate-400 mt-0.5">{{ wc.performed_at|date:"M d, Y · g:i A" }}{% if wc.salt_brand %} · {{ wc.salt_brand }}{% endif %}{% if wc.notes %} — <span class="italic">{{ wc.notes }}</span>{% endif %}</p>
           </div>
-          <span class="text-xs text-slate-500">{{ wc.performed_at|timesince }} ago</span>
+          <div class="flex items-center gap-3 shrink-0 text-xs">
+            <span class="text-slate-500 hidden sm:inline">{{ wc.performed_at|timesince }} ago</span>
+            <a href="{% url 'water_change_edit' wc.id %}" class="text-slate-400 hover:text-cyan-400 font-semibold">Edit</a>
+            <a href="{% url 'water_change_delete' wc.id %}" class="text-slate-500 hover:text-rose-400 font-semibold">Delete</a>
+          </div>
         </div>
       {% empty %}
-        <div class="p-8 text-center text-slate-500 text-xs">
-          No water changes logged yet.
-        </div>
+        <div class="p-8 text-center text-slate-500 text-xs">No water changes logged yet.</div>
       {% endfor %}
     </div>
   </div>
 
-  <!-- Modal: Add Custom Routine & Checklist -->
+  <!-- Modal: add routine -->
   <div id="add-routine-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
     <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
       <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-        <div>
-          <h3 class="text-lg font-bold text-white">Create Custom Routine & Checklist</h3>
-          <p class="text-xs text-slate-400">Save recurring aquarium maintenance procedures</p>
-        </div>
-        <button onclick="document.getElementById('add-routine-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+        <h3 class="text-lg font-bold text-white">Create Routine</h3>
+        <button type="button" onclick="closeModal('add-routine-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
       </div>
-
       <form method="POST" action="{% url 'routine_create' %}" class="mt-4 space-y-4">
         {% csrf_token %}
-
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Routine Title *</label>
-          {{ routine_form.title }}
-        </div>
-
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Title *</label>{{ routine_form.title }}</div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>
-            {{ routine_form.category }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>
-            {{ routine_form.tank }}
-          </div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>{{ routine_form.category }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ routine_form.tank }}</div>
         </div>
-
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Repeat every (days) *</label>{{ routine_form.frequency_days }}</div>
         <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Repeat Every (Days) *</label>
-          {{ routine_form.frequency_days }}
-          <span class="text-[11px] text-slate-500 mt-1 block">e.g. 7 for weekly, 14 for bi-weekly, 30 for monthly</span>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Interactive Checklist Steps</label>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Checklist steps</label>
           {{ routine_form.checklist_raw }}
-          <span class="text-[11px] text-cyan-400/90 mt-1 block">💡 Tip: Enter each task on a new line (e.g. step 1, step 2...)</span>
+          <span class="text-[11px] text-cyan-400/90 mt-1 block">One task per line</span>
         </div>
-
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes / Instructions</label>
-          {{ routine_form.notes }}
-        </div>
-
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ routine_form.notes }}</div>
         <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
-          <button type="button" onclick="document.getElementById('add-routine-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
-          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Routine</button>
+          <button type="button" onclick="closeModal('add-routine-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Save Routine</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Modal: Log Water Change -->
+  <!-- Modal: log water change -->
   <div id="log-wc-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
     <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
       <div class="flex items-center justify-between pb-4 border-b border-slate-800">
         <h3 class="text-lg font-bold text-white">Log Water Change</h3>
-        <button onclick="document.getElementById('log-wc-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+        <button type="button" onclick="closeModal('log-wc-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
       </div>
-
       <form method="POST" action="{% url 'water_change_log_create' %}" class="mt-4 space-y-4">
         {% csrf_token %}
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Target Tank</label>
-          {{ wc_form.tank }}
-        </div>
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ wc_form.tank }}</div>
         <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Gallons Changed *</label>
-            {{ wc_form.gallons }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Salinity (SG)</label>
-            {{ wc_form.target_salinity }}
-          </div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Gallons changed *</label>{{ wc_form.gallons }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Salinity (SG)</label>{{ wc_form.target_salinity }}</div>
         </div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Salt Brand Used</label>
-          {{ wc_form.salt_brand }}
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>
-          {{ wc_form.notes }}
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Date & Time</label>
-          {{ wc_form.performed_at }}
-        </div>
-
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Salt brand</label>{{ wc_form.salt_brand }}</div>
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ wc_form.notes }}</div>
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Date &amp; time <span class="normal-case text-slate-500">(blank = now)</span></label>{{ wc_form.performed_at }}</div>
         <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
-          <button type="button" onclick="document.getElementById('log-wc-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
-          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Water Change</button>
+          <button type="button" onclick="closeModal('log-wc-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Save</button>
         </div>
       </form>
     </div>
   </div>
-
 </div>
 {% endblock %}
 
@@ -386,92 +215,64 @@
 <script>
   let currentVolumeUnit = 'gal';
   let currentSalinityUnit = 'sg';
+  const ON = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950';
+  const OFF = 'px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white';
+  const $ = id => document.getElementById(id);
 
-  function toggleItemStrike(checkbox) {
-    const textSpan = checkbox.closest('label').querySelector('.item-text');
-    if (checkbox.checked) {
-      textSpan.classList.add('line-through', 'text-slate-500');
-    } else {
-      textSpan.classList.remove('line-through', 'text-slate-500');
-    }
+  function toggleItemStrike(cb) {
+    cb.closest('label').querySelector('.item-text').classList.toggle('line-through', cb.checked);
+    cb.closest('label').querySelector('.item-text').classList.toggle('text-slate-500', cb.checked);
   }
 
   function setVolumeUnit(unit) {
     if (currentVolumeUnit === unit) return;
-    const input = document.getElementById('calc-volume');
-    let currentVal = parseFloat(input.value) || 10;
-
+    const input = $('calc-volume');
+    const v = parseFloat(input.value) || 10;
     if (unit === 'L') {
-      // Gallons to Liters
-      input.value = (currentVal * 3.78541).toFixed(1);
-      input.step = "1";
-      document.getElementById('label-volume').innerText = "2. Water Volume (Liters)";
-      document.getElementById('badge-volume-unit').innerText = "L";
-      document.getElementById('btn-unit-L').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
-      document.getElementById('btn-unit-gal').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+      input.value = (v * 3.78541).toFixed(1); input.step = '1';
+      $('label-volume').innerText = '2. Water volume (liters)'; $('badge-volume-unit').innerText = 'L';
     } else {
-      // Liters to Gallons
-      input.value = (currentVal / 3.78541).toFixed(1);
-      input.step = "0.5";
-      document.getElementById('label-volume').innerText = "2. Water Volume (Gallons)";
-      document.getElementById('badge-volume-unit').innerText = "GAL";
-      document.getElementById('btn-unit-gal').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
-      document.getElementById('btn-unit-L').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+      input.value = (v / 3.78541).toFixed(1); input.step = '0.5';
+      $('label-volume').innerText = '2. Water volume (gallons)'; $('badge-volume-unit').innerText = 'GAL';
     }
+    $('btn-unit-L').className = unit === 'L' ? ON : OFF;
+    $('btn-unit-gal').className = unit === 'gal' ? ON : OFF;
     currentVolumeUnit = unit;
     recalculateSalt();
   }
 
   function setSalinityUnit(unit) {
     if (currentSalinityUnit === unit) return;
-    const input = document.getElementById('calc-salinity');
-    let currentVal = parseFloat(input.value) || 1.026;
-
+    const input = $('calc-salinity');
+    const v = parseFloat(input.value) || 1.026;
     if (unit === 'ppt') {
-      // SG to ppt (1.026 -> 35.0)
-      const ppt = ((currentVal - 1.0) / 0.026 * 35.0).toFixed(1);
-      input.value = ppt;
-      input.min = "20";
-      input.max = "45";
-      input.step = "0.5";
-      document.getElementById('label-salinity').innerText = "3. Target Salinity (ppt)";
-      document.getElementById('badge-salinity-unit').innerText = "PPT";
-      document.getElementById('btn-unit-ppt').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
-      document.getElementById('btn-unit-sg').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+      input.value = ((v - 1.0) / 0.026 * 35.0).toFixed(1);
+      input.min = '20'; input.max = '45'; input.step = '0.5';
+      $('label-salinity').innerText = '3. Target salinity (ppt)'; $('badge-salinity-unit').innerText = 'PPT';
     } else {
-      // ppt to SG (35.0 -> 1.026)
-      const sg = (1.0 + (currentVal / 35.0) * 0.026).toFixed(3);
-      input.value = sg;
-      input.min = "1.015";
-      input.max = "1.035";
-      input.step = "0.001";
-      document.getElementById('label-salinity').innerText = "3. Target Salinity (SG)";
-      document.getElementById('badge-salinity-unit').innerText = "SG";
-      document.getElementById('btn-unit-sg').className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950 transition-all";
-      document.getElementById('btn-unit-ppt').className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+      input.value = (1.0 + (v / 35.0) * 0.026).toFixed(3);
+      input.min = '1.015'; input.max = '1.035'; input.step = '0.001';
+      $('label-salinity').innerText = '3. Target salinity (SG)'; $('badge-salinity-unit').innerText = 'SG';
     }
+    $('btn-unit-ppt').className = unit === 'ppt' ? ON : OFF;
+    $('btn-unit-sg').className = unit === 'sg' ? ON : OFF;
     currentSalinityUnit = unit;
     recalculateSalt();
   }
 
   async function recalculateSalt() {
-    const volume = document.getElementById('calc-volume').value;
-    const brand = document.getElementById('calc-brand').value;
-    const salinity = document.getElementById('calc-salinity').value;
-
+    const q = new URLSearchParams({
+      volume: $('calc-volume').value, volume_unit: currentVolumeUnit,
+      brand: $('calc-brand').value, salinity: $('calc-salinity').value, salinity_unit: currentSalinityUnit,
+    });
     try {
-      const url = `/api/calculators/salt-mix/?volume=${volume}&volume_unit=${currentVolumeUnit}&brand=${brand}&salinity=${salinity}&salinity_unit=${currentSalinityUnit}`;
-      const res = await fetch(url);
+      const res = await fetch('{% url "water_change_calc_api" %}?' + q.toString());
       const data = await res.json();
       if (data.grams !== undefined) {
-        document.getElementById('output-grams').innerText = data.grams;
-        document.getElementById('output-ounces').innerText = data.ounces;
-        document.getElementById('output-lbs').innerText = data.lbs;
-        document.getElementById('output-cups').innerText = data.cups;
+        $('output-grams').innerText = data.grams; $('output-ounces').innerText = data.ounces;
+        $('output-lbs').innerText = data.lbs; $('output-cups').innerText = data.cups;
       }
-    } catch(err) {
-      console.warn(err);
-    }
+    } catch (err) { console.warn(err); }
   }
 </script>
 {% endblock %}

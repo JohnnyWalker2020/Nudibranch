@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ tank.name }} | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  {% include 'aquarium/partials/system_tabs.html' with active='tanks' %}
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <a href="{% url 'tanks' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-tight">{{ tank.name }}{% if tank.is_primary %} <span class="align-middle text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">PRIMARY</span>{% endif %}</h1>
+        <p class="text-xs text-slate-400 mt-0.5">{{ tank.volume_gallons }} gal ({{ tank.volume_liters }} L){% if tank.capacity_is_manual %} · capacity entered manually{% elif tank.has_dimensions %} · estimated from dimensions{% endif %}</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{% url 'tank_edit' tank.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">✏️ Edit tank</a>
+      <a href="{% url 'sump_create' tank.id %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Sump</a>
+    </div>
+  </div>
+
+  <!-- Volume & dimensions -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Display volume</span>
+      <span class="text-2xl font-black text-white">{{ tank.volume_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Sump volume</span>
+      <span class="text-2xl font-black text-white">{{ tank.sump_gallons|floatformat:"-1" }}</span><span class="text-xs text-slate-400"> gal</span>
+    </div>
+    <div class="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total system</span>
+      <span class="text-2xl font-black text-cyan-400">{{ tank.total_system_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Dimensions</span>
+      {% if tank.has_dimensions %}
+        <span class="text-sm font-bold text-white">{{ tank.width|floatformat:"-1" }} × {{ tank.depth|floatformat:"-1" }} × {{ tank.height|floatformat:"-1" }} {{ tank.dimension_unit }}</span>
+        {% if tank.estimated_gallons and tank.capacity_is_manual %}<span class="block text-[11px] text-slate-500">Dimension estimate: {{ tank.estimated_gallons }} gal</span>{% endif %}
+      {% else %}
+        <span class="text-sm text-slate-500">Not entered</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Flow & turnover -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🌊</span> Flow &amp; Water Turnover</h2>
+      <span class="text-[11px] text-slate-500">Estimates from your pumps and power settings</span>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-center">
+      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+        <span class="text-[10px] text-slate-500 uppercase block font-semibold">Return flow</span>
+        <span class="text-lg font-bold text-white">{{ flow.return_gph }}</span><span class="text-[10px] text-slate-400"> gph</span>
+        <span class="block text-[10px] text-slate-500">{{ flow.return_lph }} L/h</span>
+      </div>
+      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+        <span class="text-[10px] text-slate-500 uppercase block font-semibold">Wavemaker flow</span>
+        <span class="text-lg font-bold text-white">{{ flow.wavemaker_gph }}</span><span class="text-[10px] text-slate-400"> gph</span>
+      </div>
+      <div class="bg-slate-950/60 p-3 rounded-xl border {% if flow.return_status == 'ok' %}border-emerald-500/30{% elif flow.return_status == 'unknown' %}border-slate-800/60{% else %}border-amber-500/30{% endif %}">
+        <span class="text-[10px] text-slate-500 uppercase block font-semibold">Return turnover</span>
+        <span class="text-lg font-bold {% if flow.return_status == 'ok' %}text-emerald-400{% elif flow.return_status == 'unknown' %}text-slate-500{% else %}text-amber-400{% endif %}">{% if flow.return_turnover %}{{ flow.return_turnover }}x{% else %}—{% endif %}</span><span class="text-[10px] text-slate-400"> /hr</span>
+        <span class="block text-[10px] text-slate-500">of {{ flow.system_gallons }} gal · typical {{ flow.return_range.0|floatformat:"-1" }}–{{ flow.return_range.1|floatformat:"-1" }}x</span>
+      </div>
+      <div class="bg-slate-950/60 p-3 rounded-xl border {% if flow.circulation_status == 'ok' %}border-emerald-500/30{% elif flow.circulation_status == 'unknown' %}border-slate-800/60{% else %}border-amber-500/30{% endif %}">
+        <span class="text-[10px] text-slate-500 uppercase block font-semibold">Total circulation</span>
+        <span class="text-lg font-bold {% if flow.circulation_status == 'ok' %}text-emerald-400{% elif flow.circulation_status == 'unknown' %}text-slate-500{% else %}text-amber-400{% endif %}">{% if flow.circulation_turnover %}{{ flow.circulation_turnover }}x{% else %}—{% endif %}</span><span class="text-[10px] text-slate-400"> /hr</span>
+        <span class="block text-[10px] text-slate-500">of {{ flow.display_gallons }} gal display · typical {{ flow.circulation_range.0|floatformat:"-1" }}–{{ flow.circulation_range.1|floatformat:"-1" }}x</span>
+      </div>
+    </div>
+
+    {% if flow.return_status == 'low' or flow.circulation_status == 'low' %}
+      <p class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">Flow is below the usual range for a mixed reef. Fine for some setups (e.g. soft corals, a refugium that needs a gentle pass), but SPS-heavy tanks usually want more.</p>
+    {% elif flow.return_status == 'high' or flow.circulation_status == 'high' %}
+      <p class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">Flow is above the usual range. Very high return flow can overwhelm a skimmer or carry bubbles into the display.</p>
+    {% endif %}
+
+    <!-- Pumps & wavemakers with power setting -->
+    <div>
+      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Pumps &amp; wavemakers</h3>
+      <div class="space-y-2">
+        {% for eq in flow_equipment %}
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-3 bg-slate-950/60 border border-slate-800 rounded-xl {% if eq.status == 'offline' %}opacity-50{% endif %}">
+            <div class="flex-1 min-w-0">
+              <a href="{% url 'equipment_edit' eq.id %}" class="text-sm font-bold text-white hover:text-cyan-400">{{ eq.name }}</a>
+              <p class="text-[11px] text-slate-500">{{ eq.get_category_display }}{% if eq.max_flow_gph %} · rated {{ eq.max_flow_gph }} gph{% if eq.flow_derate_percent %} · −{{ eq.flow_derate_percent }}% head loss{% endif %}{% else %} · <a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">set rated max flow</a> to include it{% endif %}</p>
+            </div>
+            <form method="POST" action="{% url 'equipment_power' eq.id %}" class="flex items-center gap-2">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <label class="text-[11px] text-slate-400">Power</label>
+              <input type="number" name="power" min="1" max="100" value="{{ eq.power_setting_percent }}" class="w-16 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500">
+              <span class="text-[11px] text-slate-400">%</span>
+              <button type="submit" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
+            </form>
+            <div class="text-right sm:w-28">
+              {% if eq.estimated_flow_gph_display is not None %}
+                <span class="text-sm font-bold text-cyan-400">{{ eq.estimated_flow_gph_display }} gph</span>
+                <span class="block text-[10px] text-slate-500">{{ eq.estimated_flow_lph_display }} L/h</span>
+              {% else %}
+                <span class="text-xs text-slate-500">no flow data</span>
+              {% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <p class="text-xs text-slate-500">No return pumps or wavemakers assigned to this tank. <a href="{% url 'equipment' %}" class="text-cyan-400 underline">Add equipment</a> and set its rated max flow.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sumps -->
+  {% for sump in tank.sumps.all %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🧫</span> {{ sump.name }}</h2>
+          <p class="text-xs text-cyan-400 font-semibold">{{ sump.volume_gallons }} gal{% if sump.has_dimensions %} · {{ sump.width|floatformat:"-1" }} × {{ sump.depth|floatformat:"-1" }} × {{ sump.height|floatformat:"-1" }} {{ sump.dimension_unit }}{% endif %}{% if sump.capacity_is_manual %} · manual capacity{% endif %}</p>
+          {% if sump.notes %}<p class="text-[11px] text-slate-500 mt-0.5">{{ sump.notes }}</p>{% endif %}
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="{% url 'sump_edit' sump.id %}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700 transition-colors">Edit sump</a>
+        </div>
+      </div>
+
+      <!-- Chamber diagram -->
+      {% if sump.chambers.all %}
+        <div class="flex items-stretch gap-1 overflow-x-auto no-scrollbar">
+          {% for c in sump.chambers.all %}
+            <a href="{% url 'chamber_edit' c.id %}" style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0; min-width: 5.5rem;" class="p-2.5 bg-slate-950/70 border border-slate-700 hover:border-cyan-500/50 rounded-xl text-center transition-colors">
+              <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
+              <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
+              <span class="text-[11px] text-cyan-400 block">{{ c.volume_gallons }} gal · {{ c.share_percent|floatformat:"-1" }}%</span>
+            </a>
+          {% endfor %}
+        </div>
+        {% if sump.chamber_share_total != 100 %}
+          <p class="text-[11px] text-amber-400">Chamber shares add up to {{ sump.chamber_share_total }}% (should be 100%).</p>
+        {% endif %}
+      {% else %}
+        <p class="text-xs text-slate-500">This sump isn't split yet. Choose how many chambers it has below.</p>
+      {% endif %}
+
+      <!-- Split into chambers -->
+      <form method="POST" action="{% url 'sump_split' sump.id %}" class="split-form p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3" data-sump="{{ sump.id }}">
+        {% csrf_token %}
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">Split into chambers</span>
+          <div class="flex items-center gap-2">
+            <label class="text-[11px] text-slate-400" for="count-{{ sump.id }}">Number of chambers</label>
+            <input type="number" id="count-{{ sump.id }}" class="split-count w-16 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500" min="1" max="12" value="{% if sump.chambers.all %}{{ sump.chambers.all|length }}{% else %}3{% endif %}">
+            <button type="button" class="split-even px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700">Even shares</button>
+          </div>
+        </div>
+
+        <div class="split-rows space-y-2">
+          {% for c in sump.chambers.all %}
+            <div class="split-row grid grid-cols-[2rem_1fr] sm:grid-cols-[2rem_12rem_1fr_6rem] gap-2 items-center">
+              <span class="split-num text-xs text-slate-500 text-center">{{ forloop.counter }}</span>
+              <select name="chamber_type" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs">
+                {% for t in chamber_types %}<option value="{{ t.value }}" {% if t.value == c.chamber_type %}selected{% endif %}>{{ t.label }}</option>{% endfor %}
+              </select>
+              <input type="text" name="chamber_name" value="{{ c.name }}" maxlength="80" placeholder="Name (optional)" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs col-span-2 sm:col-span-1">
+              <div class="flex items-center gap-1 col-span-2 sm:col-span-1">
+                <input type="number" name="chamber_share" value="{{ c.share_percent|floatformat:1 }}" min="0" max="100" step="0.5" class="split-share w-full px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs text-right">
+                <span class="text-[11px] text-slate-400">%</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <template class="split-proto">
+          <div class="split-row grid grid-cols-[2rem_1fr] sm:grid-cols-[2rem_12rem_1fr_6rem] gap-2 items-center">
+            <span class="split-num text-xs text-slate-500 text-center"></span>
+            <select name="chamber_type" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs">
+              {% for t in chamber_types %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}
+            </select>
+            <input type="text" name="chamber_name" maxlength="80" placeholder="Name (optional)" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs col-span-2 sm:col-span-1">
+            <div class="flex items-center gap-1 col-span-2 sm:col-span-1">
+              <input type="number" name="chamber_share" min="0" max="100" step="0.5" class="split-share w-full px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs text-right">
+              <span class="text-[11px] text-slate-400">%</span>
+            </div>
+          </div>
+        </template>
+
+        <div class="flex items-center justify-between gap-2">
+          <span class="split-total text-[11px] text-slate-400"></span>
+          <button type="submit" onclick="return confirm('Replace this sump\'s chambers with the list above?')" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg active:scale-95 transition-all">Save chambers</button>
+        </div>
+        <p class="text-[11px] text-slate-500">Order = the path the water takes (1 is first). Shares are each chamber's part of the sump's water volume.</p>
+      </form>
+
+      {% if sump.chambers.all %}
+        <div class="divide-y divide-slate-800/80">
+          {% for c in sump.chambers.all %}
+            <div class="py-2 flex items-center justify-between gap-2 text-xs">
+              <span class="text-slate-300"><span class="text-slate-500">#{{ c.position }}</span> {{ c.get_chamber_type_display }}{% if c.name %} · {{ c.name }}{% endif %}</span>
+              <span class="flex items-center gap-3">
+                <span class="text-slate-400">{{ c.volume_gallons }} gal</span>
+                <a href="{% url 'chamber_edit' c.id %}" class="text-cyan-400 hover:underline">Edit</a>
+                <a href="{% url 'chamber_delete' c.id %}" class="text-rose-400 hover:underline">Delete</a>
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  {% empty %}
+    <div class="p-8 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
+      <span class="text-3xl">🧫</span>
+      <p class="mt-2 text-sm font-bold text-white">No sump on this tank</p>
+      <p class="text-xs text-slate-400 mt-1">Add a sump or refugium to include its volume in dosing and turnover, and split it into chambers.</p>
+      <a href="{% url 'sump_create' tank.id %}" class="mt-3 inline-block px-4 py-2 bg-cyan-500 text-slate-950 font-bold text-xs rounded-xl">+ Add Sump</a>
+    </div>
+  {% endfor %}
+
+  {% if tank.notes %}
+    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 whitespace-pre-line">{{ tank.notes }}</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.split-form').forEach(form => {
+    const rows = form.querySelector('.split-rows');
+    const proto = form.querySelector('.split-proto');
+    const countInput = form.querySelector('.split-count');
+    const totalLabel = form.querySelector('.split-total');
+
+    function renumber() {
+      rows.querySelectorAll('.split-row').forEach((r, i) => { r.querySelector('.split-num').textContent = i + 1; });
+    }
+    function updateTotal() {
+      const total = [...rows.querySelectorAll('.split-share')].reduce((s, el) => s + (parseFloat(el.value) || 0), 0);
+      const t = Math.round(total * 10) / 10;
+      totalLabel.textContent = 'Shares total: ' + t + '%';
+      totalLabel.className = 'split-total text-[11px] ' + (Math.abs(t - 100) < 0.5 ? 'text-emerald-400' : 'text-amber-400');
+    }
+    function evenShares() {
+      const list = rows.querySelectorAll('.split-share');
+      const n = list.length;
+      if (!n) return;
+      const base = Math.floor(1000 / n) / 10;
+      list.forEach((el, i) => { el.value = i === n - 1 ? (Math.round((100 - base * (n - 1)) * 10) / 10) : base; });
+      updateTotal();
+    }
+    function resize() {
+      const want = Math.max(1, Math.min(12, parseInt(countInput.value) || 1));
+      countInput.value = want;
+      while (rows.children.length > want) rows.lastElementChild.remove();
+      while (rows.children.length < want) rows.appendChild(proto.content.cloneNode(true));
+      renumber();
+      evenShares();
+    }
+    countInput.addEventListener('change', resize);
+    form.querySelector('.split-even').addEventListener('click', evenShares);
+    rows.addEventListener('input', updateTotal);
+    if (!rows.children.length) resize(); else { renumber(); updateTotal(); }
+  });
+</script>
+{% endblock %}

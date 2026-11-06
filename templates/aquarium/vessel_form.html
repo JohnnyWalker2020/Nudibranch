@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-6">
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <a href="{{ back_url }}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-tight">{{ title }}</h1>
+        <p class="text-xs text-slate-400">Enter the size and we estimate the water volume, or type the capacity yourself</p>
+      </div>
+    </div>
+    {% if delete_url %}
+      <a href="{{ delete_url }}" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 transition-colors">Delete</a>
+    {% endif %}
+  </div>
+
+  <form method="POST" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="space-y-1.5">
+      <label for="{{ form.name.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Name *</label>
+      {{ form.name }}
+      {% for err in form.name.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+    </div>
+
+    {% if kind == 'tank' %}
+      <label class="flex items-start gap-3 cursor-pointer">
+        <span class="mt-0.5">{{ form.is_primary }}</span>
+        <span>
+          <span class="text-sm font-semibold text-white block">Primary tank</span>
+          <span class="text-[11px] text-slate-500">Used as the default when adding livestock, equipment and reservoirs</span>
+        </span>
+      </label>
+    {% endif %}
+
+    <!-- Dimensions -->
+    <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">Dimensions</span>
+        <div class="w-28">{{ form.dimension_unit }}</div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-[11px] text-slate-400 mb-1">Width</label>{{ form.width }}</div>
+        <div><label class="block text-[11px] text-slate-400 mb-1">Depth</label>{{ form.depth }}</div>
+        <div><label class="block text-[11px] text-slate-400 mb-1">Height</label>{{ form.height }}</div>
+      </div>
+      {% for err in form.width.errors %}<p class="text-xs text-rose-400">Width: {{ err }}</p>{% endfor %}
+      {% for err in form.depth.errors %}<p class="text-xs text-rose-400">Depth: {{ err }}</p>{% endfor %}
+      {% for err in form.height.errors %}<p class="text-xs text-rose-400">Height: {{ err }}</p>{% endfor %}
+
+      <div class="grid grid-cols-2 gap-3 items-end">
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Usable water (% of box)</label>
+          {{ form.fill_percent }}
+        </div>
+        <div class="text-right">
+          <span class="text-[11px] text-slate-500 block">Estimated capacity</span>
+          <span id="est-capacity" class="text-xl font-black text-cyan-400">—</span>
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-500">{{ form.fill_percent.help_text }}. Estimate = W × D × H × fill% ÷ 231 in³ per US gallon.</p>
+      {% for err in form.fill_percent.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+    </div>
+
+    <!-- Capacity -->
+    <div class="space-y-3">
+      <label class="flex items-start gap-3 cursor-pointer">
+        <span class="mt-0.5">{{ form.capacity_is_manual }}</span>
+        <span>
+          <span class="text-sm font-semibold text-white block">Enter the capacity manually</span>
+          <span class="text-[11px] text-slate-500">{{ form.capacity_is_manual.help_text }}</span>
+        </span>
+      </label>
+      <div class="space-y-1.5">
+        <label for="{{ form.volume_gallons.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Water volume (US gallons)</label>
+        {{ form.volume_gallons }}
+        <p id="volume-liters" class="text-[11px] text-slate-500"></p>
+        {% for err in form.volume_gallons.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+      </div>
+    </div>
+
+    <div class="space-y-1.5">
+      <label for="{{ form.notes.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Notes</label>
+      {{ form.notes }}
+    </div>
+
+    <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+      <a href="{{ back_url }}" class="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors">Cancel</a>
+      <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">Save</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const $ = id => document.getElementById(id);
+    const w = $('id_width'), d = $('id_depth'), h = $('id_height'), unit = $('id_dimension_unit');
+    const fill = $('id_fill_percent'), manual = $('id_capacity_is_manual'), vol = $('id_volume_gallons');
+    const est = $('est-capacity'), liters = $('volume-liters');
+
+    function estimate() {
+      const W = parseFloat(w.value), D = parseFloat(d.value), H = parseFloat(h.value), F = parseFloat(fill.value);
+      if (!(W > 0 && D > 0 && H > 0 && F > 0)) return null;
+      const f = unit.value === 'cm' ? 1 / 2.54 : 1;           // cm -> inches
+      const cubicInches = (W * f) * (D * f) * (H * f);
+      return Math.round(cubicInches * (F / 100) / 231 * 10) / 10;
+    }
+    function refresh() {
+      const e = estimate();
+      est.textContent = e === null ? '—' : e + ' gal';
+      // While in estimate mode the capacity field follows the estimate.
+      if (!manual.checked && e !== null) vol.value = e;
+      vol.readOnly = !manual.checked && e !== null;
+      vol.classList.toggle('opacity-60', vol.readOnly);
+      const g = parseFloat(vol.value);
+      liters.textContent = g > 0 ? '≈ ' + (g * 3.78541).toFixed(1) + ' L' : '';
+    }
+    [w, d, h, unit, fill, manual, vol].forEach(el => { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
+    refresh();
+  })();
+</script>
+{% endblock %}

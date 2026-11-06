@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
     ParameterType, ParameterLog, AnimalGroup, Animal, WebcamFeed, SpeciesCatalog,
-    Tank, Equipment, DosingReservoir, MaintenanceRoutine, WaterChangeLog
+    Tank, Sump, SumpChamber, Equipment, DosingReservoir, MaintenanceRoutine,
+    WaterChangeLog, DashboardWidget,
 )
 
 
@@ -35,11 +36,7 @@ class ParameterLogAdmin(admin.ModelAdmin):
         return obj.parameter_type.unit
 
     def status_badge(self, obj):
-        colors = {
-            'optimal': '#10b981',
-            'low': '#f59e0b',
-            'high': '#ef4444'
-        }
+        colors = {'optimal': '#10b981', 'low': '#f59e0b', 'high': '#ef4444'}
         color = colors.get(obj.status, '#64748b')
         return format_html(
             '<span style="background:{}; color:#fff; padding:2px 8px; border-radius:12px; font-weight:600; font-size:11px;">{}</span>',
@@ -94,23 +91,43 @@ class SpeciesCatalogAdmin(admin.ModelAdmin):
     icon_name.short_description = "Species"
 
 
+class SumpInline(admin.TabularInline):
+    model = Sump
+    extra = 0
+
+
 @admin.register(Tank)
 class TankAdmin(admin.ModelAdmin):
-    list_display = ('name', 'volume_gallons', 'is_primary', 'created_at')
-    list_filter = ('is_primary',)
+    list_display = ('name', 'volume_gallons', 'capacity_is_manual', 'is_primary', 'created_at')
+    list_filter = ('is_primary', 'capacity_is_manual')
     search_fields = ('name', 'notes')
+    inlines = [SumpInline]
+
+
+class SumpChamberInline(admin.TabularInline):
+    model = SumpChamber
+    extra = 0
+
+
+@admin.register(Sump)
+class SumpAdmin(admin.ModelAdmin):
+    list_display = ('name', 'tank', 'volume_gallons', 'capacity_is_manual')
+    list_filter = ('tank',)
+    inlines = [SumpChamberInline]
 
 
 @admin.register(Equipment)
 class EquipmentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tank', 'category', 'brand', 'wattage', 'status', 'last_serviced_date', 'is_service_due')
+    list_display = ('name', 'tank', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
+                    'status', 'last_serviced_date', 'is_service_due')
     list_filter = ('category', 'status', 'tank')
     search_fields = ('name', 'brand', 'notes')
 
 
 @admin.register(DosingReservoir)
 class DosingReservoirAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tank', 'reservoir_type', 'current_level', 'capacity', 'unit', 'daily_consumption', 'percent_remaining', 'days_remaining', 'is_low')
+    list_display = ('name', 'tank', 'reservoir_type', 'current_level', 'capacity', 'unit', 'daily_consumption',
+                    'percent_remaining', 'days_remaining', 'is_low')
     list_filter = ('reservoir_type', 'tank')
     search_fields = ('name', 'tank__name')
 
@@ -129,3 +146,8 @@ class WaterChangeLogAdmin(admin.ModelAdmin):
     date_hierarchy = 'performed_at'
     search_fields = ('notes', 'salt_brand')
 
+
+@admin.register(DashboardWidget)
+class DashboardWidgetAdmin(admin.ModelAdmin):
+    list_display = ('key', 'enabled', 'position')
+    list_editable = ('enabled', 'position')

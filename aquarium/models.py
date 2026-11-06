@@ -1,5 +1,13 @@
+import urllib.parse
+from datetime import timedelta
+
 from django.db import models
 from django.utils import timezone
+
+from .calculators import (
+    estimate_capacity_gallons, estimate_flow_gph, gph_to_lph, turnover_summary,
+    LITERS_PER_GAL,
+)
 
 
 class ParameterType(models.Model):
@@ -7,8 +15,8 @@ class ParameterType(models.Model):
     name = models.CharField(max_length=60, unique=True)
     code = models.SlugField(max_length=30, unique=True, help_text="Short identifier e.g. alk, sal, ca")
     unit = models.CharField(max_length=20, help_text="e.g. dKH, SG, ppm, °F, pH")
-    min_ideal = models.DecimalField(max_digits=7, decimal_places=3, help_text="Lower bound of target range")
-    max_ideal = models.DecimalField(max_digits=7, decimal_places=3, help_text="Upper bound of target range")
+    min_ideal = models.DecimalField(max_digits=10, decimal_places=3, help_text="Lower bound of target range")
+    max_ideal = models.DecimalField(max_digits=10, decimal_places=3, help_text="Upper bound of target range")
     color = models.CharField(max_length=20, default="#0ea5e9", help_text="Hex color code for charts and badges")
     decimal_places = models.PositiveSmallIntegerField(default=1, help_text="Number of decimal places (e.g. 0 for ppm, 3 for SG)")
     display_order = models.PositiveIntegerField(default=0)
@@ -54,7 +62,7 @@ class ParameterLog(models.Model):
     """Historical test measurement."""
     parameter_type = models.ForeignKey(ParameterType, on_delete=models.CASCADE, related_name="logs")
     measured_at = models.DateTimeField(default=timezone.now)
-    value = models.DecimalField(max_digits=8, decimal_places=3)
+    value = models.DecimalField(max_digits=10, decimal_places=4)
     notes = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -101,6 +109,24 @@ class AnimalGroup(models.Model):
         return self.name
 
 
+def _wikipedia_url(species, name):
+    if species:
+        clean_species = species.strip().replace(' ', '_')
+        return f"https://en.wikipedia.org/wiki/{urllib.parse.quote(clean_species)}"
+    clean_name = name.split('(')[0].strip()
+    return f"https://en.wikipedia.org/wiki/Special:Search?search={urllib.parse.quote(clean_name)}"
+
+
+def reef2reef_search(term, extra=""):
+    """Site-restricted web search for Reef2Reef threads.
+
+    Reef2Reef's own /search/ URL needs a server-side search id, so a plain GET with ?q=
+    is unreliable. A site: search on a general engine always works.
+    """
+    query = f"site:reef2reef.com {term} {extra}".strip()
+    return f"https://www.google.com/search?q={urllib.parse.quote_plus(query)}"
+
+
 class Animal(models.Model):
     """Livestock entry in the aquarium."""
     STATUS_CHOICES = [
@@ -131,27 +157,17 @@ class Animal(models.Model):
 
     @property
     def wikipedia_url(self):
-        """Returns direct Wikipedia article URL for scientific species name or search URL for common name."""
-        import urllib.parse
-        if self.species:
-            clean_species = self.species.strip().replace(' ', '_')
-            return f"https://en.wikipedia.org/wiki/{urllib.parse.quote(clean_species)}"
-        clean_name = self.name.split('(')[0].strip()
-        return f"https://en.wikipedia.org/wiki/Special:Search?search={urllib.parse.quote(clean_name)}"
+        return _wikipedia_url(self.species, self.name)
 
     @property
     def reef2reef_search_url(self):
-        """Returns Reef2Reef community search URL for real hobbyist discussions, care, and tips."""
-        import urllib.parse
-        search_term = self.species if self.species else self.name.split('(')[0].strip()
-        return f"https://www.reef2reef.com/search/1/?q={urllib.parse.quote(search_term)}&o=relevance"
+        """Reef2Reef community search for real hobbyist discussions, care, and tips."""
+        return reef2reef_search(self.species if self.species else self.name.split('(')[0].strip())
 
     @property
     def reef2reef_disease_url(self):
-        """Returns Reef2Reef fish disease and diagnosis subforum search."""
-        import urllib.parse
-        search_term = self.name.split('(')[0].strip()
-        return f"https://www.reef2reef.com/search/1/?q={urllib.parse.quote(search_term)}&c[nodes][]=77&o=relevance"
+        """Reef2Reef fish disease and diagnosis search."""
+        return reef2reef_search(self.name.split('(')[0].strip(), "disease treatment")
 
 
 class WebcamFeed(models.Model):
@@ -203,26 +219,64 @@ class SpeciesCatalog(models.Model):
 
     @property
     def wikipedia_url(self):
-        """Returns direct Wikipedia article URL for scientific species name or search URL for common name."""
-        import urllib.parse
-        if self.species:
-            clean_species = self.species.strip().replace(' ', '_')
-            return f"https://en.wikipedia.org/wiki/{urllib.parse.quote(clean_species)}"
-        clean_name = self.name.split('(')[0].strip()
-        return f"https://en.wikipedia.org/wiki/Special:Search?search={urllib.parse.quote(clean_name)}"
+        return _wikipedia_url(self.species, self.name)
 
     @property
     def reef2reef_search_url(self):
-        """Returns Reef2Reef community search URL for real hobbyist discussions, care, and tips."""
-        import urllib.parse
-        search_term = self.species if self.species else self.name.split('(')[0].strip()
-        return f"https://www.reef2reef.com/search/1/?q={urllib.parse.quote(search_term)}&o=relevance"
+        return reef2reef_search(self.species if self.species else self.name.split('(')[0].strip())
 
 
-class Tank(models.Model):
+class DimensionedVessel(models.Model):
+    """Shared fields for anything that holds water and has a box shape (tank, sump)."""
+    DIMENSION_UNITS = [
+        ('in', 'Inches'),
+        ('cm', 'Centimeters'),
+    ]
+
+    width = models.DecimalField(max_digits=7, decimal_places=1, null=True, blank=True, help_text="Interior width, left to right")
+    depth = models.DecimalField(max_digits=7, decimal_places=1, null=True, blank=True, help_text="Interior depth, front to back")
+    height = models.DecimalField(max_digits=7, decimal_places=1, null=True, blank=True, help_text="Interior height")
+    dimension_unit = models.CharField(max_length=2, choices=DIMENSION_UNITS, default='in')
+    fill_percent = models.DecimalField(
+        max_digits=5, decimal_places=1, default=90,
+        help_text="Usable water as a % of the box volume (glass thickness, water line below the rim, bracing)",
+    )
+    capacity_is_manual = models.BooleanField(
+        default=False,
+        help_text="Tick to enter the capacity yourself instead of estimating it from the dimensions",
+    )
+    volume_gallons = models.DecimalField(max_digits=7, decimal_places=1, default=50.0, help_text="Water volume (US gallons)")
+
+    class Meta:
+        abstract = True
+
+    @property
+    def has_dimensions(self):
+        return bool(self.width and self.depth and self.height)
+
+    @property
+    def estimated_gallons(self):
+        """Capacity estimated from the dimensions (None if any dimension is missing)."""
+        if not self.has_dimensions:
+            return None
+        return estimate_capacity_gallons(self.width, self.depth, self.height, self.dimension_unit, self.fill_percent)
+
+    @property
+    def volume_liters(self):
+        return round(float(self.volume_gallons or 0) * LITERS_PER_GAL, 1)
+
+    def save(self, *args, **kwargs):
+        # Keep the stored capacity in sync with the dimensions unless the user typed it in.
+        if not self.capacity_is_manual and self.has_dimensions:
+            estimate = self.estimated_gallons
+            if estimate is not None:
+                self.volume_gallons = estimate
+        super().save(*args, **kwargs)
+
+
+class Tank(DimensionedVessel):
     """Represents an aquarium system (e.g. Main Display, Frag Tank, Quarantine)."""
     name = models.CharField(max_length=100, default="Main Display Tank")
-    volume_gallons = models.DecimalField(max_digits=6, decimal_places=1, default=50.0, help_text="Total system water volume (gal)")
     is_primary = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
@@ -232,6 +286,89 @@ class Tank(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.volume_gallons} gal)"
+
+    @property
+    def sump_gallons(self):
+        return sum(float(s.volume_gallons or 0) for s in self.sumps.all())
+
+    @property
+    def total_system_gallons(self):
+        """Display tank + all sump water volume. Used for dosing and return-pump turnover."""
+        return round(float(self.volume_gallons or 0) + self.sump_gallons, 1)
+
+    def flow_summary(self):
+        """Turnover figures based on the equipment assigned to this tank."""
+        return_gph = 0.0
+        wave_gph = 0.0
+        for eq in self.equipment.all():
+            flow = eq.estimated_flow_gph
+            if not flow or eq.status == 'offline':
+                continue
+            if eq.category == 'return_pump':
+                return_gph += flow
+            elif eq.category == 'wavemaker':
+                wave_gph += flow
+        return turnover_summary(self.volume_gallons, self.total_system_gallons, return_gph, wave_gph)
+
+
+class Sump(DimensionedVessel):
+    """A sump / refugium system plumbed to a tank. Can be split into chambers."""
+    tank = models.ForeignKey(Tank, on_delete=models.CASCADE, related_name='sumps')
+    name = models.CharField(max_length=100, default="Sump")
+    notes = models.TextField(blank=True)
+
+    # Sumps run at a lower water level than their box volume, so default to a lower fill.
+    fill_percent = models.DecimalField(
+        max_digits=5, decimal_places=1, default=60,
+        help_text="Usable water as a % of the box volume (glass thickness, water line below the rim, bracing)",
+    )
+    volume_gallons = models.DecimalField(max_digits=7, decimal_places=1, default=20.0, help_text="Water volume (US gallons)")
+
+    class Meta:
+        ordering = ['tank', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.volume_gallons} gal)"
+
+    @property
+    def chamber_share_total(self):
+        return round(sum(float(c.share_percent or 0) for c in self.chambers.all()), 1)
+
+
+class SumpChamber(models.Model):
+    """One compartment of a sump (return, skimmer, refugium, filtration...)."""
+    CHAMBER_TYPES = [
+        ('inflow', '⬇️ Inflow / Filter Sock'),
+        ('skimmer', '🫧 Protein Skimmer'),
+        ('filter', '🧽 Filtration / Media'),
+        ('refugium', '🌿 Refugium'),
+        ('bubble_trap', '💨 Bubble Trap'),
+        ('heater', '🌡️ Heater / Equipment'),
+        ('ato', '💧 ATO / Top-off'),
+        ('return', '🔄 Return Pump'),
+        ('other', '⚙️ Other'),
+    ]
+
+    sump = models.ForeignKey(Sump, on_delete=models.CASCADE, related_name='chambers')
+    position = models.PositiveIntegerField(default=1, help_text="Order in the water path, 1 = first")
+    name = models.CharField(max_length=80, blank=True)
+    chamber_type = models.CharField(max_length=20, choices=CHAMBER_TYPES, default='other')
+    share_percent = models.DecimalField(max_digits=5, decimal_places=1, default=0, help_text="Share of the sump's water volume in this chamber")
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['sump', 'position', 'id']
+
+    def __str__(self):
+        return f"{self.display_name} ({self.sump.name})"
+
+    @property
+    def display_name(self):
+        return self.name or self.get_chamber_type_display()
+
+    @property
+    def volume_gallons(self):
+        return round(float(self.sump.volume_gallons or 0) * float(self.share_percent or 0) / 100.0, 1)
 
 
 class Equipment(models.Model):
@@ -255,6 +392,8 @@ class Equipment(models.Model):
         ('offline', 'Offline / Standby'),
     ]
 
+    FLOW_CATEGORIES = ('return_pump', 'wavemaker')
+
     tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipment')
     name = models.CharField(max_length=120, help_text="e.g. Radion XR30 Pro, Vectra M2 Return Pump")
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='other')
@@ -264,6 +403,9 @@ class Equipment(models.Model):
     maintenance_interval_days = models.PositiveIntegerField(default=90, help_text="Days between service cleanings (e.g. 90)")
     last_serviced_date = models.DateField(null=True, blank=True, help_text="Last date cleaned or calibrated")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='operational')
+    max_flow_gph = models.PositiveIntegerField(null=True, blank=True, help_text="Rated maximum flow in gallons per hour (L/h ÷ 3.785 = gph)")
+    power_setting_percent = models.PositiveSmallIntegerField(default=100, help_text="Current power / speed setting, 1-100%")
+    flow_derate_percent = models.PositiveSmallIntegerField(default=0, help_text="Flow lost to head height and plumbing, % (return pumps are often 20-40%)")
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -275,23 +417,44 @@ class Equipment(models.Model):
         return f"{self.name}{tank_str}"
 
     @property
+    def estimated_flow_gph(self):
+        """Estimated real flow (gph) at the current power setting, or None if no max flow is set."""
+        return estimate_flow_gph(self.max_flow_gph, self.power_setting_percent, self.flow_derate_percent)
+
+    @property
+    def estimated_flow_gph_display(self):
+        flow = self.estimated_flow_gph
+        return round(flow) if flow is not None else None
+
+    @property
+    def estimated_flow_lph_display(self):
+        lph = gph_to_lph(self.estimated_flow_gph)
+        return round(lph) if lph is not None else None
+
+    @property
+    def _service_anchor(self):
+        return self.last_serviced_date or self.installed_date
+
+    @property
     def is_service_due(self):
-        """Returns True if equipment needs routine vinegar bath/cleaning."""
+        """True if the equipment needs its routine cleaning/service."""
+        if self.status == 'offline':
+            return False
         if self.status == 'maintenance_due':
             return True
-        if not self.last_serviced_date:
+        anchor = self._service_anchor
+        if not anchor:
             return False
-        from datetime import date, timedelta
-        due_date = self.last_serviced_date + timedelta(days=self.maintenance_interval_days)
-        return date.today() >= due_date
+        due_date = anchor + timedelta(days=self.maintenance_interval_days)
+        return timezone.localdate() >= due_date
 
     @property
     def days_until_service(self):
-        if not self.last_serviced_date:
+        anchor = self._service_anchor
+        if not anchor:
             return None
-        from datetime import date, timedelta
-        due_date = self.last_serviced_date + timedelta(days=self.maintenance_interval_days)
-        return (due_date - date.today()).days
+        due_date = anchor + timedelta(days=self.maintenance_interval_days)
+        return (due_date - timezone.localdate()).days
 
 
 class DosingReservoir(models.Model):
@@ -309,7 +472,7 @@ class DosingReservoir(models.Model):
     unit = models.CharField(max_length=10, default='ml', help_text="ml for dosing, gal or L for ATO")
     daily_consumption = models.DecimalField(max_digits=8, decimal_places=2, help_text="Daily dose (ml/day) or evaporation (gal/day)")
     color = models.CharField(max_length=20, default="#06b6d4")
-    last_refilled_date = models.DateField(default=timezone.now)
+    last_refilled_date = models.DateField(default=timezone.localdate)
 
     class Meta:
         ordering = ['reservoir_type', 'name']
@@ -335,8 +498,7 @@ class DosingReservoir(models.Model):
         days = self.days_remaining
         if days is None:
             return None
-        from datetime import date, timedelta
-        return date.today() + timedelta(days=int(days))
+        return timezone.localdate() + timedelta(days=int(days))
 
     @property
     def is_low(self):
@@ -375,7 +537,6 @@ class MaintenanceRoutine(models.Model):
     def is_due(self):
         if not self.last_completed:
             return True
-        from datetime import timedelta
         return timezone.now() >= self.last_completed + timedelta(days=self.frequency_days)
 
     @property
@@ -399,3 +560,16 @@ class WaterChangeLog(models.Model):
 
     def __str__(self):
         return f"{self.gallons} gal change on {self.performed_at:%b %d, %Y}"
+
+
+class DashboardWidget(models.Model):
+    """Per-widget visibility and order for the customizable dashboard."""
+    key = models.CharField(max_length=40, unique=True)
+    enabled = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+    def __str__(self):
+        return f"{self.key} ({'on' if self.enabled else 'off'})"

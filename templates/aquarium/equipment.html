@@ -1,133 +1,117 @@
 {% extends 'base.html' %}
 
-{% block title %}Tanks & Equipment | Nudibranch{% endblock %}
+{% block title %}Equipment | Nudibranch{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
+  {% include 'aquarium/partials/system_tabs.html' with active='equipment' %}
 
-  <!-- Header -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-black text-white tracking-tight">Tanks & Equipment</h1>
-      <p class="text-xs text-slate-400 mt-0.5">Manage aquarium systems, hardware components, and routine service intervals</p>
+      <h1 class="text-2xl font-black text-white tracking-tight">Equipment</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Hardware, service intervals, and pump power settings that drive the flow estimates</p>
     </div>
-    
     <div class="flex items-center gap-2">
-      <button onclick="document.getElementById('add-tank-modal').classList.remove('hidden')" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">
-        + Add Tank
-      </button>
-      <button onclick="document.getElementById('add-equipment-modal').classList.remove('hidden')" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
-        + Add Hardware
-      </button>
+      <a href="{% url 'tanks' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🏛️ Tanks &amp; Sumps</a>
+      <button type="button" onclick="openModal('add-equipment-modal')" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Hardware</button>
     </div>
   </div>
 
-  <!-- Tanks Overview Cards -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for tank in tanks %}
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="text-2xl">🏛️</span>
-            <div>
-              <h3 class="text-base font-bold text-white">{{ tank.name }}</h3>
-              <p class="text-xs text-cyan-400 font-semibold">{{ tank.volume_gallons }} Gallons System</p>
-            </div>
-          </div>
-          {% if tank.is_primary %}
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-              PRIMARY TANK
-            </span>
-          {% endif %}
-        </div>
-
-        <div class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-          <span>{{ tank.equipment.count }} Hardware Pieces</span>
-          <span>{{ tank.animals.count }} Creatures</span>
-        </div>
-      </div>
-    {% endfor %}
-  </div>
-
-  <!-- Category Filter Bar & Power Stats -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
-    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-      <a href="{% url 'equipment' %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_category %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
-        All Gear
-      </a>
-      {% for cat_key, cat_name in categories %}
-        <a href="{% url 'equipment' %}?category={{ cat_key }}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_category == cat_key %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
-          {{ cat_name }}
-        </a>
+  <!-- Filters -->
+  <div class="space-y-2 pt-1">
+    {% if tanks|length > 1 %}
+    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+      <span class="text-[10px] uppercase font-bold text-slate-500 px-1 shrink-0">Tank:</span>
+      <a href="{% url 'equipment' %}{% if selected_category %}?category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank_id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">All</a>
+      {% for t in tanks %}
+        <a href="{% url 'equipment' %}?tank={{ t.id }}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_tank_id == t.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">{{ t.name }}</a>
       {% endfor %}
     </div>
-
-    {% if total_watts > 0 %}
-      <div class="shrink-0 flex items-center gap-2 text-xs text-slate-400 px-3 py-1.5 bg-slate-900 rounded-xl border border-slate-800">
-        <span>⚡ System Power:</span>
-        <span class="font-bold text-amber-400">{{ total_watts }} Watts</span>
-      </div>
     {% endif %}
+
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+        <a href="{% url 'equipment' %}{% if selected_tank_id %}?tank={{ selected_tank_id }}{% endif %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_category %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">All Gear</a>
+        {% for cat_key, cat_name in categories %}
+          <a href="{% url 'equipment' %}?category={{ cat_key }}{% if selected_tank_id %}&tank={{ selected_tank_id }}{% endif %}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_category == cat_key %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">{{ cat_name }}</a>
+        {% endfor %}
+      </div>
+      {% if total_watts > 0 %}
+        <div class="shrink-0 flex items-center gap-2 text-xs text-slate-400 px-3 py-1.5 bg-slate-900 rounded-xl border border-slate-800">
+          <span>⚡ Rated power:</span><span class="font-bold text-amber-400">{{ total_watts }} W</span>
+        </div>
+      {% endif %}
+    </div>
   </div>
 
-  <!-- Equipment List Grid -->
+  <!-- Equipment grid -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for eq in equipment_list %}
-      <div class="bg-slate-900 border {% if eq.is_service_due %}border-amber-500/50 shadow-lg shadow-amber-500/10{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm">
+      <div class="bg-slate-900 border {% if eq.is_service_due %}border-amber-500/50 shadow-lg shadow-amber-500/10{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm {% if eq.status == 'offline' %}opacity-60{% endif %}">
         <div>
-          <!-- Header -->
           <div class="flex items-start justify-between gap-2">
-            <div>
+            <div class="min-w-0">
               <span class="text-[11px] text-slate-500 font-semibold uppercase block">{{ eq.get_category_display }}</span>
               <h3 class="text-base font-bold text-white tracking-tight mt-0.5">{{ eq.name }}</h3>
-              {% if eq.brand %}
-                <p class="text-xs text-slate-400">{{ eq.brand }}</p>
-              {% endif %}
+              {% if eq.brand %}<p class="text-xs text-slate-400">{{ eq.brand }}</p>{% endif %}
             </div>
-
-            {% if eq.wattage %}
-              <span class="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                {{ eq.wattage }}W
-              </span>
-            {% endif %}
+            <div class="flex flex-col items-end gap-1">
+              {% if eq.wattage %}<span class="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30">{{ eq.wattage }}W</span>{% endif %}
+              {% if eq.status == 'offline' %}<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700">OFFLINE</span>{% endif %}
+            </div>
           </div>
 
-          <!-- Service / Maintenance Status -->
+          {% if eq.category == 'return_pump' or eq.category == 'wavemaker' %}
+            <!-- Power setting & estimated flow -->
+            <div class="mt-4 p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/20 space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400">Estimated flow</span>
+                {% if eq.estimated_flow_gph_display is not None %}
+                  <span class="font-bold text-cyan-400">{{ eq.estimated_flow_gph_display }} gph <span class="text-slate-500 font-normal">({{ eq.estimated_flow_lph_display }} L/h)</span></span>
+                {% else %}
+                  <a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">set rated max flow</a>
+                {% endif %}
+              </div>
+              <form method="POST" action="{% url 'equipment_power' eq.id %}" class="flex items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <label class="text-[11px] text-slate-400 shrink-0" for="power-{{ eq.id }}">Power</label>
+                <input type="range" min="1" max="100" value="{{ eq.power_setting_percent }}" class="flex-1 accent-cyan-500" oninput="this.nextElementSibling.value=this.value" aria-label="Power setting">
+                <input type="number" name="power" id="power-{{ eq.id }}" min="1" max="100" value="{{ eq.power_setting_percent }}" class="w-14 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs text-center" oninput="this.previousElementSibling.value=this.value">
+                <span class="text-[11px] text-slate-400">%</span>
+                <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
+              </form>
+              {% if eq.max_flow_gph %}<p class="text-[10px] text-slate-500">Rated {{ eq.max_flow_gph }} gph{% if eq.flow_derate_percent %} · −{{ eq.flow_derate_percent }}% for head height/plumbing{% endif %}. Flow is assumed to scale linearly with power.</p>{% endif %}
+            </div>
+          {% endif %}
+
           <div class="mt-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
             <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-400">Maintenance Cycle:</span>
+              <span class="text-slate-400">Maintenance cycle:</span>
               <span class="text-slate-300 font-medium">Every {{ eq.maintenance_interval_days }} days</span>
             </div>
-            
             <div class="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60">
-              <span class="text-slate-400">Service Status:</span>
+              <span class="text-slate-400">Service status:</span>
               {% if eq.is_service_due %}
-                <span class="font-bold text-rose-400 animate-pulse">
-                  ⚠️ Service Due!
-                </span>
+                <span class="font-bold text-rose-400 animate-pulse">⚠️ Service due!</span>
               {% else %}
-                <span class="text-emerald-400 font-semibold">
-                  {% if eq.days_until_service is not None %}Due in ~{{ eq.days_until_service }}d{% else %}Optimal{% endif %}
-                </span>
+                <span class="text-emerald-400 font-semibold">{% if eq.days_until_service is not None %}Due in ~{{ eq.days_until_service }}d{% else %}No service date set{% endif %}</span>
               {% endif %}
             </div>
-            <p class="text-[10px] text-slate-500">
-              Last cleaned: {% if eq.last_serviced_date %}{{ eq.last_serviced_date|date:"M d, Y" }}{% else %}Never logged{% endif %}
-            </p>
+            <p class="text-[10px] text-slate-500">Last cleaned: {% if eq.last_serviced_date %}{{ eq.last_serviced_date|date:"M d, Y" }}{% else %}Never logged{% endif %}</p>
           </div>
         </div>
 
-        <!-- Service Action Footer -->
         <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-          <span class="text-[10px] text-slate-500">
-            {% if eq.tank %}Tank: {{ eq.tank.name }}{% endif %}
-          </span>
-          <form method="POST" action="{% url 'service_equipment' eq.id %}">
-            {% csrf_token %}
-            <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5">
-              <span>✓</span> Serviced Today
-            </button>
-          </form>
+          <span class="text-[10px] text-slate-500 truncate">{% if eq.tank %}Tank: {{ eq.tank.name }}{% endif %}</span>
+          <div class="flex items-center gap-1.5">
+            <a href="{% url 'equipment_edit' eq.id %}" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 font-semibold text-xs rounded-xl border border-slate-700 transition-colors">Edit</a>
+            <form method="POST" action="{% url 'service_equipment' eq.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">✓ Serviced</button>
+            </form>
+          </div>
         </div>
       </div>
     {% empty %}
@@ -135,104 +119,57 @@
         <span class="text-3xl">⚙️</span>
         <h3 class="mt-2 text-base font-bold text-white">No equipment logged</h3>
         <p class="text-xs text-slate-400 mt-1">Track return pumps, skimmers, lights, and heaters to stay on top of maintenance intervals.</p>
-        <button onclick="document.getElementById('add-equipment-modal').classList.remove('hidden')" class="mt-3 px-4 py-2 bg-cyan-500 text-slate-950 font-bold text-xs rounded-xl">
-          + Add First Equipment
-        </button>
+        <button type="button" onclick="openModal('add-equipment-modal')" class="mt-3 px-4 py-2 bg-cyan-500 text-slate-950 font-bold text-xs rounded-xl">+ Add First Equipment</button>
       </div>
     {% endfor %}
   </div>
 
   <!-- Add Equipment Modal -->
-  <div id="add-equipment-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-    <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+  <div id="add-equipment-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+    <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
       <div class="flex items-center justify-between pb-4 border-b border-slate-800">
         <h3 class="text-lg font-bold text-white">Add Equipment Piece</h3>
-        <button onclick="document.getElementById('add-equipment-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+        <button type="button" onclick="closeModal('add-equipment-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
       </div>
 
       <form method="POST" action="{% url 'equipment_create' %}" class="mt-4 space-y-4">
         {% csrf_token %}
         <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>
-            {{ equipment_form.tank }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>
-            {{ equipment_form.category }}
-          </div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ equipment_form.tank }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>{{ equipment_form.category }}</div>
+        </div>
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Hardware Name *</label>{{ equipment_form.name }}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Brand / Model</label>{{ equipment_form.brand }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Wattage (W)</label>{{ equipment_form.wattage }}</div>
         </div>
 
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Hardware Name *</label>
-          {{ equipment_form.name }}
+        <div class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/20 space-y-3">
+          <p class="text-[11px] text-cyan-300 font-semibold">Pumps &amp; wavemakers: flow estimate</p>
+          <div class="grid grid-cols-3 gap-3">
+            <div><label class="block text-[11px] text-slate-400 mb-1">Rated max (gph)</label>{{ equipment_form.max_flow_gph }}</div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">Power setting %</label>{{ equipment_form.power_setting_percent }}</div>
+            <div><label class="block text-[11px] text-slate-400 mb-1">Head loss %</label>{{ equipment_form.flow_derate_percent }}</div>
+          </div>
+          <p class="text-[10px] text-slate-500">Return pumps lose flow to height and plumbing (often 20–40%). Wavemakers: leave head loss at 0.</p>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Brand / Model</label>
-            {{ equipment_form.brand }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Wattage (W)</label>
-            {{ equipment_form.wattage }}
-          </div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Service Interval (Days)</label>{{ equipment_form.maintenance_interval_days }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Last Serviced Date</label>{{ equipment_form.last_serviced_date }}</div>
         </div>
-
         <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Service Interval (Days)</label>
-            {{ equipment_form.maintenance_interval_days }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Last Serviced Date</label>
-            {{ equipment_form.last_serviced_date }}
-          </div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Installed</label>{{ equipment_form.installed_date }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Status</label>{{ equipment_form.status }}</div>
         </div>
-
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>
-          {{ equipment_form.notes }}
-        </div>
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ equipment_form.notes }}</div>
 
         <div class="pt-3 flex justify-end gap-2">
-          <button type="button" onclick="document.getElementById('add-equipment-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="button" onclick="closeModal('add-equipment-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
           <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Equipment</button>
         </div>
       </form>
     </div>
   </div>
-
-  <!-- Add Tank Modal -->
-  <div id="add-tank-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-        <h3 class="text-lg font-bold text-white">Add Tank System</h3>
-        <button onclick="document.getElementById('add-tank-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
-      </div>
-
-      <form method="POST" action="{% url 'tank_create' %}" class="mt-4 space-y-4">
-        {% csrf_token %}
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">System Name</label>
-          {{ tank_form.name }}
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Total Water Volume (Gallons)</label>
-          {{ tank_form.volume_gallons }}
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>
-          {{ tank_form.notes }}
-        </div>
-
-        <div class="pt-3 flex justify-end gap-2">
-          <button type="button" onclick="document.getElementById('add-tank-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
-          <button type="submit" class="px-5 py-2.5 bg-cyan-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg">Save Tank</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
 </div>
 {% endblock %}

@@ -1,0 +1,31 @@
+<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm h-full">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-base font-bold text-white flex items-center gap-2">
+      <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> Tank Webcam
+    </h3>
+    <a href="{% url 'webcams' %}" class="text-xs font-semibold text-cyan-400 hover:underline">All Feeds →</a>
+  </div>
+
+  {% if active_cameras %}
+    {% with cam=active_cameras.0 %}
+      <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-slate-800">
+        {% if cam.feed_type == 'mjpeg' %}
+          <img src="{{ cam.feed_url }}" alt="{{ cam.name }}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full text-xs text-slate-500\'>Camera feed unreachable</div>'">
+        {% elif cam.feed_type == 'iframe' %}
+          <iframe src="{{ cam.feed_url }}" class="w-full h-full border-0"></iframe>
+        {% else %}
+          <div class="flex flex-col items-center justify-center h-full text-slate-400 p-4 text-center">
+            <p class="text-xs font-semibold">{{ cam.name }} ({{ cam.get_feed_type_display }})</p>
+            <a href="{{ cam.feed_url }}" target="_blank" rel="noopener" class="mt-2 text-xs text-cyan-400 underline">Open live stream</a>
+          </div>
+        {% endif %}
+        <div class="absolute bottom-2 left-2 px-2 py-1 bg-slate-950/70 backdrop-blur-sm rounded text-[10px] font-semibold text-white">{{ cam.name }}</div>
+      </div>
+    {% endwith %}
+  {% else %}
+    <div class="p-6 rounded-xl border border-dashed border-slate-800 text-center">
+      <p class="text-xs text-slate-500">No active cameras configured.</p>
+      <a href="{% url 'webcam_create' %}" class="mt-2 inline-block text-xs font-semibold text-cyan-400 underline">+ Add a webcam feed</a>
+    </div>
+  {% endif %}
+</div>

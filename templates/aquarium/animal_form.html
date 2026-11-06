@@ -1,14 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ title }} | Nudibranch Reef Tracker{% endblock %}
+{% block title %}{{ title }} | Nudibranch{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto space-y-6">
-
-  <!-- Breadcrumb & Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-2">
-      <a href="{% url 'livestock' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors">
+      <a href="{% url 'livestock' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
       </a>
       <div>
@@ -16,23 +14,23 @@
         <p class="text-xs text-slate-400">Manage tank inhabitant details and status</p>
       </div>
     </div>
-
     {% if is_edit %}
-      <a href="{% url 'animal_delete' animal.id %}" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 transition-colors">
-        Delete
-      </a>
+      <a href="{% url 'animal_delete' animal.id %}" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 transition-colors">Delete</a>
     {% endif %}
   </div>
 
-  <!-- Form Container -->
   <form method="POST" enctype="multipart/form-data" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
     {% csrf_token %}
 
-    <!-- Photo Preview / Upload Header -->
+    {% if form.non_field_errors %}
+      <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <!-- Photo -->
     <div>
-      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Creature Photo</label>
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Photo</label>
       <div class="flex items-center gap-4">
-        <div id="photo-preview-box" class="w-24 h-24 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0 shadow-inner relative group">
+        <div class="w-24 h-24 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
           {% if is_edit and animal.photo %}
             <img id="photo-preview-img" src="{{ animal.photo.url }}" alt="{{ animal.name }}" class="w-full h-full object-cover">
           {% else %}
@@ -41,122 +39,86 @@
           {% endif %}
         </div>
         <div class="flex-1 space-y-1.5">
-          <label class="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors shadow-sm active:scale-95">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
-            <span>Snap Camera / Choose File</span>
+          <label class="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">
+            <span>📷 Snap camera / choose file</span>
             <input type="file" name="photo" id="id_photo" accept="image/*" onchange="previewCreaturePhoto(this)" class="hidden">
           </label>
-          <p id="photo-filename" class="text-[11px] text-slate-500">Supports photos taken from your phone camera, PNG, JPG, or WEBP</p>
+          <p id="photo-filename" class="text-[11px] text-slate-500">Phone camera photos, PNG, JPG or WEBP</p>
         </div>
       </div>
-      {% if form.photo.errors %}
-        <p class="text-xs text-rose-400 mt-1">{{ form.photo.errors.0 }}</p>
-      {% endif %}
+      {% if form.photo.errors %}<p class="text-xs text-rose-400 mt-1">{{ form.photo.errors.0 }}</p>{% endif %}
     </div>
 
-    <!-- Optional Species Catalog Quick-Pick (if adding new) -->
     {% if not is_edit %}
       <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span>💡</span> Quick Autofill From Common Species
-          </label>
-          <a href="{% url 'species_catalog' %}" class="text-[11px] text-slate-400 hover:text-white underline">Browse full catalog →</a>
+          <label class="text-xs font-bold text-cyan-400 uppercase tracking-wider">💡 Autofill from common species</label>
+          <a href="{% url 'species_catalog' %}" class="text-[11px] text-slate-400 hover:text-white underline">Browse catalog →</a>
         </div>
         <select id="species-preset-select" onchange="applySpeciesPreset(this.value)" class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-cyan-500">
-          <option value="">Select a common reef species to autofill...</option>
+          <option value="">Select a common reef species…</option>
         </select>
       </div>
     {% endif %}
 
-    <!-- Basic Information -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="sm:col-span-2 space-y-1.5">
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Name / Specimen *</label>
         {{ form.name }}
-        {% if form.name.errors %}
-          <p class="text-xs text-rose-400">{{ form.name.errors.0 }}</p>
-        {% endif %}
+        {% if form.name.errors %}<p class="text-xs text-rose-400">{{ form.name.errors.0 }}</p>{% endif %}
       </div>
-
       <div class="space-y-1.5">
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Quantity</label>
         {{ form.count }}
-        {% if form.count.errors %}
-          <p class="text-xs text-rose-400">{{ form.count.errors.0 }}</p>
-        {% endif %}
+        {% if form.count.errors %}<p class="text-xs text-rose-400">{{ form.count.errors.0 }}</p>{% endif %}
       </div>
     </div>
 
-    <!-- Species & Scientific Name -->
     <div class="space-y-1.5">
-      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Species / Latin Name (Optional)</label>
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Species / Latin name</label>
       {{ form.species }}
     </div>
 
-    <!-- Assigned Tank System -->
     <div class="space-y-1.5">
-      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Assigned Tank System *</label>
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Tank *</label>
       {{ form.tank }}
-      {% if form.tank.errors %}
-        <p class="text-xs text-rose-400">{{ form.tank.errors.0 }}</p>
-      {% endif %}
+      {% if form.tank.errors %}<p class="text-xs text-rose-400">{{ form.tank.errors.0 }}</p>{% endif %}
     </div>
 
-    <!-- Health Status & Acquired Date -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div class="space-y-1.5">
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Health Status</label>
-        {{ form.status }}
-      </div>
-
-      <div class="space-y-1.5">
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Acquired Date</label>
-        {{ form.acquired_date }}
-      </div>
+      <div class="space-y-1.5"><label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Health status</label>{{ form.status }}</div>
+      <div class="space-y-1.5"><label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Acquired date</label>{{ form.acquired_date }}</div>
     </div>
 
-    <!-- Groups Tagging -->
     <div class="space-y-3 pt-2 border-t border-slate-800">
       <div>
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Animal Groups / Categories</label>
-        <p class="text-xs text-slate-500 mb-3">Tag into groups for quick filtering (e.g. Cleanup Crew, School, Corals):</p>
-        
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Groups</label>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {% for checkbox in form.groups %}
-            <label class="flex items-center gap-2 p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-slate-700 cursor-pointer transition-colors text-xs text-slate-300">
-              {{ checkbox.tag }}
-              <span>{{ checkbox.choice_label }}</span>
+            <label class="flex items-center gap-2 p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-slate-700 cursor-pointer text-xs text-slate-300">
+              {{ checkbox.tag }}<span>{{ checkbox.choice_label }}</span>
             </label>
           {% endfor %}
         </div>
       </div>
-
-      <!-- Add New Group Inline -->
       <div class="pt-2">
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{{ form.new_group_name.label }}</label>
         {{ form.new_group_name }}
       </div>
     </div>
 
-    <!-- Notes -->
     <div class="space-y-1.5 pt-2 border-t border-slate-800">
-      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Notes & Care History</label>
+      <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Notes &amp; care history</label>
       {{ form.notes }}
     </div>
 
-    <!-- Submit Buttons -->
     <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-      <a href="{% url 'livestock' %}" class="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors">
-        Cancel
-      </a>
-      <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">
-        Save Creature
-      </button>
+      <a href="{% url 'livestock' %}" class="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors">Cancel</a>
+      <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">Save</button>
     </div>
   </form>
-
 </div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
@@ -165,96 +127,62 @@
   async function loadSpeciesPresets() {
     const select = document.getElementById('species-preset-select');
     if (!select) return;
-
     try {
       const res = await fetch('/api/species/');
       const data = await res.json();
       cachedSpecies = data.species || [];
-
-      // Group options by category
       const categories = {
-        'fish': '🐠 Fish',
-        'cleanup_crew': '🐌 Cleanup Crew',
-        'invert': '🦐 Invertebrates & Shrimp',
-        'coral': '🪸 Corals & Anemones'
+        fish: '🐠 Fish', cleanup_crew: '🐌 Cleanup Crew',
+        invert: '🦐 Invertebrates & Shrimp', coral: '🪸 Corals & Anemones'
       };
-
-      for (const [catKey, catLabel] of Object.entries(categories)) {
-        const groupSpecies = cachedSpecies.filter(s => s.category === catKey);
-        if (groupSpecies.length > 0) {
-          const optgroup = document.createElement('optgroup');
-          optgroup.label = catLabel;
-          groupSpecies.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.id;
-            opt.textContent = `${s.name} (${s.species || s.care_level})`;
-            optgroup.appendChild(opt);
-          });
-          select.appendChild(optgroup);
-        }
+      for (const [key, label] of Object.entries(categories)) {
+        const items = cachedSpecies.filter(s => s.category === key);
+        if (!items.length) continue;
+        const og = document.createElement('optgroup');
+        og.label = label;
+        items.forEach(s => {
+          const o = document.createElement('option');
+          o.value = s.id;
+          o.textContent = `${s.name} (${s.species || s.care_level})`;
+          og.appendChild(o);
+        });
+        select.appendChild(og);
       }
-    } catch (err) {
-      console.warn('Could not load species presets:', err);
-    }
+    } catch (err) { console.warn('Could not load species presets:', err); }
   }
 
-  function applySpeciesPreset(speciesId) {
-    if (!speciesId) return;
-    const s = cachedSpecies.find(item => item.id == speciesId);
+  function applySpeciesPreset(id) {
+    if (!id) return;
+    const s = cachedSpecies.find(x => String(x.id) === String(id));
     if (!s) return;
-
-    // Autofill form inputs
-    const nameInput = document.getElementById('id_name');
-    const speciesInput = document.getElementById('id_species');
-    const notesInput = document.getElementById('id_notes');
-    const countInput = document.getElementById('id_count');
-
-    if (nameInput) nameInput.value = s.name;
-    if (speciesInput) speciesInput.value = s.species;
-    if (notesInput) {
-      notesInput.value = `Care: ${s.care_level}. Diet: ${s.diet}. ${s.notes}`.trim();
-    }
-    if (countInput) {
-      countInput.value = s.category === 'cleanup_crew' ? 5 : 1;
-    }
-
-    // Auto-check suggested group checkbox if matching label exists
+    const set = (el, v) => { if (el) el.value = v; };
+    set(document.getElementById('id_name'), s.name);
+    set(document.getElementById('id_species'), s.species);
+    set(document.getElementById('id_notes'), `Care: ${s.care_level}. Diet: ${s.diet}. ${s.notes}`.trim());
+    set(document.getElementById('id_count'), s.category === 'cleanup_crew' ? 5 : 1);
     if (s.suggested_group) {
-      const checkboxes = document.querySelectorAll('input[type="checkbox"][name="groups"]');
-      checkboxes.forEach(cb => {
+      document.querySelectorAll('input[type="checkbox"][name="groups"]').forEach(cb => {
         const label = cb.closest('label');
-        if (label && label.textContent.toLowerCase().includes(s.suggested_group.toLowerCase())) {
-          cb.checked = true;
-        }
+        if (label && label.textContent.toLowerCase().includes(s.suggested_group.toLowerCase())) cb.checked = true;
       });
     }
   }
 
   function previewCreaturePhoto(input) {
-    if (input.files && input.files[0]) {
-      const file = input.files[0];
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const img = document.getElementById('photo-preview-img');
-        const placeholder = document.getElementById('photo-preview-placeholder');
-        const filename = document.getElementById('photo-filename');
-        if (img) {
-          img.src = e.target.result;
-          img.classList.remove('hidden');
-        }
-        if (placeholder) {
-          placeholder.classList.add('hidden');
-        }
-        if (filename) {
-          filename.innerText = `Selected: ${file.name} (${Math.round(file.size / 1024)} KB)`;
-          filename.classList.add('text-cyan-400');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!(input.files && input.files[0])) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('photo-preview-img');
+      const ph = document.getElementById('photo-preview-placeholder');
+      const fn = document.getElementById('photo-filename');
+      if (img) { img.src = e.target.result; img.classList.remove('hidden'); }
+      if (ph) ph.classList.add('hidden');
+      if (fn) { fn.innerText = `Selected: ${file.name} (${Math.round(file.size / 1024)} KB)`; fn.classList.add('text-cyan-400'); }
+    };
+    reader.readAsDataURL(file);
   }
 
   document.addEventListener('DOMContentLoaded', loadSpeciesPresets);
 </script>
-{% endblock %}
 {% endblock %}

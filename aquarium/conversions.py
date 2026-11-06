@@ -4,9 +4,6 @@ Supports Temperature (°F/°C), Salinity (SG/ppt/mS/cm), Alkalinity (dKH/meq/L/p
 and Nutrients (ppm/ppb).
 """
 
-from decimal import Decimal, ROUND_HALF_UP
-
-
 # Common unit choices per parameter category
 PARAMETER_UNIT_SUGGESTIONS = {
     'temperature': [
@@ -44,73 +41,84 @@ PARAMETER_UNIT_SUGGESTIONS = {
     ],
 }
 
+_PPT_UNITS = ['ppt', 'psu', 'parts per thousand']
+_SG_UNITS = ['sg', 'specific gravity']
+_MS_UNITS = ['ms/cm', 'ms']
+_MEQ_UNITS = ['meq/l', 'meq']
 
-def convert_value(val_float: float, from_unit: str, to_unit: str) -> float:
+
+def convert_value(val_float: float, from_unit: str, to_unit: str, code: str = '') -> float:
     """
     Converts a numerical reading from one unit to another.
+    `code` is the parameter code (e.g. 'phosphate'); it keeps parameter-specific
+    formulas (like ppm PO4 -> ppb P) from being applied to unrelated parameters
+    such as nitrate.
     If no conversion formula exists or units match, returns the original value.
     """
     from_u = from_unit.strip().lower()
     to_u = to_unit.strip().lower()
+    code = (code or '').strip().lower()
 
     if from_u == to_u:
         return val_float
 
     # 1. Temperature (°F <-> °C)
-    if '°f' in from_u or 'f' == from_u:
-        if '°c' in to_u or 'c' == to_u:
+    if from_u in ('°f', 'f'):
+        if to_u in ('°c', 'c'):
             return (val_float - 32.0) * (5.0 / 9.0)
-    elif '°c' in from_u or 'c' == from_u:
-        if '°f' in to_u or 'f' == to_u:
+    elif from_u in ('°c', 'c'):
+        if to_u in ('°f', 'f'):
             return (val_float * (9.0 / 5.0)) + 32.0
 
     # 2. Salinity (SG <-> ppt <-> mS/cm)
     # 1.0264 SG ~ 35.0 ppt ~ 53.0 mS/cm
-    if from_u in ['sg', 'specific gravity']:
-        if to_u in ['ppt', 'psu', 'parts per thousand']:
+    if from_u in _SG_UNITS:
+        if to_u in _PPT_UNITS:
             return (val_float - 1.0) * 1340.0
-        elif to_u in ['ms/cm', 'ms']:
+        elif to_u in _MS_UNITS:
             return (val_float - 1.0) * 1340.0 * 1.5143
-    elif from_u in ['ppt', 'psu', 'parts per thousand']:
-        if to_u in ['sg', 'specific gravity']:
+    elif from_u in _PPT_UNITS:
+        if to_u in _SG_UNITS:
             return 1.0 + (val_float / 1340.0)
-        elif to_u in ['ms/cm', 'ms']:
+        elif to_u in _MS_UNITS:
             return val_float * 1.5143
-    elif from_u in ['ms/cm', 'ms']:
-        if to_u in ['ppt', 'psu']:
+    elif from_u in _MS_UNITS:
+        if to_u in _PPT_UNITS:
             return val_float / 1.5143
-        elif to_u in ['sg', 'specific gravity']:
+        elif to_u in _SG_UNITS:
             return 1.0 + ((val_float / 1.5143) / 1340.0)
 
-    # 3. Alkalinity (dKH <-> meq/L <-> ppm)
+    # 3. Alkalinity (dKH <-> meq/L <-> ppm CaCO3)
     # 1 meq/L = 2.8 dKH = 50 ppm CaCO3; 1 dKH = 17.86 ppm CaCO3
-    if from_u == 'dkh':
-        if to_u in ['meq/l', 'meq']:
-            return val_float / 2.8
-        elif to_u in ['ppm', 'mg/l']:
-            return val_float * 17.86
-    elif from_u in ['meq/l', 'meq']:
-        if to_u == 'dkh':
-            return val_float * 2.8
-        elif to_u in ['ppm', 'mg/l']:
-            return val_float * 50.0
-    elif from_u in ['ppm', 'mg/l']:
-        if to_u == 'dkh':
-            return val_float / 17.86
-        elif to_u in ['meq/l', 'meq']:
-            return val_float / 50.0
+    if code in ('', 'alkalinity'):
+        if from_u == 'dkh':
+            if to_u in _MEQ_UNITS:
+                return val_float / 2.8
+            elif to_u in ('ppm', 'mg/l'):
+                return val_float * 17.86
+        elif from_u in _MEQ_UNITS:
+            if to_u == 'dkh':
+                return val_float * 2.8
+            elif to_u in ('ppm', 'mg/l'):
+                return val_float * 50.0
+        elif from_u in ('ppm', 'mg/l'):
+            if to_u == 'dkh':
+                return val_float / 17.86
+            elif to_u in _MEQ_UNITS:
+                return val_float / 50.0
 
     # 4. Phosphate (ppm PO4 <-> ppb Phosphorus P)
     # ppb P = ppm PO4 * 1000 / 3.066
-    if from_u in ['ppm', 'mg/l'] and to_u in ['ppb', 'ppb p']:
-        return (val_float * 1000.0) / 3.066
-    elif from_u in ['ppb', 'ppb p'] and to_u in ['ppm', 'mg/l']:
-        return (val_float * 3.066) / 1000.0
+    if code == 'phosphate':
+        if from_u in ('ppm', 'mg/l') and to_u in ('ppb', 'ppb p'):
+            return (val_float * 1000.0) / 3.066
+        elif from_u in ('ppb', 'ppb p') and to_u in ('ppm', 'mg/l'):
+            return (val_float * 3.066) / 1000.0
 
     # 5. General ppm <-> ppb (1000:1)
-    if from_u == 'ppm' and to_u == 'ppb':
+    if from_u == 'ppm' and to_u in ('ppb', 'ppb p'):
         return val_float * 1000.0
-    elif from_u == 'ppb' and to_u == 'ppm':
+    elif from_u in ('ppb', 'ppb p') and to_u == 'ppm':
         return val_float / 1000.0
 
     # 6. ppm <-> mg/L (1:1)

@@ -1,6 +1,14 @@
 """
-Aquarium calculators for Salt Mixing, Evaporation, and Reservoir Estimations.
+Aquarium calculators: salt mixing, tank capacity, pump flow / turnover and dosing estimates.
+
+Everything in this module is plain Python (no Django imports) so it can be unit tested
+on its own and imported from models without circular-import problems.
 """
+import math
+
+GAL_PER_LITER = 1 / 3.78541
+LITERS_PER_GAL = 3.78541
+IN3_PER_GALLON = 231.0
 
 # Salt mix grams per gallon needed to achieve 1.026 SG (35 ppt)
 SALT_MIX_RECIPES = {
@@ -65,11 +73,11 @@ def calculate_salt_mix(
     # Normalize volume to gallons for recipe calculation
     v_unit = volume_unit.lower()
     if v_unit in ['l', 'liter', 'liters']:
-        gal_equiv = volume / 3.78541
+        gal_equiv = volume / LITERS_PER_GAL
         liters_equiv = volume
     else:
         gal_equiv = volume
-        liters_equiv = volume * 3.78541
+        liters_equiv = volume * LITERS_PER_GAL
 
     # Normalize salinity to SG
     s_unit = salinity_unit.lower()
@@ -104,3 +112,273 @@ def calculate_salt_mix(
         'lbs': round(lbs_total, 2),
         'cups': round(cups_total, 1),
     }
+
+
+# ---------------------------------------------------------------------------
+# Tank / sump capacity
+# ---------------------------------------------------------------------------
+
+def box_volume_gallons(width, depth, height, unit='in'):
+    """Geometric volume (gallons) of a rectangular box. Dimensions in inches or cm."""
+    w, d, h = float(width), float(depth), float(height)
+    if (unit or 'in').lower() == 'cm':
+        liters = (w * d * h) / 1000.0
+        return liters * GAL_PER_LITER
+    return (w * d * h) / IN3_PER_GALLON
+
+
+def estimate_capacity_gallons(width, depth, height, unit='in', fill_percent=90.0):
+    """
+    Estimated usable water volume. `fill_percent` accounts for glass/acrylic
+    thickness, the water line sitting below the rim, bracing, etc.
+    """
+    if not (width and depth and height):
+        return None
+    pct = max(1.0, min(100.0, float(fill_percent)))
+    return round(box_volume_gallons(width, depth, height, unit) * pct / 100.0, 1)
+
+
+# ---------------------------------------------------------------------------
+# Pump flow and turnover
+# ---------------------------------------------------------------------------
+
+# Rule-of-thumb ranges (turnovers per hour). These are community guidelines, not hard rules.
+RETURN_TURNOVER_RANGE = (4.0, 10.0)        # return pump flow / total system volume
+CIRCULATION_TURNOVER_RANGE = (20.0, 50.0)  # (return + wavemakers) / display volume, mixed reef
+
+
+def estimate_flow_gph(max_flow_gph, power_percent=100, derate_percent=0):
+    """
+    Estimated real flow of a pump or wavemaker.
+    flow = rated max x power setting x (1 - head/plumbing loss).
+    Power-to-flow is treated as linear, which is a reasonable approximation for
+    most DC pumps; real curves vary by model, so treat the result as an estimate.
+    """
+    if not max_flow_gph:
+        return None
+    power = max(0.0, min(100.0, float(power_percent if power_percent is not None else 100)))
+    derate = max(0.0, min(95.0, float(derate_percent or 0)))
+    return float(max_flow_gph) * (power / 100.0) * (1.0 - derate / 100.0)
+
+
+def gph_to_lph(gph):
+    return gph * LITERS_PER_GAL if gph is not None else None
+
+
+def _rate(value, rng):
+    if value is None:
+        return 'unknown'
+    if value < rng[0]:
+        return 'low'
+    if value > rng[1]:
+        return 'high'
+    return 'ok'
+
+
+def turnover_summary(display_gallons, system_gallons, return_gph, wavemaker_gph):
+    """Turnover figures for a tank given summed return-pump and wavemaker flow (gph)."""
+    display = float(display_gallons or 0)
+    system = float(system_gallons or 0) or display
+    return_gph = float(return_gph or 0)
+    wave_gph = float(wavemaker_gph or 0)
+
+    return_turnover = round(return_gph / system, 1) if system and return_gph else None
+    total_gph = return_gph + wave_gph
+    circulation = round(total_gph / display, 1) if display and total_gph else None
+
+    return {
+        'return_gph': round(return_gph),
+        'wavemaker_gph': round(wave_gph),
+        'total_gph': round(total_gph),
+        'return_lph': round(return_gph * LITERS_PER_GAL),
+        'total_lph': round(total_gph * LITERS_PER_GAL),
+        'return_turnover': return_turnover,
+        'circulation_turnover': circulation,
+        'return_status': _rate(return_turnover, RETURN_TURNOVER_RANGE),
+        'circulation_status': _rate(circulation, CIRCULATION_TURNOVER_RANGE),
+        'return_range': RETURN_TURNOVER_RANGE,
+        'circulation_range': CIRCULATION_TURNOVER_RANGE,
+        'system_gallons': round(system, 1),
+        'display_gallons': round(display, 1),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Dosing estimates
+# ---------------------------------------------------------------------------
+
+DKH_PER_MEQ = 2.8  # 1 meq/L alkalinity = 2.8 dKH (same constant used by conversions.py)
+
+# Conservative per-day increase limits. These are commonly quoted hobby guidelines
+# (alkalinity especially); they are editable defaults in the UI, not hard rules.
+MAX_DAILY_RAISE = {
+    'alkalinity': 1.4,   # dKH / day
+    'calcium': 20.0,     # ppm / day
+    'magnesium': 50.0,   # ppm / day
+}
+
+DOSE_PARAMETERS = {
+    'alkalinity': {'name': 'Alkalinity', 'unit': 'dKH', 'decimals': 2},
+    'calcium': {'name': 'Calcium', 'unit': 'ppm', 'decimals': 1},
+    'magnesium': {'name': 'Magnesium', 'unit': 'ppm', 'decimals': 0},
+}
+
+# Molar masses (g/mol). Amount needed is computed from stoichiometry, not from brand recipes.
+DOSE_CHEMICALS = {
+    'baking_soda': {
+        'name': 'Sodium bicarbonate (baking soda, NaHCO3)',
+        'parameter': 'alkalinity', 'molar_mass': 84.007, 'equivalents': 1,
+    },
+    'soda_ash': {
+        'name': 'Sodium carbonate, anhydrous (soda ash, Na2CO3)',
+        'parameter': 'alkalinity', 'molar_mass': 105.989, 'equivalents': 2,
+    },
+    'calcium_chloride_dihydrate': {
+        'name': 'Calcium chloride dihydrate (CaCl2·2H2O)',
+        'parameter': 'calcium', 'molar_mass': 147.01, 'ion_mass': 40.078,
+    },
+    'calcium_chloride_anhydrous': {
+        'name': 'Calcium chloride anhydrous (CaCl2)',
+        'parameter': 'calcium', 'molar_mass': 110.98, 'ion_mass': 40.078,
+    },
+    'magnesium_chloride_hexahydrate': {
+        'name': 'Magnesium chloride hexahydrate (MgCl2·6H2O)',
+        'parameter': 'magnesium', 'molar_mass': 203.30, 'ion_mass': 24.305,
+    },
+    'epsom_salt': {
+        'name': 'Epsom salt, magnesium sulfate heptahydrate (MgSO4·7H2O)',
+        'parameter': 'magnesium', 'molar_mass': 246.47, 'ion_mass': 24.305,
+    },
+}
+
+
+def grams_per_unit_raise(chemical_key, liters):
+    """Grams of dry chemical that raise `liters` of water by 1 unit (1 dKH, or 1 ppm)."""
+    chem = DOSE_CHEMICALS[chemical_key]
+    if chem['parameter'] == 'alkalinity':
+        meq_per_l = 1.0 / DKH_PER_MEQ
+        mg_per_l = meq_per_l * chem['molar_mass'] / chem['equivalents']
+    else:
+        mg_per_l = chem['molar_mass'] / chem['ion_mass']  # mg chemical per 1 mg/L of Ca or Mg
+    return mg_per_l * liters / 1000.0
+
+
+def dose_estimate(parameter, chemical_key, current, target, system_gallons,
+                  solution_g_per_l=None, max_daily_raise=None, daily_loss=0.0,
+                  label_raise=None, label_ml=None, label_gallons=None):
+    """
+    Estimate how much to add to move `parameter` from `current` to `target`.
+
+    Returns dry grams (always, when a dry chemical is selected) and ml of the user's
+    solution (if `solution_g_per_l` is given). If the product is a commercial one,
+    pass the label's "X ml raises Y per Z gallons" as label_ml / label_raise / label_gallons.
+    `daily_loss` is how much the parameter drops per day from consumption, which sets
+    the maintenance dose needed to hold the level steady.
+    """
+    if parameter not in DOSE_PARAMETERS:
+        raise ValueError('Unknown parameter')
+    gallons = float(system_gallons)
+    if gallons <= 0:
+        raise ValueError('System volume must be greater than zero')
+    liters = gallons * LITERS_PER_GAL
+
+    current = float(current)
+    target = float(target)
+    delta = target - current
+    max_daily = float(max_daily_raise) if max_daily_raise else MAX_DAILY_RAISE[parameter]
+    daily_loss = max(0.0, float(daily_loss or 0))
+    unit = DOSE_PARAMETERS[parameter]['unit']
+
+    result = {
+        'parameter': parameter,
+        'unit': unit,
+        'system_gallons': round(gallons, 1),
+        'system_liters': round(liters, 1),
+        'current': current,
+        'target': target,
+        'delta': round(delta, 3),
+        'max_daily_raise': max_daily,
+        'needs_raise': delta > 0,
+        'warnings': [],
+    }
+
+    # --- ml per unit of raise ---
+    ml_per_unit = None
+    g_per_unit = None
+    if label_ml and label_raise and label_gallons:
+        # commercial product: label_ml raises label_raise units in label_gallons of water
+        ml_per_unit = float(label_ml) * (float(label_gallons) / gallons) / float(label_raise)
+        result['mode'] = 'label'
+    elif chemical_key:
+        if chemical_key not in DOSE_CHEMICALS:
+            raise ValueError('Unknown chemical')
+        if DOSE_CHEMICALS[chemical_key]['parameter'] != parameter:
+            raise ValueError('That chemical does not adjust the selected parameter')
+        g_per_unit = grams_per_unit_raise(chemical_key, liters)
+        if solution_g_per_l and float(solution_g_per_l) > 0:
+            ml_per_unit = g_per_unit / float(solution_g_per_l) * 1000.0
+        result['mode'] = 'dry'
+    else:
+        raise ValueError('Choose a chemical or enter a product label')
+
+    result['grams_per_unit'] = round(g_per_unit, 3) if g_per_unit is not None else None
+    result['ml_per_unit'] = round(ml_per_unit, 2) if ml_per_unit is not None else None
+
+    # --- one-off correction ---
+    if delta > 0:
+        result['correction_grams'] = round(g_per_unit * delta, 2) if g_per_unit is not None else None
+        result['correction_ml'] = round(ml_per_unit * delta, 1) if ml_per_unit is not None else None
+        days = max(1, math.ceil(delta / max_daily))
+        result['correction_days'] = days
+        result['correction_per_day_raise'] = round(delta / days, 3)
+        result['correction_per_day_grams'] = round(g_per_unit * delta / days, 2) if g_per_unit is not None else None
+        result['correction_per_day_ml'] = round(ml_per_unit * delta / days, 1) if ml_per_unit is not None else None
+        if days > 1:
+            result['warnings'].append(
+                f"Raising {round(delta, 2)} {unit} in one go exceeds the {max_daily:g} {unit}/day guideline, "
+                f"so the correction is split over {days} days. Re-test between doses."
+            )
+    else:
+        result['correction_grams'] = 0
+        result['correction_ml'] = 0 if ml_per_unit is not None else None
+        result['correction_days'] = 0
+        if delta < 0:
+            result['warnings'].append(
+                f"Current level is already {round(-delta, 2)} {unit} above target. Don't dose; "
+                f"let consumption bring it down or dilute with a water change."
+            )
+
+    # --- maintenance (hold the level against daily consumption) ---
+    result['daily_loss'] = round(daily_loss, 3)
+    result['maintenance_grams_per_day'] = round(g_per_unit * daily_loss, 2) if g_per_unit is not None else None
+    result['maintenance_ml_per_day'] = round(ml_per_unit * daily_loss, 1) if ml_per_unit is not None else None
+
+    result['warnings'].append(
+        "Estimates assume the stated volume and ideal mixing. Test after dosing and adjust; "
+        "go slowly with livestock in the tank."
+    )
+    return result
+
+
+def estimate_daily_change(points):
+    """
+    Least-squares slope (units per day) from [(datetime, value), ...].
+    Returns None if there are fewer than 2 points or they span less than half a day.
+    A negative slope means the parameter is dropping (being consumed).
+    Only meaningful for periods when nothing was being dosed.
+    """
+    pts = sorted(points, key=lambda p: p[0])
+    if len(pts) < 2:
+        return None
+    t0 = pts[0][0]
+    xs = [(p[0] - t0).total_seconds() / 86400.0 for p in pts]
+    ys = [float(p[1]) for p in pts]
+    if xs[-1] < 0.5:
+        return None
+    n = len(xs)
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    denom = sum((x - mean_x) ** 2 for x in xs)
+    if denom == 0:
+        return None
+    return sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / denom

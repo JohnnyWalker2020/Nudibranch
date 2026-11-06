@@ -1,278 +1,174 @@
 {% extends 'base.html' %}
 
-{% block title %}Alerts & Notifications | Nudibranch Reef Tracker{% endblock %}
+{% block title %}Alerts & Notifications | Nudibranch{% endblock %}
 
 {% block content %}
 <div class="space-y-8">
 
-  <!-- Header & Health Score Banner -->
+  <!-- Header & health score -->
   <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
       <div>
         <div class="flex items-center gap-2">
           <span class="text-2xl">🔔</span>
-          <h1 class="text-2xl font-black text-white tracking-tight">System Alerts & Notifications</h1>
+          <h1 class="text-2xl font-black text-white tracking-tight">System Alerts &amp; Notifications</h1>
         </div>
-        <p class="text-xs text-slate-400 mt-1">Live threshold warnings, maintenance schedules, reservoir forecasts, and health alarms</p>
+        <p class="text-xs text-slate-400 mt-1">Out-of-range parameters, reservoir forecasts, due maintenance, and livestock health</p>
       </div>
-
-      <!-- Tank Stability / Health Metric -->
       <div class="flex items-center gap-4 bg-slate-950/80 border border-slate-800 p-4 rounded-2xl shrink-0">
-        <div class="relative flex items-center justify-center w-16 h-16 rounded-full border-4 {% if health_score >= 85 %}border-emerald-500 text-emerald-400{% elif health_score >= 65 %}border-amber-500 text-amber-400{% else %}border-rose-500 text-rose-400{% endif %}">
+        <div class="flex items-center justify-center w-16 h-16 rounded-full border-4 {% if health_score >= 85 %}border-emerald-500 text-emerald-400{% elif health_score >= 65 %}border-amber-500 text-amber-400{% else %}border-rose-500 text-rose-400{% endif %}">
           <span class="text-lg font-black tracking-tight">{{ health_score }}%</span>
         </div>
         <div>
           <span class="text-[10px] uppercase font-bold text-slate-500 block">Tank Stability Index</span>
-          <span class="text-sm font-bold text-white">
-            {% if health_score >= 85 %}Optimal Health
-            {% elif health_score >= 65 %}Attention Needed
-            {% else %}Action Required{% endif %}
-          </span>
+          <span class="text-sm font-bold text-white">{% if health_score >= 85 %}Optimal Health{% elif health_score >= 65 %}Attention Needed{% else %}Action Required{% endif %}</span>
           <span class="text-xs text-slate-400 block">{{ total_alerts }} active alert{{ total_alerts|pluralize }}</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Active Alerts Feed -->
+  <!-- Active alerts -->
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <h2 class="text-base font-bold text-white flex items-center gap-2">
-        <span>⚠️</span> Active Action Items ({{ total_alerts }})
-      </h2>
-      <span class="text-xs text-slate-500">Sorted by priority</span>
-    </div>
+    <h2 class="text-base font-bold text-white">⚠️ Active Action Items ({{ total_alerts }})</h2>
 
     {% if total_alerts == 0 %}
       <div class="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-2">
         <span class="text-5xl">🌊</span>
-        <h3 class="text-base font-bold text-emerald-400">All Systems Nominal!</h3>
-        <p class="text-xs text-slate-400 max-w-md mx-auto">No out-of-range parameters, reservoirs are topped off, and all hardware maintenance routines are up to date.</p>
+        <h3 class="text-base font-bold text-emerald-400">All Systems Nominal</h3>
+        <p class="text-xs text-slate-400 max-w-md mx-auto">No out-of-range parameters, reservoirs are stocked, and maintenance is up to date.</p>
       </div>
     {% else %}
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        <!-- 1. Out of Range Water Parameters -->
         {% for item in out_of_range_params %}
-          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-3">
+          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 flex flex-col justify-between space-y-3">
             <div>
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <div class="w-3 h-3 rounded-full" style="background-color: {{ item.param.color }}"></div>
                   <h3 class="text-base font-bold text-white">{{ item.param.name }}</h3>
                 </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border {{ item.log.status_color_class }}">
-                  {{ item.log.status|upper }} LIMIT
-                </span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border {{ item.log.status_color_class }}">{{ item.log.status|upper }}</span>
               </div>
-
               <div class="mt-3 flex items-baseline gap-2">
                 <span class="text-2xl font-black text-white">{{ item.log.formatted_value }}</span>
                 <span class="text-xs text-slate-400">{{ item.param.unit }}</span>
-                <span class="text-xs text-slate-500 ml-auto">Target: {{ item.param.formatted_min_ideal }} – {{ item.param.formatted_max_ideal }} {{ item.param.unit }}</span>
+                <span class="text-xs text-slate-500 ml-auto">Target {{ item.param.formatted_min_ideal }} – {{ item.param.formatted_max_ideal }}</span>
               </div>
-
               <p class="text-[11px] text-slate-500 mt-1">Measured {{ item.log.measured_at|timesince }} ago</p>
             </div>
-
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-              <a href="https://www.reef2reef.com/search/1/?q={{ item.param.name }}+{{ item.log.status }}&c[nodes][]=73&o=relevance" target="_blank" rel="noopener" class="text-xs text-cyan-400 hover:underline flex items-center gap-1 font-semibold">
-                <span>💬</span> Reef2Reef Chemistry Advice →
-              </a>
-              <button onclick="openQuickLogModal({{ item.param.id }})" class="px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition-colors">
-                Retest Now
-              </button>
+              <a href="{{ item.r2r_url }}" target="_blank" rel="noopener" class="text-xs text-cyan-400 hover:underline font-semibold">💬 Reef2Reef advice →</a>
+              <button type="button" onclick="openQuickLogModal({{ item.param.id }})" class="px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg">Retest now</button>
             </div>
           </div>
         {% endfor %}
 
-        <!-- 2. Low Dosing & ATO Reservoirs -->
         {% for res in low_reservoirs %}
-          <div class="bg-slate-900 border border-rose-500/40 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-3">
+          <div class="bg-slate-900 border border-rose-500/40 rounded-2xl p-5 flex flex-col justify-between space-y-3">
             <div>
               <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="text-lg">🧪</span>
-                  <h3 class="text-base font-bold text-white">{{ res.name }}</h3>
-                </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
-                  REFILL NEEDED
-                </span>
+                <h3 class="text-base font-bold text-white">🧪 {{ res.name }}</h3>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40">REFILL</span>
               </div>
-
               <div class="mt-3 space-y-1">
                 <div class="flex justify-between text-xs text-slate-300 font-semibold">
-                  <span>Level: {{ res.current_level }} / {{ res.capacity }} {{ res.unit }}</span>
-                  <span class="text-rose-400 font-bold">{{ res.percent_remaining }}% Full</span>
+                  <span>{{ res.current_level|floatformat:"-2" }} / {{ res.capacity|floatformat:"-2" }} {{ res.unit }}</span>
+                  <span class="text-rose-400">{{ res.percent_remaining }}%</span>
                 </div>
                 <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                   <div class="h-full bg-gradient-to-r from-amber-500 to-rose-500" style="width: {{ res.percent_remaining }}%;"></div>
                 </div>
-                <p class="text-[11px] text-slate-500 pt-1">
-                  Est. empty in <strong class="text-white">~{{ res.days_remaining }} days</strong> (Consumption: {{ res.daily_consumption }} {{ res.unit }}/day)
-                </p>
+                {% if res.days_remaining is not None %}<p class="text-[11px] text-slate-500 pt-1">Empty in ~{{ res.days_remaining|floatformat:"-1" }} days at {{ res.daily_consumption|floatformat:"-2" }} {{ res.unit }}/day</p>{% endif %}
               </div>
             </div>
-
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
               <span class="text-xs text-slate-500">{{ res.tank.name }}</span>
-              <a href="{% url 'dosing' %}" class="px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-lg shadow-sm transition-all">
-                Refill Container →
-              </a>
+              <div class="flex gap-1.5">
+                <form method="POST" action="{% url 'refill_reservoir' res.id %}">{% csrf_token %}<button type="submit" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Refilled</button></form>
+                <a href="{% url 'dosing' %}" class="px-3 py-1 bg-cyan-500 text-slate-950 font-bold text-xs rounded-lg">Dosing →</a>
+              </div>
             </div>
           </div>
         {% endfor %}
 
-        <!-- 3. Overdue Maintenance Routines -->
         {% for routine in due_routines %}
-          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-3">
+          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 flex flex-col justify-between space-y-3">
             <div>
               <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="text-lg">📋</span>
-                  <h3 class="text-base font-bold text-white">{{ routine.title }}</h3>
-                </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse">
-                  ROUTINE DUE
-                </span>
+                <h3 class="text-base font-bold text-white">📋 {{ routine.title }}</h3>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40">DUE</span>
               </div>
-
-              <p class="text-xs text-slate-400 mt-2">
-                Scheduled every {{ routine.frequency_days }} days.
-                {% if routine.last_completed %}Last completed {{ routine.last_completed|timesince }} ago.{% else %}Never completed yet.{% endif %}
-              </p>
-              <p class="text-[11px] text-slate-500">{{ routine.checklist_items|length }} interactive checklist step{{ routine.checklist_items|length|pluralize }}</p>
+              <p class="text-xs text-slate-400 mt-2">Every {{ routine.frequency_days }} days.
+                {% if routine.last_completed %}Last done {{ routine.last_completed|timesince }} ago.{% else %}Never completed.{% endif %}</p>
             </div>
-
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-              <span class="text-xs text-slate-500">{{ routine.tank.name|default:"Display Tank" }}</span>
-              <a href="{% url 'routines' %}" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition-colors">
-                View Checklist →
-              </a>
+              <span class="text-xs text-slate-500">{{ routine.tank.name|default:"All tanks" }}</span>
+              <div class="flex gap-1.5">
+                <form method="POST" action="{% url 'complete_routine' routine.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">✓ Done</button></form>
+                <a href="{% url 'routines' %}" class="px-3 py-1 bg-amber-500 text-slate-950 font-bold text-xs rounded-lg">Checklist →</a>
+              </div>
             </div>
           </div>
         {% endfor %}
 
-        <!-- 4. Overdue Hardware Service -->
         {% for eq in due_equipment %}
-          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-3">
+          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 flex flex-col justify-between space-y-3">
             <div>
               <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="text-lg">⚙️</span>
-                  <h3 class="text-base font-bold text-white">{{ eq.name }}</h3>
-                </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                  SERVICE OVERDUE
-                </span>
+                <h3 class="text-base font-bold text-white">⚙️ {{ eq.name }}</h3>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40">SERVICE DUE</span>
               </div>
-
-              <p class="text-xs text-slate-400 mt-2">
-                Cleaning interval is every {{ eq.maintenance_interval_days }} days.
-                {% if eq.last_serviced_date %}Last serviced on {{ eq.last_serviced_date|date:"M d, Y" }}.{% else %}No prior service logged.{% endif %}
-              </p>
+              <p class="text-xs text-slate-400 mt-2">Every {{ eq.maintenance_interval_days }} days.
+                {% if eq.last_serviced_date %}Last serviced {{ eq.last_serviced_date|date:"M d, Y" }}.{% else %}No service logged.{% endif %}</p>
             </div>
-
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-              <a href="https://www.reef2reef.com/search/1/?q={{ eq.name }}+cleaning+maintenance&c[nodes][]=212&o=relevance" target="_blank" rel="noopener" class="text-xs text-cyan-400 hover:underline flex items-center gap-1 font-semibold">
-                <span>💬</span> R2R Cleaning Guide →
-              </a>
-              <form method="POST" action="{% url 'service_equipment' eq.id %}">
-                {% csrf_token %}
-                <button type="submit" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700 transition-colors">
-                  ✓ Mark Serviced
-                </button>
-              </form>
+              <a href="{{ eq.r2r_url }}" target="_blank" rel="noopener" class="text-xs text-cyan-400 hover:underline font-semibold">💬 Cleaning guide →</a>
+              <form method="POST" action="{% url 'service_equipment' eq.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">✓ Mark serviced</button></form>
             </div>
           </div>
         {% endfor %}
 
-        <!-- 5. Sick / Quarantined Livestock Alarms -->
         {% for animal in sick_animals %}
-          <div class="bg-slate-900 border border-rose-500/50 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-3">
+          <div class="bg-slate-900 border border-rose-500/50 rounded-2xl p-5 flex flex-col justify-between space-y-3">
             <div>
               <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="text-lg">🩺</span>
-                  <h3 class="text-base font-bold text-white">{{ animal.name }}</h3>
-                </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
-                  {{ animal.get_status_display|upper }}
-                </span>
+                <h3 class="text-base font-bold text-white">🩺 {{ animal.name }}</h3>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40">{{ animal.get_status_display|upper }}</span>
               </div>
-
-              <p class="text-xs text-slate-300 mt-2">
-                {% if animal.species %}<span class="italic text-slate-400">{{ animal.species }}</span> · {% endif %}
-                Location: {{ animal.tank.name|default:"Display Tank" }}
-              </p>
-              {% if animal.notes %}
-                <p class="text-xs text-slate-400 italic mt-1 bg-slate-950/60 p-2 rounded-lg border border-slate-800">{{ animal.notes }}</p>
-              {% endif %}
+              <p class="text-xs text-slate-300 mt-2">{% if animal.species %}<span class="italic text-slate-400">{{ animal.species }}</span> · {% endif %}{{ animal.tank.name|default:"No tank" }}</p>
+              {% if animal.notes %}<p class="text-xs text-slate-400 italic mt-1 bg-slate-950/60 p-2 rounded-lg border border-slate-800">{{ animal.notes }}</p>{% endif %}
             </div>
-
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-              <a href="{{ animal.reef2reef_disease_url }}" target="_blank" rel="noopener" class="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs rounded-lg border border-rose-500/40 flex items-center gap-1.5 transition-colors">
-                <span>🩺</span> Search Reef2Reef Disease Forum →
-              </a>
-              <a href="{% url 'animal_edit' animal.id %}" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg transition-colors">
-                Edit Record
-              </a>
+              <a href="{{ animal.reef2reef_disease_url }}" target="_blank" rel="noopener" class="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs rounded-lg border border-rose-500/40">🩺 Reef2Reef disease search →</a>
+              <a href="{% url 'animal_edit' animal.id %}" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg">Edit</a>
             </div>
           </div>
         {% endfor %}
-
       </div>
     {% endif %}
   </div>
 
-  <!-- Reef2Reef Community & Knowledge Hub -->
-  <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
-      <div>
-        <h2 class="text-lg font-bold text-white flex items-center gap-2">
-          <span>🌊</span> Reef2Reef Community & Knowledge Hub
-        </h2>
-        <p class="text-xs text-slate-400">Connect directly to real reefers, chemistry guides, disease diagnosis, and build threads</p>
-      </div>
-
-      <a href="https://www.reef2reef.com" target="_blank" rel="noopener" class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 text-xs font-bold rounded-xl border border-cyan-500/30 transition-all">
-        <span>Visit Reef2Reef.com</span>
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-      </a>
+  <!-- Reef2Reef hub -->
+  <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5">
+    <div class="pb-4 border-b border-slate-800">
+      <h2 class="text-lg font-bold text-white">🌊 Reef2Reef Knowledge Hub</h2>
+      <p class="text-xs text-slate-400">Site-restricted searches of the Reef2Reef community (opens in a new tab)</p>
     </div>
-
-    <!-- Live Community Search Bar -->
-    <form action="https://www.reef2reef.com/search/1/" method="GET" target="_blank" rel="noopener" class="relative">
-      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-      </div>
-      <input type="text" 
-             name="q" 
-             placeholder="Search Reef2Reef forums (e.g. 'high nitrate water change', 'clownfish white spots', 'radion schedule')..." 
-             class="w-full pl-10 pr-28 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
-      <button type="submit" class="absolute right-2 top-2 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition-colors">
-        Search R2R
-      </button>
+    <form action="https://www.google.com/search" method="GET" target="_blank" rel="noopener" class="flex gap-2">
+      <input type="hidden" name="as_sitesearch" value="reef2reef.com">
+      <input type="text" name="q" placeholder="Search Reef2Reef, e.g. 'high nitrate water change'" class="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
+      <button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl">Search</button>
     </form>
-
-    <!-- Curated Subforum Shortcuts Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {% for f in r2r_forums %}
-        <a href="{{ f.url }}" target="_blank" rel="noopener" class="p-4 bg-slate-950/60 border border-slate-800/80 hover:border-cyan-500/50 rounded-2xl flex flex-col justify-between space-y-2 group transition-all">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl p-2 rounded-xl bg-slate-900 border border-slate-800 group-hover:scale-105 transition-transform">{{ f.icon }}</span>
-            <div>
-              <h3 class="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors flex items-center gap-1">
-                {{ f.name }}
-                <svg class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-              </h3>
-            </div>
-          </div>
+        <a href="{{ f.url }}" target="_blank" rel="noopener" class="p-4 bg-slate-950/60 border border-slate-800/80 hover:border-cyan-500/50 rounded-2xl space-y-1.5 transition-colors">
+          <div class="flex items-center gap-3"><span class="text-2xl">{{ f.icon }}</span><h3 class="text-sm font-bold text-white">{{ f.name }}</h3></div>
           <p class="text-xs text-slate-400 leading-relaxed">{{ f.desc }}</p>
         </a>
       {% endfor %}
     </div>
   </div>
-
 </div>
 {% endblock %}

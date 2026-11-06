@@ -1,55 +1,49 @@
-// Nudibranch Service Worker (PWA installability and asset caching)
-const CACHE_NAME = 'nudibranch-v2';
-const ASSETS_TO_CACHE = [
-  '/',
+// Nudibranch service worker: installability + offline fallback.
+// Served from /sw.js (see config/urls.py) so its scope covers the whole site.
+const CACHE_NAME = 'nudibranch-v3';
+const PRECACHE = [
   '/static/manifest.json',
   '/static/icons/icon.svg',
-  '/static/icons/nudibranch/cyberpunk.svg',
-  '/static/icons/nudibranch/dragon.svg',
-  '/static/icons/nudibranch/kpop_hunter.svg',
-  '/static/icons/nudibranch/medieval_knight.svg',
-  '/static/icons/nudibranch/ninja_turtle.svg',
-  '/static/icons/nudibranch/robot.svg',
-  '/static/icons/nudibranch/superhero.svg',
-  '/static/icons/nudibranch/unicorn.svg',
-  '/static/icons/nudibranch/witch.svg',
+  '/static/js/app.js',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      // Add one by one so a single missing file can't abort the whole install.
+      Promise.all(PRECACHE.map((url) => cache.add(url).catch(() => null)))
+    )
   );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      );
-    })
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
   );
   self.clients.claim();
 });
 
-// Network-first strategy with cache fallback
+// Network-first for same-origin GETs; keep a copy of good responses for offline use.
+// POSTs, API calls and cross-origin requests (CDNs, webcams) are left alone.
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin/')) return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        return networkResponse;
+    fetch(req)
+      .then((res) => {
+        if (res.ok && res.type === 'basic') {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(req, copy));
+        }
+        return res;
       })
-      .catch(() => {
-        return caches.match(event.request);
-      })
+      .catch(() => caches.match(req).then((hit) => hit || new Response('Offline', { status: 503 })))
   );
 });

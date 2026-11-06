@@ -1,0 +1,23 @@
+<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm h-full">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-base font-bold text-white flex items-center gap-2"><span>💧</span> Dosing &amp; ATO Levels</h3>
+    <a href="{% url 'dosing' %}" class="text-xs font-semibold text-cyan-400 hover:underline">Manage →</a>
+  </div>
+  <div class="space-y-3">
+    {% for res in reservoirs %}
+      <div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-semibold text-slate-200 truncate">{{ res.name }}</span>
+          <span class="{% if res.is_low %}text-rose-400 font-bold{% else %}text-slate-400{% endif %} shrink-0 ml-2">
+            {{ res.percent_remaining }}%{% if res.days_remaining is not None %} · ~{{ res.days_remaining|floatformat:0 }}d{% endif %}
+          </span>
+        </div>
+        <div class="mt-1 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+          <div class="h-full rounded-full" style="width: {{ res.percent_remaining }}%; background-color: {% if res.is_low %}#f43f5e{% else %}{{ res.color }}{% endif %};"></div>
+        </div>
+      </div>
+    {% empty %}
+      <p class="text-xs text-slate-500">No reservoirs yet. <a href="{% url 'dosing' %}" class="text-cyan-400 underline">Add one</a>.</p>
+    {% endfor %}
+  </div>
+</div>

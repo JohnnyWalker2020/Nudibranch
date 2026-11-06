@@ -1,13 +1,33 @@
-// Register PWA Service Worker
+// Register the PWA service worker from "/" (served by Django) so it controls the whole site.
+// The original registered /static/sw.js, which could only control /static/.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/static/sw.js')
-      .then(reg => console.log('Nudibranch PWA Service Worker Registered', reg.scope))
-      .catch(err => console.log('Service Worker registration failed: ', err));
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch(err => console.warn('Service worker registration failed:', err));
   });
 }
 
-// Global cache of parameter metadata (unit, decimals, ideal range)
+// ---- Generic modal helpers --------------------------------------------------
+// Modals are `hidden` by default; opening swaps `hidden` for `flex` so they centre.
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.remove('hidden');
+  m.classList.add('flex');
+  document.body.classList.add('overflow-hidden');
+}
+
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.add('hidden');
+  m.classList.remove('flex');
+  if (!document.querySelector('.fixed.inset-0.flex[id$="-modal"]')) {
+    document.body.classList.remove('overflow-hidden');
+  }
+}
+
+// ---- Parameter metadata (decimal places per parameter) ---------------------
 window.nudibranchParamTypes = [];
 
 async function initParameterMetadata() {
@@ -16,28 +36,23 @@ async function initParameterMetadata() {
     if (res.ok) {
       const data = await res.json();
       window.nudibranchParamTypes = data.parameters || [];
+      syncModalInputStep();
     }
   } catch (err) {
     console.warn('Could not prefetch parameter metadata:', err);
   }
 }
-document.addEventListener('DOMContentLoaded', initParameterMetadata);
 
-// Modal Toggle Helpers
+// ---- Quick log modal ---------------------------------------------------------
 function openQuickLogModal(paramId = null) {
   const modal = document.getElementById('quick-log-modal');
   if (!modal) return;
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-  
+  openModal('quick-log-modal');
+
   const select = modal.querySelector('select[name="parameter_type"]');
-  if (select && paramId) {
-    select.value = paramId;
-  }
-  
+  if (select && paramId) select.value = paramId;
   syncModalInputStep();
 
-  // Focus value input for immediate mobile entry
   setTimeout(() => {
     const valInput = modal.querySelector('input[name="value"]');
     if (valInput) valInput.focus();
@@ -45,10 +60,7 @@ function openQuickLogModal(paramId = null) {
 }
 
 function closeQuickLogModal() {
-  const modal = document.getElementById('quick-log-modal');
-  if (!modal) return;
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
+  closeModal('quick-log-modal');
 }
 
 function syncModalInputStep() {
@@ -56,36 +68,22 @@ function syncModalInputStep() {
   if (!modal) return;
   const select = modal.querySelector('select[name="parameter_type"]');
   const valInput = modal.querySelector('input[name="value"]');
-  if (!select || !valInput || !window.nudibranchParamTypes) return;
+  if (!select || !valInput) return;
 
-  const currentId = select.value;
-  const pt = window.nudibranchParamTypes.find(p => p.id == currentId);
-  if (pt) {
-    if (pt.decimal_places === 0) {
-      valInput.step = "1";
-      valInput.placeholder = "420";
-    } else if (pt.decimal_places === 1) {
-      valInput.step = "0.1";
-      valInput.placeholder = "8.4";
-    } else if (pt.decimal_places === 2) {
-      valInput.step = "0.01";
-      valInput.placeholder = "0.03";
-    } else if (pt.decimal_places >= 3) {
-      valInput.step = "0.001";
-      valInput.placeholder = "1.026";
-    }
-  }
+  const pt = (window.nudibranchParamTypes || []).find(p => String(p.id) === String(select.value));
+  if (!pt) return;
+  const d = Number(pt.decimal_places);
+  valInput.step = d <= 0 ? '1' : '0.' + '0'.repeat(d - 1) + '1';
 }
 
-// Hook select change in modal
 document.addEventListener('DOMContentLoaded', () => {
+  initParameterMetadata();
   const select = document.querySelector('#quick-log-modal select[name="parameter_type"]');
-  if (select) {
-    select.addEventListener('change', syncModalInputStep);
-  }
+  if (select) select.addEventListener('change', syncModalInputStep);
 });
 
-// Close modal on Escape key
+// Close any open modal on Escape
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeQuickLogModal();
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.fixed.inset-0.flex[id$="-modal"]').forEach(m => closeModal(m.id));
 });

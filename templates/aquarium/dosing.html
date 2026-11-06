@@ -1,229 +1,267 @@
 {% extends 'base.html' %}
 
-{% block title %}Dosing & ATO Reservoirs | Nudibranch{% endblock %}
+{% block title %}Dosing & ATO | Nudibranch{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
+  {% include 'aquarium/partials/system_tabs.html' with active='dosing' %}
 
-  <!-- Header -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-black text-white tracking-tight">Dosing & ATO Reservoirs</h1>
-      <p class="text-xs text-slate-400 mt-0.5">Liquid additive levels, consumption rates, and runout date forecasts</p>
+      <h1 class="text-2xl font-black text-white tracking-tight">Dosing &amp; ATO</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Additive containers, ATO fresh water, and a dose estimator</p>
     </div>
-    
-    <button onclick="document.getElementById('add-reservoir-modal').classList.remove('hidden')" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-      Add Reservoir / Container
-    </button>
+    <button type="button" onclick="openModal('add-reservoir-modal')" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Container</button>
   </div>
 
-  <!-- Auto Top-Off (ATO) Fresh Water Section -->
-  <div class="space-y-3">
-    <div class="flex items-center gap-2">
-      <span class="text-lg">💧</span>
-      <h2 class="text-base font-bold text-white">Fresh RO/DI Water (Auto Top-Off)</h2>
-    </div>
-
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <!-- ATO -->
+  <section class="space-y-3">
+    <h2 class="text-sm font-bold uppercase tracking-wider text-cyan-400">💧 ATO Fresh Water</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for res in ato_containers %}
-        <div class="bg-slate-900 border {% if res.is_low %}border-rose-500/50 shadow-lg shadow-rose-500/10{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm">
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <div class="flex items-center gap-2">
-                <div class="w-3 h-3 rounded-full" style="background-color: {{ res.color }}"></div>
-                <h3 class="text-base font-bold text-white">{{ res.name }}</h3>
-              </div>
-              {% if res.is_low %}
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
-                  REFILL SOON
-                </span>
-              {% else %}
-                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                  {{ res.percent_remaining }}% FULL
-                </span>
-              {% endif %}
-            </div>
-
-            <!-- Visual Water Tank Level Gauge -->
-            <div class="relative w-full h-5 bg-slate-950 rounded-full overflow-hidden border border-slate-800 my-3">
-              <div class="h-full rounded-full transition-all duration-500 {% if res.is_low %}bg-gradient-to-r from-amber-500 to-rose-500{% else %}bg-gradient-to-r from-cyan-500 to-blue-500{% endif %}"
-                   style="width: {{ res.percent_remaining }}%;"></div>
-            </div>
-
-            <!-- Stats Grid -->
-            <div class="grid grid-cols-3 gap-2 text-center pt-2">
-              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Remaining</span>
-                <span class="text-sm font-bold text-white">{{ res.current_level }}</span>
-                <span class="text-[10px] text-slate-400">/ {{ res.capacity }} {{ res.unit }}</span>
-              </div>
-              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Evaporation</span>
-                <span class="text-sm font-bold text-white">{{ res.daily_consumption }}</span>
-                <span class="text-[10px] text-slate-400">{{ res.unit }}/day</span>
-              </div>
-              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Days Left</span>
-                <span class="text-sm font-bold {% if res.is_low %}text-rose-400{% else %}text-emerald-400{% endif %}">
-                  {% if res.days_remaining is not None %}~{{ res.days_remaining }}d{% else %}—{% endif %}
-                </span>
-                <span class="text-[10px] text-slate-500 block">
-                  {% if res.estimated_empty_date %}{{ res.estimated_empty_date|date:"M d" }}{% else %}N/A{% endif %}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Quick Refill Action -->
-          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-            <span class="text-[11px] text-slate-500">Refilled: {{ res.last_refilled_date|date:"M d" }}</span>
-            <form method="POST" action="{% url 'refill_reservoir' res.id %}" class="flex items-center gap-1.5">
-              {% csrf_token %}
-              <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">
-                Fill to 100%
-              </button>
-            </form>
-          </div>
-        </div>
+        {% include 'aquarium/partials/reservoir_card.html' %}
       {% empty %}
-        <div class="col-span-full p-8 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
-          <p class="text-xs text-slate-400">No ATO fresh water reservoir configured.</p>
-        </div>
+        <p class="col-span-full text-xs text-slate-500 p-6 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No ATO reservoir yet. Add one to forecast when the RO/DI container runs dry.</p>
       {% endfor %}
     </div>
-  </div>
+  </section>
 
-  <!-- Chemical Additives & Dosing Pumps Section -->
-  <div class="space-y-3 pt-4 border-t border-slate-800">
-    <div class="flex items-center gap-2">
-      <span class="text-lg">🧪</span>
-      <h2 class="text-base font-bold text-white">Dosing Containers & Additives</h2>
-    </div>
-
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <!-- Dosing containers -->
+  <section class="space-y-3">
+    <h2 class="text-sm font-bold uppercase tracking-wider text-cyan-400">🧪 Dosing Containers</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for res in dosing_containers %}
-        <div class="bg-slate-900 border {% if res.is_low %}border-rose-500/50 shadow-lg shadow-rose-500/10{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm">
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <div class="flex items-center gap-2">
-                <div class="w-3 h-3 rounded-full" style="background-color: {{ res.color }}"></div>
-                <h3 class="text-base font-bold text-white">{{ res.name }}</h3>
-              </div>
-              {% if res.is_low %}
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse">
-                  LOW ({{ res.percent_remaining }}%)
-                </span>
-              {% else %}
-                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
-                  {{ res.percent_remaining }}%
-                </span>
-              {% endif %}
-            </div>
-
-            <!-- Progress Meter -->
-            <div class="relative w-full h-4 bg-slate-950 rounded-full overflow-hidden border border-slate-800 my-3">
-              <div class="h-full rounded-full transition-all duration-500"
-                   style="width: {{ res.percent_remaining }}%; background-color: {{ res.color }};"></div>
-            </div>
-
-            <!-- Metrics -->
-            <div class="grid grid-cols-3 gap-2 text-center pt-2">
-              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Remaining</span>
-                <span class="text-sm font-bold text-white">{{ res.current_level|floatformat:0 }}</span>
-                <span class="text-[10px] text-slate-400">/ {{ res.capacity|floatformat:0 }} ml</span>
-              </div>
-              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Daily Dose</span>
-                <span class="text-sm font-bold text-white">{{ res.daily_consumption }}</span>
-                <span class="text-[10px] text-slate-400">ml/day</span>
-              </div>
-              <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60">
-                <span class="text-[10px] text-slate-500 uppercase block font-semibold">Estimated Runout</span>
-                <span class="text-sm font-bold {% if res.is_low %}text-rose-400{% else %}text-emerald-400{% endif %}">
-                  {% if res.days_remaining is not None %}~{{ res.days_remaining|floatformat:0 }}d{% else %}—{% endif %}
-                </span>
-                <span class="text-[10px] text-slate-500 block">
-                  {% if res.estimated_empty_date %}{{ res.estimated_empty_date|date:"M d" }}{% else %}N/A{% endif %}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Quick Refill Bar -->
-          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-            <span class="text-[11px] text-slate-500">Refilled: {{ res.last_refilled_date|date:"M d" }}</span>
-            <form method="POST" action="{% url 'refill_reservoir' res.id %}">
-              {% csrf_token %}
-              <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">
-                Fill to 100%
-              </button>
-            </form>
-          </div>
-        </div>
+        {% include 'aquarium/partials/reservoir_card.html' %}
       {% empty %}
-        <div class="col-span-full p-8 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
-          <p class="text-xs text-slate-400">No dosing additive containers configured.</p>
-        </div>
+        <p class="col-span-full text-xs text-slate-500 p-6 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No dosing containers yet.</p>
       {% endfor %}
     </div>
-  </div>
+  </section>
 
-  <!-- Add Reservoir Modal -->
-  <div id="add-reservoir-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-    <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-        <h3 class="text-lg font-bold text-white">Add Reservoir / Container</h3>
-        <button onclick="document.getElementById('add-reservoir-modal').classList.add('hidden')" class="p-1 text-slate-400 hover:text-white">✕</button>
+  <!-- Dose estimator -->
+  <section class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xl">
+    <div>
+      <h2 class="text-lg font-black text-white">Dose Estimator</h2>
+      <p class="text-xs text-slate-400">Fields fill from your latest logs, parameter targets and tank size. Overwrite any of them.</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Parameter</label>
+        <select id="est-parameter" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm"></select>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Tank</label>
+        <select id="est-tank" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm"></select>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Volume to treat (gal)</label>
+        <input id="est-gallons" type="number" step="0.1" min="0" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        <p class="text-[10px] text-slate-500 mt-1">Defaults to display + sump (total system).</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Current <span id="est-unit-1" class="normal-case text-slate-500"></span></label>
+        <input id="est-current" type="number" step="any" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        <p id="est-current-note" class="text-[10px] text-slate-500 mt-1"></p>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Target <span id="est-unit-2" class="normal-case text-slate-500"></span></label>
+        <input id="est-target" type="number" step="any" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        <p id="est-target-note" class="text-[10px] text-slate-500 mt-1"></p>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Daily drop <span id="est-unit-3" class="normal-case text-slate-500"></span></label>
+        <input id="est-loss" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        <p id="est-loss-note" class="text-[10px] text-slate-500 mt-1"></p>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Max raise / day</label>
+        <input id="est-max" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        <p class="text-[10px] text-slate-500 mt-1">Safety guideline, editable.</p>
+      </div>
+    </div>
+
+    <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+      <div class="flex gap-2">
+        <button type="button" id="mode-dry" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500 text-slate-950">Dry chemical / DIY solution</button>
+        <button type="button" id="mode-label" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300">Commercial product (label)</button>
       </div>
 
+      <div id="panel-dry"><div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Chemical</label>
+          <select id="est-chemical" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Your solution strength (g per litre) <span class="normal-case text-slate-500">optional</span></label>
+          <input id="est-solution" type="number" step="any" min="0" placeholder="e.g. 50" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm">
+          <p class="text-[10px] text-slate-500 mt-1">Fill to get ml of liquid as well as grams of powder.</p>
+        </div>
+      </div></div>
+
+      <div id="panel-label" class="hidden"><div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div><label class="block text-[11px] text-slate-400 mb-1">Label: ml of product</label><input id="est-label-ml" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></div>
+        <div><label class="block text-[11px] text-slate-400 mb-1">raises by (<span class="est-unit-text"></span>)</label><input id="est-label-raise" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></div>
+        <div><label class="block text-[11px] text-slate-400 mb-1">in how many gallons</label><input id="est-label-gal" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></div>
+      </div></div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button type="button" id="est-run" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-sm rounded-xl shadow-lg active:scale-95 transition-all">Calculate</button>
+      <span id="est-error" class="text-xs text-rose-400"></span>
+    </div>
+
+    <div id="est-result" class="hidden space-y-3"></div>
+  </section>
+
+  <!-- Add reservoir modal -->
+  <div id="add-reservoir-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl my-8">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white">Add Container</h3>
+        <button type="button" onclick="closeModal('add-reservoir-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
+      </div>
       <form method="POST" action="{% url 'dosing_create' %}" class="mt-4 space-y-4">
         {% csrf_token %}
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Assigned Tank</label>
-          {{ form.tank }}
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ form.tank }}</div>
+          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Type</label>{{ form.reservoir_type }}</div>
         </div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Container Name</label>
-          {{ form.name }}
+        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Name *</label>{{ form.name }}</div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="block text-[11px] text-slate-400 mb-1">Size</label>{{ form.capacity }}</div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Level now</label>{{ form.current_level }}</div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Unit</label>{{ form.unit }}</div>
         </div>
         <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Type</label>
-            {{ form.reservoir_type }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Color</label>
-            {{ form.color }}
-          </div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Daily use</label>{{ form.daily_consumption }}</div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Colour</label>{{ form.color }}</div>
         </div>
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Total Size</label>
-            {{ form.capacity }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Current Level</label>
-            {{ form.current_level }}
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Unit</label>
-            {{ form.unit }}
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Daily Burn Rate (ml/day or gal/day)</label>
-          {{ form.daily_consumption }}
-        </div>
-
-        <div class="pt-3 flex justify-end gap-2">
-          <button type="button" onclick="document.getElementById('add-reservoir-modal').classList.add('hidden')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
-          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg">Save Reservoir</button>
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('add-reservoir-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Save</button>
         </div>
       </form>
     </div>
   </div>
-
 </div>
+
+{{ dose_data|json_script:"dose-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById('dose-data').textContent);
+  const $ = id => document.getElementById(id);
+  const P = D.parameters;
+  let mode = 'dry';
+
+  // populate selects
+  Object.values(P).forEach(p => $('est-parameter').add(new Option(p.name, p.code)));
+  D.tanks.forEach(t => $('est-tank').add(new Option(t.name, t.id)));
+
+  function fmt(n, d) { return n === null || n === undefined ? '—' : Number(n).toFixed(d); }
+
+  function fillChemicals() {
+    const code = $('est-parameter').value;
+    const sel = $('est-chemical'); sel.innerHTML = '';
+    D.chemicals.filter(c => c.parameter === code).forEach(c => sel.add(new Option(c.name, c.key)));
+  }
+
+  function fillDefaults() {
+    const p = P[$('est-parameter').value];
+    const t = D.tanks.find(x => String(x.id) === $('est-tank').value);
+    const u = p.unit;
+    ['est-unit-1', 'est-unit-2', 'est-unit-3'].forEach(id => $(id).textContent = '(' + u + ')');
+    document.querySelectorAll('.est-unit-text').forEach(e => e.textContent = u);
+    if (t) $('est-gallons').value = t.system;
+    $('est-current').value = p.current !== null ? p.current : '';
+    $('est-current-note').textContent = p.current !== null ? 'Last test ' + p.measured_at + (p.display_unit !== u ? ' (converted from ' + p.display_unit + ')' : '') : 'No test logged yet';
+    $('est-target').value = p.target !== null ? p.target : '';
+    $('est-target-note').textContent = p.target !== null ? 'Middle of your ideal range ' + p.ideal_min + '–' + p.ideal_max : '';
+    if (p.daily_change !== null && p.daily_change < 0) {
+      $('est-loss').value = Math.abs(p.daily_change);
+      $('est-loss-note').textContent = 'From your last 14 days of logs (only valid if not dosing)';
+    } else {
+      $('est-loss').value = '';
+      $('est-loss-note').textContent = p.daily_change !== null ? 'Logs show no drop' : 'Not enough logs to estimate';
+    }
+    $('est-max').value = p.max_daily;
+    $('est-result').classList.add('hidden');
+  }
+
+  function setMode(m) {
+    mode = m;
+    $('panel-dry').classList.toggle('hidden', m !== 'dry');
+    $('panel-label').classList.toggle('hidden', m !== 'label');
+    $('mode-dry').className = 'px-3 py-1.5 rounded-lg text-xs font-semibold ' + (m === 'dry' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300');
+    $('mode-label').className = 'px-3 py-1.5 rounded-lg text-xs font-semibold ' + (m === 'label' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300');
+  }
+
+  function card(label, value, sub) {
+    return '<div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3"><span class="text-[10px] uppercase font-bold text-slate-500 block">' + label +
+      '</span><span class="text-lg font-black text-cyan-400">' + value + '</span>' + (sub ? '<span class="text-[11px] text-slate-500 block">' + sub + '</span>' : '') + '</div>';
+  }
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  async function run() {
+    $('est-error').textContent = '';
+    const q = new URLSearchParams({
+      parameter: $('est-parameter').value,
+      current: $('est-current').value, target: $('est-target').value,
+      gallons: $('est-gallons').value, daily_loss: $('est-loss').value || 0, max_daily: $('est-max').value,
+    });
+    if (mode === 'dry') {
+      q.set('chemical', $('est-chemical').value);
+      if ($('est-solution').value) q.set('solution_g_l', $('est-solution').value);
+    } else {
+      q.set('label_ml', $('est-label-ml').value);
+      q.set('label_raise', $('est-label-raise').value);
+      q.set('label_gallons', $('est-label-gal').value);
+    }
+    let r, data;
+    try {
+      r = await fetch('{% url "dose_calc_api" %}?' + q.toString());
+      data = await r.json();
+    } catch (e) { $('est-error').textContent = 'Could not reach the server.'; return; }
+    if (!r.ok) { $('est-error').textContent = data.error || 'Check your inputs.'; return; }
+
+    const u = data.unit, out = $('est-result');
+    let html = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">';
+    html += card('Change needed', (data.delta > 0 ? '+' : '') + fmt(data.delta, 2) + ' ' + u, fmt(data.system_gallons, 1) + ' gal / ' + fmt(data.system_liters, 0) + ' L');
+    if (data.needs_raise) {
+      if (data.correction_grams !== null) html += card('Total powder', fmt(data.correction_grams, 1) + ' g', 'one-off correction');
+      if (data.correction_ml !== null) html += card('Total liquid', fmt(data.correction_ml, 0) + ' ml', 'one-off correction');
+      html += card('Spread over', data.correction_days + ' day' + (data.correction_days > 1 ? 's' : ''), '+' + fmt(data.correction_per_day_raise, 2) + ' ' + u + '/day');
+      if (data.correction_days > 1) {
+        if (data.correction_per_day_grams !== null) html += card('Per day (powder)', fmt(data.correction_per_day_grams, 1) + ' g', '');
+        if (data.correction_per_day_ml !== null) html += card('Per day (liquid)', fmt(data.correction_per_day_ml, 0) + ' ml', '');
+      }
+    }
+    html += '</div>';
+    if (data.daily_loss > 0) {
+      html += '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">' +
+        card('Daily consumption', fmt(data.daily_loss, 2) + ' ' + u, 'estimated') +
+        (data.maintenance_grams_per_day !== null ? card('Maintenance powder', fmt(data.maintenance_grams_per_day, 1) + ' g/day', 'to hold level') : '') +
+        (data.maintenance_ml_per_day !== null ? card('Maintenance liquid', fmt(data.maintenance_ml_per_day, 0) + ' ml/day', 'to hold level') : '') + '</div>';
+    }
+    html += '<ul class="text-[11px] text-amber-300/90 space-y-1 list-disc pl-4">' + data.warnings.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul>';
+    out.innerHTML = html;
+    out.classList.remove('hidden');
+  }
+
+  $('est-parameter').addEventListener('change', () => { fillChemicals(); fillDefaults(); });
+  $('est-tank').addEventListener('change', fillDefaults);
+  $('mode-dry').addEventListener('click', () => setMode('dry'));
+  $('mode-label').addEventListener('click', () => setMode('label'));
+  $('est-run').addEventListener('click', run);
+
+  fillChemicals(); fillDefaults();
+})();
+</script>
 {% endblock %}
