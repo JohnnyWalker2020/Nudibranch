@@ -98,7 +98,7 @@ def resolve_backup(name):
 
 def prune_auto_backups(keep):
     autos = [b for b in list_backups() if b['kind'] == 'auto']
-    for old in autos[max(0, keep):]:
+    for old in autos[max(1, keep):]:  # never the one just made
         (backup_dir() / old['name']).unlink(missing_ok=True)
 
 

@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .calculators import estimate_flow_gph, turnover_summary
-from .compatibility import ACTIVE_STATUSES, bioload, check_stock, tank_stock
+from .compatibility import bioload, check_stock, tank_stock
 from .models import AnimalGroup, Animal, AppSettings, Equipment, PlannedSystem, Sump, Tank
 from .power import DAYS_PER_MONTH, TYPICAL_HOURS, daily_kwh, power_summary
 

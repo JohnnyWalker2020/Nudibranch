@@ -7,6 +7,22 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// ---- Timer sound -------------------------------------------------------------
+let nudiAudio = null;
+function nudiBeep() {
+  try {
+    nudiAudio = nudiAudio || new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach(offset => {
+      const osc = nudiAudio.createOscillator(), gain = nudiAudio.createGain();
+      osc.frequency.value = 880;
+      osc.connect(gain); gain.connect(nudiAudio.destination);
+      gain.gain.value = 0.2;
+      osc.start(nudiAudio.currentTime + offset);
+      osc.stop(nudiAudio.currentTime + offset + 0.2);
+    });
+  } catch (e) { /* sound isn't available */ }
+}
+
 // ---- Generic modal helpers --------------------------------------------------
 // Modals are `hidden` by default; opening swaps `hidden` for `flex` so they centre.
 function openModal(id) {
@@ -51,7 +67,8 @@ function openQuickLogModal(paramId = null) {
 
   const select = modal.querySelector('select[name="parameter_type"]');
   if (select && paramId) select.value = paramId;
-  syncModalInputStep();
+  if (window.nudibranchParamTypes.length) syncModalInputStep();
+  else initParameterMetadata();  // only needed once someone actually opens this
 
   setTimeout(() => {
     const valInput = modal.querySelector('input[name="value"]');
@@ -77,7 +94,6 @@ function syncModalInputStep() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  initParameterMetadata();
   const select = document.querySelector('#quick-log-modal select[name="parameter_type"]');
   if (select) select.addEventListener('change', syncModalInputStep);
 });

@@ -18,6 +18,9 @@ media/
 staticfiles/
 static/icons/nudibranch/thumbs/
 
+# Only used to rebuild static/css and static/vendor
+node_modules/
+
 # IDE
 .idea/
 .vscode/

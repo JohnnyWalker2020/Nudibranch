@@ -12,7 +12,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('login/', auth_views.LoginView.as_view(
         template_name='aquarium/auth_page.html', redirect_authenticated_user=True,
-        extra_context={'heading': 'Nudibranch', 'intro': 'Sign in to your reef tracker.', 'button': 'Sign in'},
+        extra_context={'heading': 'Nudibranch', 'intro': 'Sign in to your reef manager.', 'button': 'Sign in'},
     ), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('setup/', aquarium_tools.setup_view, name='setup'),

@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -15,6 +15,7 @@ from django.utils.http import url_has_allowed_host_and_scheme, urlencode
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from . import retire
 from .active import default_tank, get_active_tank
 from .alert_history import alert_summary
 from .alerts import compute_alert_state
@@ -26,14 +27,14 @@ from .calculators import (
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value
 from .dashboard_widgets import get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
 from .forms import (
-    AnimalForm, AnimalGroupForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
+    AnimalForm, AnimalGroupForm, AnimalPhotoUploadForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
     ParameterLogEditForm, ParameterSettingsForm, ParameterTypeForm, QuickParameterLogForm,
     SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
 )
 from .models import (
-    Animal, AnimalGroup, AppSettings, DosingReservoir, Equipment, MaintenanceRoutine, ParameterLog,
+    Animal, AnimalGroup, AppSettings, DosingReservoir, Equipment, FillTimer, MaintenanceRoutine, ParameterLog,
     ParameterType, SpeciesCatalog, Sump, SumpChamber, Tank, WaterChangeLog, WebcamFeed,
-    ParameterTarget, PlumbingRun, RANGE_FIELDS, in_system, not_retired, reef2reef_search,
+    ParameterTarget, PlumbingRun, RANGE_FIELDS, in_system, latest_logs_by_parameter, not_retired, reef2reef_search,
 )
 
 
@@ -79,9 +80,15 @@ def _to_decimal(raw):
     if not text:
         return None
     try:
-        return Decimal(text)
+        value = Decimal(text)
     except InvalidOperation:
         return None
+    return value if value.is_finite() else None  # 'NaN' and 'Infinity' parse, but aren't readings
+
+
+def safe_json(value):
+    """JSON to put inside a <script> tag. User text containing </script> can't break out of it."""
+    return json.dumps(value).replace('<', '\\u003C').replace('>', '\\u003E').replace('&', '\\u0026')
 
 
 def _edit_object(request, model, form_class, pk, *, title, subtitle='', back_url, delete_url=None):
@@ -126,18 +133,27 @@ def _delete_object(request, model, pk, *, label, back_url, warning=''):
 # ==========================================
 
 def _groups_with_counts(tank):
-    groups = list(AnimalGroup.objects.all())
-    for group in groups:
-        group.scoped_count = in_system(group.animals.all(), tank).count()
-    return groups
+    if tank is None:
+        in_this_system = Q(animals__tank__isnull=True)
+    else:
+        in_this_system = Q(animals__tank=tank) | Q(animals__tank__isnull=True)
+    return list(AnimalGroup.objects.annotate(scoped_count=Count('animals', filter=in_this_system)))
+
+
+def _logs_for_list(tank):
+    """Logs ready to show their status, without a query per row to look up that system's targets."""
+    return in_system(ParameterLog.objects.select_related('parameter_type').prefetch_related('parameter_type__targets'), tank)
 
 
 def dashboard_view(request):
     """Main dashboard. Which widgets show, and in what order, is stored in the database."""
     tank = get_active_tank(request)
-    parameter_types = [pt.for_system(tank) for pt in ParameterType.objects.all()]
+    latest = latest_logs_by_parameter(tank)
+    parameter_types = [pt.for_system(tank) for pt in ParameterType.objects.prefetch_related('targets')]
     for pt in parameter_types:
-        pt.current_log = pt.latest_log(tank)
+        pt.current_log = latest.get(pt.pk)
+        if pt.current_log:
+            pt.current_log.parameter_type = pt
     layout = get_dashboard_layout()
     enabled_keys = {w['key'] for w in layout if w['enabled']}
 
@@ -152,7 +168,7 @@ def dashboard_view(request):
 
     # Only run the queries a visible widget actually needs.
     if 'recent_logs' in enabled_keys:
-        context['recent_logs'] = in_system(ParameterLog.objects.select_related('parameter_type'), tank)[:8]
+        context['recent_logs'] = _logs_for_list(tank)[:8]
     if 'livestock' in enabled_keys:
         active = in_system(Animal.objects.exclude(status__in=['rehomed', 'deceased']), tank)
         context['total_animals'] = active.aggregate(total=Sum('count'))['total'] or 0
@@ -163,7 +179,7 @@ def dashboard_view(request):
     if 'reservoirs' in enabled_keys:
         context['reservoirs'] = in_system(DosingReservoir.objects.select_related('tank'), tank)
     if 'tank_summary' in enabled_keys:
-        tanks = Tank.objects.prefetch_related('sumps', 'equipment').filter(pk=tank.pk) if tank else []
+        tanks = Tank.objects.prefetch_related('sumps', 'equipment', 'plumbing_runs').filter(pk=tank.pk) if tank else []
         context['tank_summaries'] = [{'tank': t, 'flow': t.flow_summary()} for t in tanks]
 
     return render(request, 'aquarium/dashboard.html', context)
@@ -231,29 +247,50 @@ def quick_measure_create(request):
 # Parameters
 # ==========================================
 
+LOG_PAGE_SIZE = 50
+
+
 def parameters_view(request):
     """Full parameter management, historical logs, and interactive charts."""
     param_code = request.GET.get('param')
     types = ParameterType.objects.all()
+    tank = get_active_tank(request)
 
-    logs_query = in_system(ParameterLog.objects.select_related('parameter_type'), get_active_tank(request))
+    logs_query = _logs_for_list(tank)
     selected_param = None
     if param_code:
         logs_query = logs_query.filter(parameter_type__code=param_code)
         selected_param = ParameterType.objects.filter(code=param_code).first()
         if selected_param:
-            selected_param = selected_param.for_system(get_active_tank(request))
+            selected_param = selected_param.for_system(tank)
     # No ?param= means the "All Parameters" view: every parameter on one chart.
 
-    recent_logs = logs_query[:50]
+    recent_logs = list(logs_query[:LOG_PAGE_SIZE + 1])
+    has_more = len(recent_logs) > LOG_PAGE_SIZE
     form = QuickParameterLogForm()
 
     return render(request, 'aquarium/parameters.html', {
         'parameter_types': types,
         'selected_code': param_code,
         'selected_param': selected_param,
-        'recent_logs': recent_logs,
+        'recent_logs': recent_logs[:LOG_PAGE_SIZE],
+        'next_offset': LOG_PAGE_SIZE if has_more else None,
         'form': form,
+    })
+
+
+def parameter_logs_more(request):
+    """The next page of the log history, for the Load more button."""
+    code = request.GET.get('param') or ''
+    offset = _to_int(request.GET.get('offset'), LOG_PAGE_SIZE, 0)
+    logs_query = _logs_for_list(get_active_tank(request))
+    if code:
+        logs_query = logs_query.filter(parameter_type__code=code)
+    logs = list(logs_query[offset:offset + LOG_PAGE_SIZE + 1])
+    return render(request, 'aquarium/partials/parameter_log_page.html', {
+        'recent_logs': logs[:LOG_PAGE_SIZE],
+        'next_offset': offset + LOG_PAGE_SIZE if len(logs) > LOG_PAGE_SIZE else None,
+        'selected_code': code,
     })
 
 
@@ -284,10 +321,11 @@ def parameter_settings_view(request, param_id):
 
             with transaction.atomic():
                 if converting:
-                    for log in old.logs.all():
+                    logs = list(old.logs.all())
+                    for log in logs:
                         new_val = convert_value(float(log.value), old_unit, new_unit, code)
                         log.value = Decimal(f"{new_val:.4f}")
-                        log.save(update_fields=['value'])
+                    ParameterLog.objects.bulk_update(logs, ['value'], batch_size=500)
                     shared = _converted_ranges(shared, old_unit, new_unit, code)
                     for target in old.targets.all():
                         for field, value in _converted_ranges(_ranges_of(target), old_unit, new_unit, code).items():
@@ -408,12 +446,13 @@ def api_chart_data(request):
     if not ptype:
         return JsonResponse({'error': 'No parameter found'}, status=404)
 
-    ptype = ptype.for_system(_chart_tank(request))
+    tank = _chart_tank(request)
+    ptype = ptype.for_system(tank)
     start_date = timezone.now() - timedelta(days=days)
     logs = in_system(ParameterLog.objects.filter(
         parameter_type=ptype,
         measured_at__gte=start_date
-    ), _chart_tank(request)).order_by('measured_at')
+    ), tank).order_by('measured_at')
 
     local = timezone.localtime
     labels = [local(log.measured_at).strftime('%m/%d %H:%M') for log in logs]
@@ -447,7 +486,7 @@ def api_all_chart_data(request):
     tank = _chart_tank(request)
 
     datasets = []
-    for base in ParameterType.objects.all():
+    for base in ParameterType.objects.prefetch_related('targets'):
         ptype = base.for_system(tank)
         logs = list(in_system(ParameterLog.objects.filter(
             parameter_type=ptype, measured_at__gte=start_date), tank).order_by('measured_at'))
@@ -520,8 +559,12 @@ def delete_log(request, log_id):
 
 def api_parameter_types(request):
     """GET /api/parameters/types/ - Parameter details. Add ?tank=<id or name> for that system's targets."""
-    tank = _api_tank(request.GET['tank']) if request.GET.get('tank') else None
-    types = [pt.for_system(tank) for pt in ParameterType.objects.all()]
+    tank = None
+    if request.GET.get('tank'):
+        tank = _api_tank(request.GET['tank'])
+        if tank is None:
+            return JsonResponse({'error': f"Unknown tank '{request.GET['tank']}'."}, status=404)
+    types = [pt.for_system(tank) for pt in ParameterType.objects.prefetch_related('targets')]
     data = [
         {
             'id': pt.id,
@@ -544,7 +587,7 @@ def _api_tank(identifier):
     """Finds a tank by ID or by name (ignoring case)."""
     text = str(identifier).strip()
     current = Tank.objects.filter(is_archived=False)  # retired systems don't accept new readings
-    if text.isdigit():
+    if text.isdecimal():
         tank = current.filter(pk=int(text)).first()
         if tank:
             return tank
@@ -561,8 +604,10 @@ def api_parameter_log(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed. Use POST.'}, status=405)
 
-    # Optional API key check if configured
+    # Without a key set there's nothing to check callers against, so nobody gets in. Tests turn this off.
     api_key = getattr(settings, 'API_SECRET_KEY', '')
+    if not api_key and getattr(settings, 'LOGIN_REQUIRED', True):
+        return JsonResponse({'error': 'Set API_SECRET_KEY in your .env file to log readings through the API.'}, status=401)
     if api_key:
         incoming_key = request.headers.get('X-API-Key') or ''
         auth_header = request.headers.get('Authorization') or ''
@@ -610,6 +655,8 @@ def api_parameter_log(request):
     default_system = _api_tank(payload.get('tank')) if isinstance(payload, dict) and payload.get('tank') else default_tank()
     if isinstance(payload, dict) and payload.get('tank') and default_system is None:
         return JsonResponse({'success': False, 'errors': [f"Unknown tank '{payload.get('tank')}'."]}, status=400)
+    if default_system is not None and default_system.is_archived:
+        return JsonResponse({'success': False, 'errors': ['Every tank is retired. Bring one back to log readings.']}, status=400)
 
     created_logs = []
     errors = []
@@ -638,7 +685,7 @@ def api_parameter_log(request):
 
         # Match parameter type by code, name, or integer ID
         ptype = None
-        if param_identifier.isdigit():
+        if param_identifier.isdecimal():
             ptype = id_map.get(int(param_identifier))
         if not ptype:
             ptype = code_map.get(param_identifier.lower())
@@ -768,7 +815,7 @@ def animal_create_view(request):
             return redirect('livestock')
     else:
         initial = {}
-        species_id = request.GET.get('species_id')
+        species_id = _to_int(request.GET.get('species_id'), None)
         if species_id:
             sp = SpeciesCatalog.objects.filter(id=species_id).first()
             if sp:
@@ -812,9 +859,12 @@ def animal_edit_view(request, animal_id):
 def animal_upload_photo_view(request, animal_id):
     """Fast 1-click photo upload or replacement directly from the livestock card."""
     animal = get_object_or_404(Animal, id=animal_id)
-    if request.method == 'POST' and request.FILES.get('photo'):
-        animal.photo = request.FILES['photo']
-        animal.save(update_fields=['photo'])
+    if request.method == 'POST':
+        form = AnimalPhotoUploadForm(request.POST, request.FILES, instance=animal)
+        if form.is_valid():
+            form.save()
+        else:
+            _flash_form_errors(request, form)
     return redirect('livestock')
 
 
@@ -968,8 +1018,9 @@ def _dose_context(tank):
     context = {}
     since = timezone.now() - timedelta(days=14)
 
+    by_code = {pt.code: pt for pt in ParameterType.objects.filter(code__in=DOSE_PARAMETERS).prefetch_related('targets')}
     for code, info in DOSE_PARAMETERS.items():
-        ptype = ParameterType.objects.filter(code=code).first()
+        ptype = by_code.get(code)
         if ptype:
             ptype = ptype.for_system(tank)
         canon = canonical_units[code]
@@ -1011,7 +1062,6 @@ def tank_volume_choices(tank):
 def dosing_view(request):
     """Dosing additive reservoirs and ATO fresh water levels, forecasts and dose estimator."""
     tank = get_active_tank(request)
-    tanks = Tank.objects.prefetch_related('sumps')
     reservoirs = in_system(DosingReservoir.objects.select_related('tank'), tank)
 
     dose_data = {
@@ -1023,7 +1073,6 @@ def dosing_view(request):
     }
 
     return render(request, 'aquarium/dosing.html', {
-        'tanks': tanks,
         'dosing_containers': reservoirs.filter(reservoir_type='dosing_additive'),
         'ato_containers': reservoirs.filter(reservoir_type='ato_freshwater'),
         'form': DosingReservoirForm(initial={'tank': tank}),
@@ -1057,8 +1106,9 @@ def dose_calc_api(request):
             label_gallons=num('label_gallons'),
         )
         return JsonResponse(result)
-    except (TypeError, ValueError) as e:
-        return JsonResponse({'error': str(e) or 'Please fill in the current and target values and a tank volume.'}, status=400)
+    except (TypeError, ValueError, OverflowError) as e:
+        message = str(e) if isinstance(e, ValueError) else ''
+        return JsonResponse({'error': message or 'Please fill in the current and target values and a tank volume.'}, status=400)
 
 
 def refill_reservoir_view(request, res_id):
@@ -1143,10 +1193,19 @@ def tank_detail_view(request, tank_id):
         'tank': tank,
         'flow': tank.flow_summary(),
         'flow_equipment': _tank_equipment_flow(tank),
+        'light': tank.light_summary(),
         'chamber_types': [{'value': k, 'label': v} for k, v in SumpChamber.CHAMBER_TYPES],
         'display_equipment': display_equipment,
         'sump_rows': sumps,
     })
+
+
+def _settle_primary(tank):
+    """Only one system can be primary, and a retired one can't be."""
+    if tank.is_archived:
+        Tank.objects.filter(pk=tank.pk).update(is_primary=False)
+    elif tank.is_primary:
+        Tank.objects.exclude(pk=tank.pk).update(is_primary=False)
 
 
 def tank_create_view(request):
@@ -1154,8 +1213,7 @@ def tank_create_view(request):
         form = TankForm(request.POST)
         if form.is_valid():
             tank = form.save()
-            if tank.is_primary:
-                Tank.objects.exclude(pk=tank.pk).update(is_primary=False)
+            _settle_primary(tank)
             messages.success(request, f"Added {tank.name}.")
             return redirect('tank_detail', tank_id=tank.id)
     else:
@@ -1171,8 +1229,7 @@ def tank_edit_view(request, tank_id):
         form = TankForm(request.POST, instance=tank)
         if form.is_valid():
             tank = form.save()
-            if tank.is_primary:
-                Tank.objects.exclude(pk=tank.pk).update(is_primary=False)
+            _settle_primary(tank)
             messages.success(request, "Tank saved.")
             return redirect('tank_detail', tank_id=tank.id)
     else:
@@ -1189,7 +1246,10 @@ def tank_delete_view(request, tank_id):
                f"{tank.routines.count()} routine(s), {tank.water_changes.count()} water change log(s) and "
                f"{tank.parameter_logs.count()} water test(s). "
                f"{tank.animals.count()} animal(s) and {tank.equipment.count()} equipment item(s) are kept but unassigned.")
-    return _delete_object(request, Tank, tank_id, label=tank.name, back_url='/tanks/', warning=warning)
+    response = _delete_object(request, Tank, tank_id, label=tank.name, back_url='/tanks/', warning=warning)
+    if request.method == 'POST':
+        retire.promote_new_primary()
+    return response
 
 
 def sump_create_view(request, tank_id):
@@ -1440,6 +1500,11 @@ def routines_view(request):
     manual_routines = sorted(
         (r for r in routines if not r.is_automated),
         key=lambda r: (not r.is_active, r.next_due_date or far))
+    running_timers = {t.name: t for t in FillTimer.objects.filter(status='running')}
+    for routine in manual_routines:
+        routine.steps = routine.checklist_steps
+        for step in routine.steps:
+            step['timer'] = running_timers.get(step['timer_name'])
     automated_routines = sorted(
         (r for r in routines if r.is_automated),
         key=lambda r: (not r.is_active, r.upcoming['at'] if r.upcoming else timezone.now() + timedelta(days=30)))
@@ -1448,12 +1513,10 @@ def routines_view(request):
                                     target_salinity=1.026, salinity_unit='sg')
 
     return render(request, 'aquarium/routines.html', {
-        'routines': routines,
         'manual_routines': manual_routines,
         'automated_routines': automated_routines,
         'water_changes': water_changes,
-        'tanks': Tank.objects.all(),
-        'wc_form': WaterChangeLogForm(initial={'tank': tank}),
+        'wc_form': WaterChangeLogForm(initial={'tank': tank}, auto_id='wc_%s'),
         'routine_form': MaintenanceRoutineForm(initial={'tank': tank}),
         'sample_mix': sample_mix,
         'salt_brands': SALT_MIX_RECIPES,
@@ -1532,7 +1595,7 @@ def water_change_calc_api(request):
             start_salinity=start_salinity
         )
         return JsonResponse(result)
-    except Exception as e:
+    except (TypeError, ValueError) as e:
         return JsonResponse({'error': str(e)}, status=400)
 
 
@@ -1562,6 +1625,38 @@ def water_change_delete_view(request, wc_id):
 # Alerts & Notifications Center
 # ==========================================
 
+MUTE_MINUTES = {'30m': 30, '1h': 60, '4h': 240, '8h': 480, '24h': 1440, '3d': 4320, '7d': 10080}
+MAX_MUTE_HOURS = 24 * 30
+
+
+@require_POST
+def notifications_mute_view(request):
+    """Pauses phone alerts and alert webhooks for a while, until further notice, or ends a mute."""
+    choice = request.POST.get('duration', '')
+    typed_hours = (request.POST.get('custom_hours') or '').strip()
+    custom_hours = _to_decimal(typed_hours)
+    until, forever = None, False
+    if choice == 'off':
+        message = "Notifications are back on."
+    elif choice == 'forever':
+        forever = True
+        message = "Notifications muted until you turn them back on."
+    else:
+        if typed_hours:
+            minutes = int(custom_hours * 60) if custom_hours is not None and 0 < custom_hours <= MAX_MUTE_HOURS else None
+        else:
+            minutes = MUTE_MINUTES.get(choice)
+        if not minutes:
+            messages.error(request, f"Choose how long to mute for, up to {MAX_MUTE_HOURS} hours.")
+            return redirect(_safe_next(request, 'notifications'))
+        until = timezone.now() + timedelta(minutes=minutes)
+        message = f"Notifications muted until {timezone.localtime(until):%b %-d, %-I:%M %p}."
+    AppSettings.load()
+    AppSettings.objects.filter(pk=1).update(alerts_muted_until=until, alerts_muted_forever=forever)
+    messages.success(request, message)
+    return redirect(_safe_next(request, 'notifications'))
+
+
 ALERT_SEVERITIES = ('critical', 'warning', 'info')
 ALERT_STATUSES = ('active', 'resolved')
 
@@ -1573,6 +1668,7 @@ def _alerts_matching(state, severity):
     parameters = [i for i in state['out_of_range_params'] if ('critical' if i['critical'] else 'warning') == severity]
     return {
         'out_of_range_params': parameters,
+        'stale_params': state['stale_params'] if severity == 'warning' else [],
         'low_reservoirs': state['low_reservoirs'] if severity == 'warning' else [],
         'sick_animals': state['sick_animals'] if severity == 'warning' else [],
         'due_routines': state['due_routines'] if severity == 'info' else [],
@@ -1619,7 +1715,7 @@ def notifications_view(request):
     # The filters only change this page's lists. `state` is shared with the alert badge, so it's left whole.
     context = dict(state)
     context.update(_alerts_matching(state, severity))
-    context['shown_alerts'] = sum(len(context[name]) for name in ('out_of_range_params', 'low_reservoirs', 'due_routines', 'due_equipment', 'sick_animals'))
+    context['shown_alerts'] = sum(len(context[name]) for name in ('out_of_range_params', 'stale_params', 'low_reservoirs', 'due_routines', 'due_equipment', 'sick_animals'))
     context['r2r_forums'] = r2r_forums
     context['history'] = alert_summary(get_active_tank(request), severity)
     context['show_active'] = status != 'resolved'

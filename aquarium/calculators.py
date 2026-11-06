@@ -10,6 +10,8 @@ GAL_PER_LITER = 1 / 3.78541
 LITERS_PER_GAL = 3.78541
 IN3_PER_GALLON = 231.0
 
+MAX_TARGET_SG = 1.1  # roughly 135 ppt, well past anything anyone would mix
+
 # Salt mix grams per gallon needed to achieve 1.026 SG (35 ppt)
 SALT_MIX_RECIPES = {
     'tropic_marin_pro': {
@@ -72,6 +74,12 @@ def calculate_salt_mix(
         volume = gallons
         volume_unit = 'gal'
 
+    for number in (volume, target_salinity, start_salinity):
+        if not math.isfinite(number):
+            raise ValueError('Please enter real numbers.')
+    if volume < 0:
+        raise ValueError("The volume can't be negative.")
+
     recipe = SALT_MIX_RECIPES.get(brand_key, SALT_MIX_RECIPES['tropic_marin_pro'])
 
     # Normalize volume to gallons for recipe calculation
@@ -91,10 +99,12 @@ def calculate_salt_mix(
         sg_val = 1.0 + (ppt_val / 35.0) * 0.026
     else:
         sg_val = target_salinity
-        ppt_val = round((target_salinity - 1.0) / 0.026 * 35.0, 1) if target_salinity > 1.0 else 35.0
+        ppt_val = round((target_salinity - 1.0) / 0.026 * 35.0, 1) if target_salinity > 1.0 else 0.0
+    if sg_val > MAX_TARGET_SG:
+        raise ValueError('That target salinity is far above seawater. Check the number and the SG or ppt setting.')
 
-    # Scale factor against standard 1.026 SG
-    scale_factor = (sg_val - 1.0) / 0.026 if sg_val > 1.0 else 1.0
+    # Scale factor against standard 1.026 SG. Fresh water or below needs no salt at all.
+    scale_factor = (sg_val - 1.0) / 0.026 if sg_val > 1.0 else 0.0
 
     # Salt already in the water, on the same scale. Never below fresh water.
     if s_unit == 'ppt':
@@ -126,6 +136,40 @@ def calculate_salt_mix(
         'lbs': round(lbs_total, 2),
         'cups': round(cups_total, 1),
     }
+
+
+# ---------------------------------------------------------------------------
+# Light (PAR) at depth
+# ---------------------------------------------------------------------------
+
+# Rough rules of thumb. Real results depend on the fixture, its height, its optics and where you measure.
+PPF_PER_WATT = 1.8        # umol of light per joule, typical of a reef LED
+USABLE_LIGHT = 0.6        # the rest misses the water or is lost at the surface and the glass
+PAR_HALVES_EVERY_IN = 11  # how quickly average light falls off going down through a tank
+PAR_ZONES = [(50, 'Very low'), (150, 'Low: most soft corals'), (300, 'Medium: most LPS'), (500, 'High: most SPS')]
+
+
+def par_zone(par):
+    for limit, label in PAR_ZONES:
+        if par < limit:
+            return label
+    return 'Very high: acclimate corals slowly'
+
+
+def par_estimate(watts, width, depth, height, unit='in'):
+    """Rough average PAR near the top, in the middle and on the bottom of a tank, or None if something's missing."""
+    to_inches = 1 / 2.54 if unit == 'cm' else 1
+    width, depth, height = (float(x or 0) * to_inches for x in (width, depth, height))
+    if watts <= 0 or width <= 0 or depth <= 0 or height <= 0:
+        return None
+    area_m2 = (width * 0.0254) * (depth * 0.0254)
+    surface = watts * PPF_PER_WATT * USABLE_LIGHT / area_m2
+    levels = []
+    for label, inches in (('Near the top', min(2.0, height)), ('Middle', height / 2), ('Bottom', height)):
+        par = surface * 0.5 ** (inches / PAR_HALVES_EVERY_IN)
+        rounded = int(round(par, -1))
+        levels.append({'label': label, 'inches': round(inches, 1), 'cm': round(inches * 2.54), 'par': rounded, 'zone': par_zone(rounded)})
+    return levels
 
 
 # ---------------------------------------------------------------------------
@@ -325,8 +369,14 @@ def dose_estimate(parameter, chemical_key, current, target, system_gallons,
 
     current = float(current)
     target = float(target)
+    for number in (gallons, current, target, max_daily_raise, daily_loss, solution_g_per_l, label_raise, label_ml, label_gallons):
+        if number is not None and not math.isfinite(float(number)):
+            raise ValueError('Please enter real numbers.')
+    for number in (label_raise, label_ml, label_gallons):
+        if number is not None and float(number) < 0:
+            raise ValueError("The label amounts can't be negative.")
     delta = target - current
-    max_daily = float(max_daily_raise) if max_daily_raise else MAX_DAILY_RAISE[parameter]
+    max_daily = float(max_daily_raise) if max_daily_raise and float(max_daily_raise) > 0 else MAX_DAILY_RAISE[parameter]
     daily_loss = max(0.0, float(daily_loss or 0))
     unit = DOSE_PARAMETERS[parameter]['unit']
 

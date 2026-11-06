@@ -70,19 +70,14 @@ class Command(BaseCommand):
             {"name": "pH", "code": "ph", "unit": "pH", "decimal_places": 2, "low_limit": 7.8, "min_ideal": 8.0, "max_ideal": 8.4, "high_limit": 8.5, "color": "#10b981", "display_order": 8},
         ]
 
-        for p in default_parameters:
-            obj, created = ParameterType.objects.get_or_create(
-                code=p["code"],
-                defaults=p
-            )
-            if created:
+        # Only for a brand new install: this runs on every start, and must not undo your changes
+        # to a parameter's decimals or bring back one you deleted.
+        if ParameterType.objects.exists():
+            self.stdout.write("  - Parameters already set up, left as they are.")
+        else:
+            for p in default_parameters:
+                obj = ParameterType.objects.create(**p)
                 self.stdout.write(self.style.SUCCESS(f"  + Created parameter: {obj.name}"))
-            else:
-                # Update decimal_places if needed
-                if obj.decimal_places != p["decimal_places"]:
-                    obj.decimal_places = p["decimal_places"]
-                    obj.save(update_fields=['decimal_places'])
-                self.stdout.write(f"  - Parameter already exists: {obj.name}")
 
         self.stdout.write("Seeding default animal groups...")
         default_groups = [
@@ -93,15 +88,12 @@ class Command(BaseCommand):
             {"name": "Invertebrates", "icon": "🦐", "color": "#a855f7", "description": "Shrimp, crabs, starfish, and urchins"},
         ]
 
-        for g in default_groups:
-            obj, created = AnimalGroup.objects.get_or_create(
-                name=g["name"],
-                defaults=g
-            )
-            if created:
+        if AnimalGroup.objects.exists():
+            self.stdout.write("  - Groups already set up, left as they are.")
+        else:
+            for g in default_groups:
+                obj = AnimalGroup.objects.create(**g)
                 self.stdout.write(self.style.SUCCESS(f"  + Created group: {obj.name}"))
-            else:
-                self.stdout.write(f"  - Group already exists: {obj.name}")
 
         self.stdout.write("Seeding popular species catalog...")
         self._seed_species(update_existing=options["update_species"])

@@ -19,7 +19,7 @@ MAX_LISTED = 50
 
 def record_alert_history(conditions, now=None):
     now = now or timezone.now()
-    current = {c['issue']: c for c in conditions if c['type'] != 'quarantine.complete'}
+    current = {c['issue']: c for c in conditions}
     recent = AlertRecord.objects.filter(
         Q(resolved_at__isnull=True) | Q(resolved_at__gte=now - REOPEN_WITHIN)
     ).select_related('tank').order_by('started_at')
@@ -57,7 +57,7 @@ def alert_summary(tank, severity='', now=None):
     now = now or timezone.now()
     days = AppSettings.load().resolved_alert_days
     cutoff = now - timedelta(days=days)
-    records = list(in_system(AlertRecord.objects.all(), tank).filter(
+    records = list(in_system(AlertRecord.objects.select_related('tank'), tank).filter(
         Q(resolved_at__isnull=True) | Q(resolved_at__gte=cutoff)))
 
     resolved = sorted((r for r in records if r.resolved_at), key=lambda r: r.resolved_at, reverse=True)
@@ -71,10 +71,12 @@ def alert_summary(tank, severity='', now=None):
 
 
 def _metrics(records, resolved):
+    # A notice was never a problem, so it would only skew these.
+    records = [r for r in records if r.resolution != AlertRecord.NOTICE]
     if not records:
         return None
-    # An alert that ended because its system retired was never actually fixed.
-    fixed = [r for r in resolved if r.resolution != AlertRecord.SYSTEM_RETIRED]
+    # An alert that ended because its tank retired was never actually fixed.
+    fixed = [r for r in resolved if r.resolution not in (AlertRecord.SYSTEM_RETIRED, AlertRecord.NOTICE)]
     durations = [r.duration for r in fixed]
     subject, times = Counter(r.subject for r in records).most_common(1)[0]
     return {

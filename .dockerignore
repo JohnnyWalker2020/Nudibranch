@@ -17,3 +17,4 @@ media/
 .vscode
 .idea
 README.md
+node_modules/

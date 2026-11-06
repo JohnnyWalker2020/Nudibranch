@@ -6,7 +6,7 @@
         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
         <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
       </span>
-      System Alerts &amp; Action Items
+      Tank Alerts &amp; Action Items
     </h2>
     <a href="{% url 'notifications' %}" class="text-[11px] font-semibold text-amber-300 hover:underline">{{ total_alerts }} open →</a>
   </div>
@@ -28,6 +28,16 @@
       <div>
         <p class="text-xs font-bold text-white">{{ res.name }}</p>
         <p class="text-[11px] text-rose-400 font-semibold">{{ res.percent_remaining }}% remaining{% if res.days_remaining is not None %} (~{{ res.days_remaining }} days){% endif %}</p>
+      </div>
+    </a>
+    {% endfor %}
+
+    {% for item in stale_params %}
+    <a href="{% url 'notifications' %}" class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-amber-500/20 hover:border-amber-400/50 transition-colors">
+      <span class="text-xl">📡</span>
+      <div>
+        <p class="text-xs font-bold text-white">No new {{ item.param.name }} readings</p>
+        <p class="text-[11px] text-amber-400/90">Last reading {{ item.log.measured_at|timesince }} ago</p>
       </div>
     </a>
     {% endfor %}

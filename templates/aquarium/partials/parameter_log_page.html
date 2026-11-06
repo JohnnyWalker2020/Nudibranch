@@ -1,0 +1,8 @@
+{% for log in recent_logs %}
+  {% include 'aquarium/partials/parameter_log_row.html' %}
+{% endfor %}
+{% if next_offset %}
+<button type="button" hx-get="{% url 'parameter_logs_more' %}?offset={{ next_offset }}{% if selected_code %}&amp;param={{ selected_code|urlencode }}{% endif %}"
+        hx-target="this" hx-swap="outerHTML"
+        class="w-full px-4 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-sm font-semibold text-cyan-400 transition-colors">Load more</button>
+{% endif %}

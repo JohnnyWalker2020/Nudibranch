@@ -12,7 +12,7 @@
       {% for a in featured_animals %}
         <a href="{% url 'animal_edit' a.id %}" class="shrink-0 flex flex-col items-center group text-center" title="{{ a.name }}">
           <div class="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 group-hover:border-cyan-500 overflow-hidden flex items-center justify-center transition-colors shadow-sm">
-            {% if a.photo %}<img src="{{ a.photo.url }}" alt="{{ a.name }}" class="w-full h-full object-cover">{% else %}<span class="text-xl">🐠</span>{% endif %}
+            {% if a.photo %}<img loading="lazy" src="{{ a.photo.url }}" alt="{{ a.name }}" class="w-full h-full object-cover">{% else %}<span class="text-xl">🐠</span>{% endif %}
           </div>
           <span class="text-[10px] text-slate-400 group-hover:text-white truncate max-w-[52px] mt-1">{{ a.name }}</span>
         </a>

@@ -11,6 +11,7 @@ urlpatterns = [
     path('parameters/<int:param_id>/delete/', views.parameter_type_delete_view, name='parameter_type_delete'),
     path('parameters/<int:param_id>/settings/reset-targets/', views.parameter_targets_reset_view, name='parameter_targets_reset'),
     path('parameters/quick-add/', views.quick_log_create, name='quick_log_create'),
+    path('parameters/logs/', views.parameter_logs_more, name='parameter_logs_more'),
     path('parameters/quick-measure/', views.quick_measure_create, name='quick_measure_create'),
     path('parameters/delete/<int:log_id>/', views.delete_log, name='delete_log'),
     path('parameters/log/<int:log_id>/edit/', views.log_edit_view, name='log_edit'),
@@ -88,6 +89,7 @@ urlpatterns = [
 
     # Notifications & Alerts Center
     path('notifications/', views.notifications_view, name='notifications'),
+    path('notifications/mute/', views.notifications_mute_view, name='notifications_mute'),
 
     # System selector, look and the hidden ledger
     path('system/select/', tools.system_select_view, name='system_select'),

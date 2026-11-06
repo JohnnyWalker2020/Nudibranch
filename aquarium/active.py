@@ -15,6 +15,6 @@ def get_active_tank(request):
     if hasattr(request, '_active_tank'):
         return request._active_tank
     raw = request.COOKIES.get(COOKIE_NAME, '')
-    tank = Tank.objects.filter(pk=int(raw)).first() if raw.isdigit() else None
+    tank = Tank.objects.filter(pk=int(raw)).first() if raw.isdecimal() else None
     request._active_tank = tank or default_tank()
     return request._active_tank

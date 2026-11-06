@@ -8,7 +8,7 @@ from django.utils import timezone
 from .models import Tank
 
 
-def _promote_new_primary():
+def promote_new_primary():
     current = Tank.objects.filter(is_archived=False)
     if not current.filter(is_primary=True).exists():
         replacement = current.order_by('name').first()
@@ -24,7 +24,7 @@ def archive_system(tank):
     tank.archived_at = timezone.now()
     tank.is_primary = False
     tank.save(update_fields=['is_archived', 'archived_at', 'is_primary'])
-    _promote_new_primary()
+    promote_new_primary()
 
 
 @transaction.atomic

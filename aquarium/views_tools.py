@@ -1,5 +1,4 @@
 """Views for the tools section: planner, power, quarantine, timeline, time-lapse, webhooks, backups, timers."""
-import json
 import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -11,7 +10,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Count
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -28,11 +27,11 @@ from .forms_tools import (
     WishlistLivestockForm,
 )
 from .models import (
-    Animal, AnimalPhoto, AppSettings, CostEntry, currency_choices, PlanProject, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
-    QuarantineEntry, ROSystem, SpeciesCatalog, Tank, TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint,
-    WishlistItem, in_system,
+    Animal, AnimalPhoto, AppSettings, CostEntry, currency_choices, MaintenanceRoutine, PlanProject, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
+    QuarantineEntry, ROSystem, SpeciesCatalog, Tank, WebcamFeed, WebhookDelivery, WebhookEndpoint,
+    WishlistItem, in_system, not_retired,
 )
-from .views import _delete_object, _edit_object, _flash_form_errors, _safe_next, _to_decimal, _to_int, tank_volume_choices
+from .views import _delete_object, _edit_object, _flash_form_errors, _safe_next, _to_decimal, _to_int, safe_json, tank_volume_choices
 
 MAX_TIMER_SECONDS = 24 * 60 * 60
 
@@ -97,12 +96,9 @@ def system_theme_view(request):
     app_settings = AppSettings.load()
     form = SystemThemeForm(instance=tank)
     if request.method == 'POST':
-        previous_icon = tank.custom_icon.name if tank.custom_icon else ''
         form = SystemThemeForm(request.POST, request.FILES, instance=tank)
         if form.is_valid():
             saved = form.save()
-            if previous_icon and 'custom_icon' in request.FILES and saved.custom_icon.name != previous_icon:
-                saved.custom_icon.storage.delete(previous_icon)
             messages.success(request, f"Saved the look for {saved.name}.")
             return redirect('system_theme')
         tank.refresh_from_db()
@@ -341,7 +337,7 @@ def tools_view(request):
         'plan_count': PlannedSystem.objects.count(),
         'running_timers': FillTimer.objects.filter(status='running').count(),
         'endpoint_count': WebhookEndpoint.objects.filter(is_active=True).count(),
-        'quarantine_count': Animal.objects.filter(status='quarantine').count(),
+        'quarantine_count': not_retired(Animal.objects.filter(status='quarantine')).count(),
         'power': power.power_summary(get_active_tank(request)),
         'latest_backup': next(iter(backups.list_backups()), None),
     })
@@ -373,8 +369,8 @@ def power_view(request):
 # ==========================================
 
 def quarantine_list_view(request):
-    active = Animal.objects.filter(status='quarantine').select_related('tank').order_by('quarantine_started', 'name')
-    others = Animal.objects.exclude(status__in=['quarantine', 'rehomed', 'deceased']).order_by('name')
+    active = not_retired(Animal.objects.filter(status='quarantine')).select_related('tank').order_by('quarantine_started', 'name')
+    others = not_retired(Animal.objects.exclude(status__in=['quarantine', *Animal.GONE_STATUSES])).order_by('name')
     return render(request, 'aquarium/quarantine_list.html', {'active': active, 'others': others})
 
 
@@ -418,6 +414,7 @@ def quarantine_plan_view(request, animal_id):
 def quarantine_finish_view(request, animal_id):
     animal = get_object_or_404(Animal, pk=animal_id)
     animal.status = 'healthy'
+    animal.quarantine_started = None  # a later stay counts from its own first day
     animal.save()
     messages.success(request, f"{animal.name} is out of quarantine and marked healthy.")
     return redirect('quarantine_list')
@@ -470,7 +467,7 @@ def timeline_view(request, animal_id):
         'form': form,
         'first': photos[0] if photos else None,
         'last': photos[-1] if photos else None,
-        'photos_json': json.dumps([
+        'photos_json': safe_json([
             {'url': p.image.url, 'date': p.taken_on.strftime('%b %d, %Y'), 'note': p.note} for p in photos
         ]),
     })
@@ -502,7 +499,7 @@ def timelapse_view(request, cam_id):
         'frame_count': len(frames),
         'total_frames': feed.frames.count(),
         'can_capture': bool(timelapse.snapshot_source(feed)),
-        'frames_json': json.dumps([
+        'frames_json': safe_json([
             {'url': f.image.url, 'at': timezone.localtime(f.captured_at).strftime('%b %d %H:%M')} for f in frames
         ]),
     })
@@ -658,18 +655,13 @@ def backup_restore_view(request):
 # Fill timers & RO calculator
 # ==========================================
 
-def _ro_context(system):
-    return {
-        'system': system,
-        'gph': round(fill.estimated_gph(
-            system.rated_gpd, system.rated_psi, system.rated_temp_f, system.feed_psi, system.feed_temp_f,
-            system.measured_gph), 2),
-    }
-
-
 def _system_gph(system):
     return fill.estimated_gph(system.rated_gpd, system.rated_psi, system.rated_temp_f,
                               system.feed_psi, system.feed_temp_f, system.measured_gph)
+
+
+def _ro_context(system):
+    return {'system': system, 'gph': round(_system_gph(system), 2)}
 
 
 def timers_view(request):
@@ -691,10 +683,7 @@ def timers_view(request):
         'recent': FillTimer.objects.exclude(status='running').select_related('reservoir').order_by('-ends_at')[:5],
         'ro_rows': ro_rows,
         'reservoirs': reservoirs,
-        'systems_json': json.dumps([
-            {'id': r['system'].pk, 'name': r['system'].name, 'gph': r['gph'], 'waste': float(r['system'].waste_ratio)}
-            for r in ro_rows]),
-        'reservoirs_json': json.dumps(reservoirs),
+        'reservoirs_json': safe_json(reservoirs),
         'worker_online': settings_obj.worker_online,
         'timer_endpoints': sum(1 for e in WebhookEndpoint.objects.filter(is_active=True)
                                if e.wants('timer.finished', check_targets=False)),
@@ -707,15 +696,23 @@ def timers_view(request):
 def timer_start_view(request):
     minutes = _to_decimal(request.POST.get('minutes'))
     seconds = int(float(minutes) * 60) if minutes is not None else 0
+    from_step = bool(getattr(request, 'htmx', False))
     if not 0 < seconds <= MAX_TIMER_SECONDS:
+        if from_step:
+            return HttpResponse(status=400)
         messages.error(request, "Enter a time between a few seconds and 24 hours.")
         return redirect('timers')
     reservoir = DosingReservoir.objects.filter(pk=_to_int(request.POST.get('reservoir'), None)).first()
     name = (request.POST.get('name') or '').strip()[:100] or (f"Fill {reservoir.name}" if reservoir else 'Timer')
     now = timezone.now()
-    timer = FillTimer.objects.create(name=name, reservoir=reservoir, started_at=now, ends_at=now + timedelta(seconds=seconds))
+    routine = MaintenanceRoutine.objects.filter(pk=_to_int(request.POST.get('routine'), None)).first()
+    timer = FillTimer.objects.create(name=name, reservoir=reservoir, routine=routine, started_at=now, ends_at=now + timedelta(seconds=seconds))
     chosen = [pk for pk in (_to_int(raw, None) for raw in request.POST.getlist('endpoints')) if pk]
     timer.endpoints.set(WebhookEndpoint.objects.filter(pk__in=chosen))
+    if request.POST.get('webhook'):  # a routine's step can name the connection it triggers
+        timer.endpoints.add(*WebhookEndpoint.objects.filter(name__iexact=request.POST['webhook']))
+    if from_step:  # started from a routine's step: the page stays put, so ticked steps stay ticked
+        return render(request, 'aquarium/partials/step_timer.html', {'step': {'timer': timer}})
     messages.success(request, f"Timer started: {name}.")
     return redirect('timers')
 
@@ -785,9 +782,10 @@ def fill_calc_api(request):
     stop_at = _to_decimal(request.GET.get('stop_at'))
     if system is None or gallons is None:
         return JsonResponse({'error': 'Choose a system and an amount.'}, status=400)
-    return JsonResponse(fill.fill_estimate(
-        gallons, _system_gph(system), system.waste_ratio, stop_at if stop_at is not None else 100,
-    ))
+    estimate = fill.fill_estimate(gallons, _system_gph(system), system.waste_ratio, stop_at if stop_at is not None else 100)
+    if estimate is None:
+        return JsonResponse({'error': "This RO/DI system's output works out to zero. Check its settings."}, status=400)
+    return JsonResponse(estimate)
 
 
 # ==========================================
@@ -815,7 +813,7 @@ def project_create_view(request):
     else:
         form = PlanProjectForm()
     return _form_page(request, form, 'New Project', reverse('planner'),
-                      'Plan several systems together, and compare them, before any of them are real')
+                      'Plan several tanks together, and compare them, before any of them are real')
 
 
 def project_detail_view(request, project_id):
@@ -881,8 +879,8 @@ def plan_create_view(request):
             if tank:
                 initial.update({'existing_tank': tank, 'name': f"Stocking plan for {tank.name}"})
         form = PlannedSystemForm(initial=initial)
-    return _form_page(request, form, 'New System Plan', reverse('planner'),
-                      'Sketch a system, or plan additions to a tank you already have')
+    return _form_page(request, form, 'New Tank Plan', reverse('planner'),
+                      'Sketch a new tank, or plan additions to one you already have')
 
 
 def plan_detail_view(request, plan_id):
@@ -982,7 +980,7 @@ def wishlist_view(request):
         'tanks': Tank.objects.filter(is_archived=False),
         'plans': PlannedSystem.objects.all(),
         'livestock_form': WishlistLivestockForm(),
-        'equipment_form': WishlistEquipmentForm(),
+        'equipment_form': WishlistEquipmentForm(auto_id='gear_%s'),
     })
 
 

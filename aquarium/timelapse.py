@@ -44,7 +44,9 @@ def first_jpeg(stream, chunk_size=65536):
 
 
 def fetch_image(url):
-    request = urllib.request.Request(url, headers={'User-Agent': 'Nudibranch-Reef-Tracker'})
+    if not url.lower().startswith(('http://', 'https://')):
+        raise CaptureError("The camera's address must start with http:// or https://.")
+    request = urllib.request.Request(url, headers={'User-Agent': 'Nudibranch-Reef-Manager'})
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
             content_type = response.headers.get('Content-Type', '').lower()

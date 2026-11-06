@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}System Planner | Nudibranch{% endblock %}
+{% block title %}Tank Planner | Nudibranch{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -8,8 +8,8 @@
 
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-black text-white tracking-tight">System Planner</h1>
-      <p class="text-xs text-slate-400 mt-0.5">Try out a system or stocking list before spending anything. When you like it, start tracking it.</p>
+      <h1 class="text-2xl font-black text-white tracking-tight">Tank Planner</h1>
+      <p class="text-xs text-slate-400 mt-0.5">Try out a tank or stocking list before spending anything. When you like it, start tracking it.</p>
     </div>
     <div class="flex items-center gap-2">
       <a href="{% url 'wishlist' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs text-center">💜 Wishlist</a>
@@ -25,7 +25,7 @@
       {% for item in projects %}
       <a href="{% url 'project_detail' item.project.id %}" class="block bg-gradient-to-br from-slate-900 to-cyan-950/40 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-5 transition-all space-y-1">
         <h3 class="text-base font-bold text-white">📁 {{ item.project.name }}</h3>
-        <p class="text-xs text-slate-400">{{ item.count }} system{{ item.count|pluralize }} · {{ item.totals.gallons|floatformat:1 }} gal · {{ currency }}{{ item.totals.cost|floatformat:2 }}</p>
+        <p class="text-xs text-slate-400">{{ item.count }} tank{{ item.count|pluralize }} · {{ item.totals.gallons|floatformat:1 }} gal · {{ currency }}{{ item.totals.cost|floatformat:2 }}</p>
       </a>
       {% endfor %}
     </div>
@@ -41,7 +41,7 @@
         {% if row.plan.tracked_tank %}<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Tracking</span>{% endif %}
       </div>
       {% if row.plan.project %}<p class="text-[11px] font-semibold text-cyan-400">📁 {{ row.plan.project.name }}</p>{% endif %}
-      <p class="text-xs text-slate-400">{{ row.plan.get_goal_display }} · {% if row.plan.existing_tank %}{{ row.plan.existing_tank.name }}{% else %}{{ row.analysis.system_gallons }} gal system{% endif %}</p>
+      <p class="text-xs text-slate-400">{{ row.plan.get_goal_display }} · {% if row.plan.existing_tank %}{{ row.plan.existing_tank.name }}{% else %}{{ row.analysis.system_gallons }} gal total{% endif %}</p>
       <p class="text-xs text-slate-400">{{ row.analysis.livestock|length }} livestock line{{ row.analysis.livestock|length|pluralize }}, {{ row.analysis.gear|length }} equipment line{{ row.analysis.gear|length|pluralize }}{% if row.analysis.total_cost %} · {{ row.analysis.currency }}{{ row.analysis.total_cost|floatformat:2 }}{% endif %}</p>
       <p class="text-xs font-semibold {% if row.analysis.danger_count %}text-rose-400{% elif row.analysis.warning_count %}text-amber-400{% else %}text-emerald-400{% endif %}">
         {% if row.analysis.danger_count %}{{ row.analysis.danger_count }} serious issue{{ row.analysis.danger_count|pluralize }}{% elif row.analysis.warning_count %}{{ row.analysis.warning_count }} thing{{ row.analysis.warning_count|pluralize }} to check{% else %}No stocking issues found{% endif %}
@@ -51,7 +51,7 @@
     <div class="col-span-full py-16 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6">
       <span class="text-4xl">🗺️</span>
       <h3 class="mt-3 text-base font-bold text-white">No plans yet</h3>
-      <p class="mt-1 text-xs text-slate-400 max-w-md mx-auto">Plan a brand new system, or plan what to add to a tank you already have.</p>
+      <p class="mt-1 text-xs text-slate-400 max-w-md mx-auto">Plan a brand new tank, or plan what to add to a tank you already have.</p>
       <a href="{% url 'plan_create' %}" class="mt-4 inline-block px-4 py-2 bg-cyan-500 text-slate-950 font-bold text-xs rounded-xl">+ New plan</a>
     </div>
     {% endfor %}

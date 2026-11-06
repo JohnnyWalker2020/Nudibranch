@@ -7,6 +7,7 @@ they repeat on the start date's weekday. Monthly/yearly schedules land on the st
 date's day of month, clamped to the end of shorter months (Jan 31 -> Feb 28).
 """
 import calendar
+import re
 from datetime import date, timedelta
 
 UNITS = [
@@ -115,6 +116,31 @@ def next_due_date(start, every, unit, weekdays=None, last_done=None):
     if covers_next:
         return next_occurrence(nxt + timedelta(days=1), start, every, unit, weekdays)
     return nxt
+
+
+STEP_TIMER = re.compile(r'^(.*?)\s*\[\s*(\d+(?:\.\d+)?)\s*(s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?)?\s*(?:@\s*([^\]]+?))?\s*\]\s*$', re.IGNORECASE)
+MAX_STEP_MINUTES = 24 * 60
+
+
+def parse_step(line):
+    """
+    'Wait for the colour to develop [5 min]' -> {'text': 'Wait for the colour to develop', 'minutes': 5.0, 'label': '5 min', 'webhook': ''}.
+    Naming a connection, as in [5 min @Feeder], sends that step's finish to it.
+    """
+    match = STEP_TIMER.match(line or '')
+    if not match or not match.group(1):
+        return {'text': line, 'minutes': None, 'label': '', 'webhook': ''}
+    amount = float(match.group(2))
+    unit = (match.group(3) or 'm').lower()
+    if unit.startswith('s'):
+        minutes, short = amount / 60, 'sec'
+    elif unit.startswith('h'):
+        minutes, short = amount * 60, 'hr'
+    else:
+        minutes, short = amount, 'min'
+    if not 0 < minutes <= MAX_STEP_MINUTES:
+        return {'text': line, 'minutes': None, 'label': '', 'webhook': ''}
+    return {'text': match.group(1), 'minutes': minutes, 'label': f"{amount:g} {short}", 'webhook': match.group(4) or ''}
 
 
 def _ordinal(n):

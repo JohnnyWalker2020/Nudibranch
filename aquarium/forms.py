@@ -6,9 +6,9 @@ from django.utils import timezone
 from .models import (
     AppSettings, ParameterLog, Animal, AnimalGroup, ParameterType, Tank, Sump, SumpChamber,
     Equipment, DosingReservoir, MaintenanceRoutine, WaterChangeLog, WebcamFeed,
-    PlumbingRun, WEEKDAYS,
+    PlumbingRun, WEEKDAYS, WebhookEndpoint,
 )
-from .schedule import REPEAT_PRESETS, preset_key
+from .schedule import REPEAT_PRESETS, parse_step, preset_key
 
 # Shared Tailwind class strings
 INPUT = 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
@@ -175,7 +175,7 @@ class ParameterLogEditForm(DefaultNowMixin, forms.ModelForm):
     class Meta:
         model = ParameterLog
         fields = ['parameter_type', 'tank', 'value', 'measured_at', 'notes']
-        labels = {'tank': 'System'}
+        labels = {'tank': 'Tank'}
         widgets = {
             'parameter_type': forms.Select(attrs={'class': INPUT}),
             'tank': forms.Select(attrs={'class': INPUT}),
@@ -287,6 +287,9 @@ class AnimalForm(CostGatedMixin, forms.ModelForm):
         }
 
     def save(self, commit=True):
+        # Leaving quarantine ends that stay, so a later one starts counting from its own first day.
+        if 'status' in self.changed_data and self.instance.status != 'quarantine':
+            self.instance.quarantine_started = None
         instance = super().save(commit=commit)
         new_group = self.cleaned_data.get('new_group_name')
         if new_group:
@@ -303,6 +306,17 @@ class AnimalForm(CostGatedMixin, forms.ModelForm):
                         instance.groups.add(group_obj)
                     self.save_m2m = new_save_m2m
         return instance
+
+
+class AnimalPhotoUploadForm(forms.ModelForm):
+    """The quick photo button on a livestock card. Checks it really is an image before keeping it."""
+    class Meta:
+        model = Animal
+        fields = ['photo']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['photo'].required = True
 
 
 class VesselFormMixin:
@@ -550,7 +564,7 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
             return raw
         kind, _, pk = raw.partition(':')
         model = {'tank': Tank, 'sump': Sump, 'chamber': SumpChamber}.get(kind)
-        obj = model.objects.filter(pk=pk).first() if model and pk.isdigit() else None
+        obj = model.objects.filter(pk=pk).first() if model and pk.isdecimal() else None
         if obj is None:
             raise forms.ValidationError("That location no longer exists. Pick another.")
         if kind == 'chamber':
@@ -613,6 +627,11 @@ class DosingReservoirForm(forms.ModelForm):
             self.add_error('capacity', "Size must be greater than zero.")
         if cap is not None and level is not None and level > cap:
             self.add_error('current_level', "Current level can't be more than the container size.")
+        if level is not None and level < 0:
+            self.add_error('current_level', "Current level can't be negative.")
+        rate = cleaned.get('daily_consumption')
+        if rate is not None and rate < 0:
+            self.add_error('daily_consumption', "Daily use can't be negative.")
         return cleaned
 
 
@@ -635,8 +654,28 @@ class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self._setup_now_field()
 
+    def clean_gallons(self):
+        gallons = self.cleaned_data['gallons']
+        if gallons <= 0:
+            raise forms.ValidationError("Must be greater than zero.")
+        return gallons
+
+
+def _clean_camera_url(url):
+    """Pages show these directly, and the worker fetches them, so only ordinary web addresses are allowed."""
+    url = (url or '').strip()
+    if url and not url.lower().startswith(('http://', 'https://', '/')):
+        raise forms.ValidationError("Use an address starting with http:// or https://.")
+    return url
+
 
 class WebcamFeedForm(forms.ModelForm):
+    def clean_feed_url(self):
+        return _clean_camera_url(self.cleaned_data.get('feed_url'))
+
+    def clean_snapshot_url(self):
+        return _clean_camera_url(self.cleaned_data.get('snapshot_url'))
+
     class Meta:
         model = WebcamFeed
         fields = ['name', 'tank', 'feed_url', 'feed_type', 'is_active', 'order', 'timelapse_enabled', 'snapshot_url',
@@ -717,7 +756,7 @@ class MaintenanceRoutineForm(forms.ModelForm):
             'rows': 5,
             'placeholder': "Mix 10 gal fresh saltwater\nTurn off return pump and skimmer\nScrape glass and siphon detritus\nEmpty & clean skimmer collection cup\nRefill with new saltwater and verify salinity"
         }),
-        help_text="Enter each checklist step on a new line (one task per line)",
+        help_text="One step per line. To give a step a timer, end it with the time in brackets, like: Wait for the colour to develop [5 min]. To also trigger one of your connections when it finishes, name it: [5 min @Feeder]",
         required=False
     )
 
@@ -776,6 +815,10 @@ class MaintenanceRoutineForm(forms.ModelForm):
         # Checklist steps (manual routines)
         raw_text = cleaned_data.get('checklist_raw') or ''
         self.instance.checklist_items = [line.strip() for line in raw_text.splitlines() if line.strip()]
+        for item in self.instance.checklist_items:
+            webhook = parse_step(item)['webhook']
+            if webhook and not WebhookEndpoint.objects.filter(name__iexact=webhook).exists():
+                self.add_error('checklist_raw', f'There\'s no connection called "{webhook}" under Phone Alerts & Webhooks.')
 
         # Schedule (automated routines)
         events, errors = parse_schedule_lines(cleaned_data.get('schedule_raw'))

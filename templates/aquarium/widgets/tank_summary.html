@@ -8,7 +8,7 @@
       <a href="{% url 'tank_detail' item.tank.id %}" class="block p-3 bg-slate-950/60 border border-slate-800 hover:border-cyan-500/40 rounded-xl transition-colors">
         <div class="flex items-center justify-between">
           <span class="text-sm font-bold text-white">{{ item.tank.name }}</span>
-          <span class="text-xs text-cyan-400 font-semibold">{{ item.flow.system_gallons }} gal system</span>
+          <span class="text-xs text-cyan-400 font-semibold">{{ item.flow.system_gallons }} gal total</span>
         </div>
         <div class="mt-2 grid grid-cols-2 gap-2 text-[11px]">
           <div>

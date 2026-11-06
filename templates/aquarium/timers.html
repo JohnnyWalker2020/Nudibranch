@@ -157,7 +157,7 @@
       if (!roSelect || !gallons.value) { if (result) result.classList.add('hidden'); return; }
       const query = new URLSearchParams({ system: roSelect.value, gallons: volume.gallons(), stop_at: stopAt.value || 100 });
       const response = await fetch(`${calcUrl}?${query}`);
-      if (!response.ok) return;
+      if (!response.ok) { result.classList.add('hidden'); return; }
       const data = await response.json();
       result.textContent = `Make ${data.gallons} gal (${data.liters} L) in about ${data.hours_label} at ${data.gph} gal/h. Waste water: about ${data.waste_gallons} gal.`;
       result.classList.remove('hidden');
@@ -176,20 +176,6 @@
 
     // Countdown. It runs from the server's end time, so reloading the page doesn't change it.
     const cards = [...document.querySelectorAll('.timer-card')];
-    let audio = null;
-    function beep() {
-      try {
-        audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-        [0, 0.35, 0.7].forEach(offset => {
-          const osc = audio.createOscillator(), gain = audio.createGain();
-          osc.frequency.value = 880;
-          osc.connect(gain); gain.connect(audio.destination);
-          gain.gain.value = 0.2;
-          osc.start(audio.currentTime + offset);
-          osc.stop(audio.currentTime + offset + 0.2);
-        });
-      } catch (e) { /* sound isn't available */ }
-    }
     function pad(n) { return String(n).padStart(2, '0'); }
     function tick() {
       const now = Date.now();
@@ -203,7 +189,7 @@
           card.dataset.alerted = '1';
           card.classList.add('animate-pulse');
           card.querySelector('.timer-clock').classList.replace('text-cyan-400', 'text-amber-400');
-          beep();
+          nudiBeep();
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('Timer finished', { body: card.dataset.name });
           }

@@ -4,17 +4,19 @@ from datetime import timedelta
 
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models.signals import post_delete, post_save, pre_delete
+from django.db.models import OuterRef, Subquery
+from django.db.models.signals import post_delete, post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.functional import cached_property
 
 from .calculators import (
-    estimate_capacity_gallons, estimate_flow_gph, gph_to_lph, turnover_summary,
+    estimate_capacity_gallons, estimate_flow_gph, gph_to_lph, par_estimate, turnover_summary,
     pipe_volume_gallons, LITERS_PER_GAL, PIPE_SIZES,
 )
 from . import icons
 from . import schedule as sched
+from .images import compressed_jpeg
 from .themes import DEFAULT_THEME, THEME_CHOICES, palette_from_colors
 
 WEEKDAYS = [(0, 'Mon'), (1, 'Tue'), (2, 'Wed'), (3, 'Thu'), (4, 'Fri'), (5, 'Sat'), (6, 'Sun')]
@@ -80,7 +82,10 @@ class ParameterType(models.Model):
         tank_id = getattr(tank, 'pk', tank)
         if not isinstance(tank_id, int):
             return self
-        target = self.targets.filter(tank_id=tank_id).first()
+        if 'targets' in getattr(self, '_prefetched_objects_cache', {}):
+            target = next((t for t in self.targets.all() if t.tank_id == tank_id), None)
+        else:
+            target = self.targets.filter(tank_id=tank_id).first()
         if target is None:
             return self
         view = copy.copy(self)
@@ -141,19 +146,12 @@ class ParameterType(models.Model):
             return 'high', 'critical' if critical else 'warning'
         return 'optimal', 'ok'
 
-    @property
-    def step_size(self):
-        """Returns input step attribute for HTML numeric fields."""
-        if self.decimal_places == 0:
-            return "1"
-        return f"0.{'0' * (self.decimal_places - 1)}1"
-
 
 class ParameterLog(models.Model):
     """Historical test measurement."""
     parameter_type = models.ForeignKey(ParameterType, on_delete=models.CASCADE, related_name="logs")
     tank = models.ForeignKey('Tank', on_delete=models.CASCADE, null=True, blank=True, related_name='parameter_logs',
-                             help_text="System this was measured in")
+                             help_text="Tank this was measured in")
     measured_at = models.DateTimeField(default=timezone.now)
     value = models.DecimalField(max_digits=10, decimal_places=4)
     notes = models.CharField(max_length=255, blank=True)
@@ -202,6 +200,13 @@ class ParameterLog(models.Model):
         return "text-rose-400 bg-rose-500/10 border-rose-500/30"
 
 
+def latest_logs_by_parameter(tank):
+    """{parameter id: newest log} for a system, in two queries however many parameters there are."""
+    newest = in_system(ParameterLog.objects.filter(parameter_type=OuterRef('pk')), tank).order_by('-measured_at')
+    ids = ParameterType.objects.annotate(newest=Subquery(newest.values('pk')[:1])).values_list('newest', flat=True)
+    return {log.parameter_type_id: log for log in ParameterLog.objects.filter(pk__in=[pk for pk in ids if pk])}
+
+
 class AnimalGroup(models.Model):
     """Groups / tags for livestock (e.g. 'Cleanup Crew', 'School', 'SPS Corals')."""
     name = models.CharField(max_length=60, unique=True)
@@ -243,10 +248,11 @@ class Animal(models.Model):
         ('rehomed', 'Rehomed'),
         ('deceased', 'Deceased'),
     ]
+    GONE_STATUSES = ('rehomed', 'deceased')
 
     name = models.CharField(max_length=120, help_text="Common name or pet name (e.g. 'Ocellaris Clown Pair')")
     species = models.CharField(max_length=150, blank=True, help_text="Scientific or species name (optional)")
-    tank = models.ForeignKey('Tank', on_delete=models.SET_NULL, null=True, blank=True, related_name='animals', help_text="Assigned tank system")
+    tank = models.ForeignKey('Tank', on_delete=models.SET_NULL, null=True, blank=True, related_name='animals', help_text="Assigned tank")
     groups = models.ManyToManyField(AnimalGroup, blank=True, related_name="animals")
     count = models.PositiveIntegerField(default=1, help_text="Quantity (e.g. 10 snails or 5 chromis)")
     acquired_date = models.DateField(null=True, blank=True)
@@ -324,7 +330,7 @@ class WebcamFeed(models.Model):
 
     name = models.CharField(max_length=100)
     tank = models.ForeignKey('Tank', on_delete=models.SET_NULL, null=True, blank=True, related_name='webcams',
-                             help_text="System this camera watches (blank = show on every system)")
+                             help_text="Tank this camera watches (blank = show on every tank)")
     feed_url = models.CharField(max_length=500, help_text="URL of the stream, snapshot, or embed link")
     feed_type = models.CharField(max_length=20, choices=FEED_TYPES, default='mjpeg')
     is_active = models.BooleanField(default=True)
@@ -524,6 +530,10 @@ class Tank(DimensionedVessel):
         return palette_from_colors(*colors) if colors else None
 
     @property
+    def living_animal_count(self):
+        return sum(a.count for a in self.animals.all() if a.status not in Animal.GONE_STATUSES)
+
+    @property
     def sump_gallons(self):
         return sum(float(s.volume_gallons or 0) for s in self.sumps.all())
 
@@ -544,6 +554,19 @@ class Tank(DimensionedVessel):
     @property
     def total_system_liters(self):
         return round(self.total_system_gallons * LITERS_PER_GAL, 1)
+
+    def light_summary(self):
+        """Display lights, their power now, and the rough PAR that gives. Sump and refugium lights don't reach the display."""
+        lights = [eq for eq in self.equipment.all() if eq.category == 'lighting' and not eq.sump_id]
+        running = [eq for eq in lights if eq.status != 'offline' and eq.wattage]
+        watts_now = sum(eq.wattage * eq.power_setting_percent / 100 for eq in running)
+        levels = par_estimate(watts_now, self.width, self.depth, self.height, self.dimension_unit) if self.has_dimensions else None
+        return {
+            'lights': lights,
+            'watts_now': round(watts_now),
+            'watts_full': sum(eq.wattage for eq in running),
+            'levels': levels,
+        }
 
     def flow_summary(self):
         """Turnover figures based on the equipment assigned to this tank."""
@@ -947,6 +970,17 @@ class MaintenanceRoutine(models.Model):
     # ---- manual routines ----
 
     @property
+    def checklist_steps(self):
+        """The checklist with any timers split out. A running one is added by the Routines page."""
+        steps = []
+        for item in self.checklist_items or []:
+            step = sched.parse_step(item)
+            step['timer_name'] = f"{self.title}: {step['text']}"[:100]
+            step['routine_id'] = self.pk
+            steps.append(step)
+        return steps
+
+    @property
     def next_due_date(self):
         if self.is_automated:
             return None
@@ -977,11 +1011,6 @@ class MaintenanceRoutine(models.Model):
     def is_overdue(self):
         days = self.days_until_due
         return self.is_due and days is not None and days < 0
-
-    @property
-    def frequency_days(self):
-        """Approximate interval in days (for sorting)."""
-        return sched.period_days(self.repeat_every, self.repeat_unit)
 
     # ---- automated schedule helpers ----
 
@@ -1018,16 +1047,6 @@ class MaintenanceRoutine(models.Model):
     @property
     def upcoming(self):
         return self.next_event()
-
-    @property
-    def runs_today(self):
-        return self._occurs_on(timezone.localdate())
-
-    @property
-    def days_since_completed(self):
-        if not self.last_completed:
-            return None
-        return (timezone.now() - self.last_completed).days
 
 
 class WaterChangeLog(models.Model):
@@ -1095,11 +1114,13 @@ class AppSettings(models.Model):
     costs_enabled = models.BooleanField(default=False, editable=False,
                                         help_text="Prices stay hidden until this is turned on in The Damage")
     disable_icon_aging = models.BooleanField(
-        default=False, help_text="Retired systems keep their young icon instead of switching to the old version")
+        default=False, help_text="Retired tanks keep their young icon instead of switching to the old version")
     enable_old_version_icons = models.BooleanField(
-        default=False, help_text="Lets you pick the old version of a character for any system")
+        default=False, help_text="Lets you pick the old version of a character for any tank")
     enable_random_icons = models.BooleanField(
-        default=False, help_text="Systems with no chosen icon show a different character on every page")
+        default=False, help_text="Tanks with no chosen icon show a different character on every page")
+    alerts_muted_until = models.DateTimeField(null=True, blank=True, editable=False)
+    alerts_muted_forever = models.BooleanField(default=False, editable=False)
     resolved_alert_days = models.PositiveSmallIntegerField(
         'Days to keep resolved alerts', default=7, validators=[MinValueValidator(1), MaxValueValidator(30)],
         help_text="How long resolved alerts and their metrics stay on the Alerts page (1 to 30)")
@@ -1120,6 +1141,12 @@ class AppSettings(models.Model):
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    @property
+    def alerts_muted(self):
+        if self.alerts_muted_forever:
+            return True
+        return bool(self.alerts_muted_until and timezone.now() < self.alerts_muted_until)
 
     @property
     def worker_online(self):
@@ -1285,6 +1312,7 @@ class EventState(models.Model):
 class AlertRecord(models.Model):
     """One problem from when it started until it was resolved, for the history on the Alerts page."""
     SYSTEM_RETIRED = 'retired'
+    NOTICE = 'notice'  # something worth knowing, not a problem that was fixed, such as a quarantine ending
 
     issue_key = models.CharField(max_length=120, db_index=True)
     event_type = models.CharField(max_length=40)
@@ -1302,6 +1330,11 @@ class AlertRecord(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def display_title(self):
+        """Without the system's name in front: the Alerts page only ever shows one system."""
+        return self.title.removeprefix(f"{self.tank.name}: ") if self.tank else self.title
 
     @property
     def duration(self):
@@ -1353,6 +1386,8 @@ class FillTimer(models.Model):
 
     name = models.CharField(max_length=100)
     reservoir = models.ForeignKey(DosingReservoir, on_delete=models.SET_NULL, null=True, blank=True, related_name='timers')
+    routine = models.ForeignKey(MaintenanceRoutine, on_delete=models.SET_NULL, null=True, blank=True, related_name='timers',
+                                help_text="Set when this timer belongs to a step of a routine")
     started_at = models.DateTimeField(default=timezone.now)
     ends_at = models.DateTimeField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='running')
@@ -1378,7 +1413,7 @@ class FillTimer(models.Model):
 class PlanProject(models.Model):
     """A group of planned systems to compare and budget together. Nothing in it is tracked until each plan is."""
     name = models.CharField(max_length=100)
-    budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Budget for all its systems together")
+    budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Budget for all its tanks together")
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1401,7 +1436,7 @@ class PlannedSystem(DimensionedVessel):
     ]
     name = models.CharField(max_length=100)
     project = models.ForeignKey(PlanProject, on_delete=models.SET_NULL, null=True, blank=True, related_name='plans',
-                                help_text="Group this with other planned systems to compare them and total them up")
+                                help_text="Group this with other planned tanks to compare them and total them up")
     goal = models.CharField(max_length=10, choices=GOAL_CHOICES, default='mixed')
     existing_tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='plans',
                                       help_text="Planning additions to a tank you already track? Choose it here")
@@ -1591,9 +1626,41 @@ def _reservoir_deleted(sender, instance, **kwargs):
     _pause_endpoints_losing_last_target(instance, 'timer_reservoirs', 'its reservoir')
 
 
+IMAGE_FIELDS = {AnimalPhoto: 'image', TimelapseFrame: 'image', Animal: 'photo', Tank: 'custom_icon'}
+
+
 @receiver(post_delete, sender=AnimalPhoto)
 @receiver(post_delete, sender=TimelapseFrame)
+@receiver(post_delete, sender=Animal)
+@receiver(post_delete, sender=Tank)
 def _delete_image_file(sender, instance, **kwargs):
-    """Removes the image from disk when its record goes, so old frames don't fill the drive."""
-    if instance.image:
-        instance.image.delete(save=False)
+    """Removes the image from disk when its record goes, so old files don't fill the drive."""
+    image = getattr(instance, IMAGE_FIELDS[sender])
+    if image:
+        image.delete(save=False)
+
+
+@receiver(pre_save, sender=Animal)
+@receiver(pre_save, sender=AnimalPhoto)
+def _compress_new_photo(sender, instance, raw=False, **kwargs):
+    """Every new animal photo is saved as a reasonably sized JPEG, wherever it was uploaded from."""
+    field = IMAGE_FIELDS[sender]
+    image = getattr(instance, field)
+    if raw or not image or image._committed:
+        return
+    smaller = compressed_jpeg(image.file, image.name)
+    if smaller is not None:
+        setattr(instance, field, smaller)
+
+
+@receiver(pre_save, sender=Animal)
+@receiver(pre_save, sender=Tank)
+def _delete_replaced_image(sender, instance, raw=False, **kwargs):
+    """A new photo or icon replaces the old file, rather than leaving it on the drive."""
+    if raw or not instance.pk:
+        return
+    field = IMAGE_FIELDS[sender]
+    previous = sender.objects.filter(pk=instance.pk).values_list(field, flat=True).first()
+    image = getattr(instance, field)
+    if previous and previous != (image.name if image else ''):
+        image.storage.delete(previous)

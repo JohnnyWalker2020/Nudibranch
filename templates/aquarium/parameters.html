@@ -45,7 +45,7 @@
   <div class="space-y-2">
     <div class="flex items-center justify-between px-1">
       <h3 class="text-base font-bold text-white">Log History</h3>
-      <span class="text-xs text-slate-500">latest {{ recent_logs|length }}</span>
+      <span class="text-xs text-slate-500">newest first</span>
     </div>
     <div id="recent-logs-list" class="space-y-2">
       {% for log in recent_logs %}
@@ -53,6 +53,7 @@
       {% empty %}
         <div class="p-12 text-center text-slate-500 text-sm bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No records yet. Use “Log Measurement” to add one.</div>
       {% endfor %}
+      {% if next_offset %}{% include 'aquarium/partials/parameter_log_page.html' with recent_logs=None %}{% endif %}
     </div>
   </div>
 </div>

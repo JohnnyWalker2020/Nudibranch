@@ -22,7 +22,7 @@ from django.utils import timezone
 from .alert_history import prune_alert_history, record_alert_history
 from .alerts import compute_alert_state, log_buckets
 from .models import (
-    AppSettings, Animal, EventState, FillTimer, MaintenanceRoutine, ParameterType, WebhookDelivery,
+    AlertRecord, AppSettings, Animal, EventState, FillTimer, MaintenanceRoutine, QuarantineEntry, WebhookDelivery,
     WebhookEndpoint, not_retired,
 )
 
@@ -33,12 +33,15 @@ EVENT_TYPES = [
     ('reservoir.low', 'Reservoir running low'),
     ('routine.due', 'Manual routine due'),
     ('routine.scheduled', 'Automated schedule event (feeder, lights...)'),
+    ('routine.step_finished', "A timer on a routine's step finished"),
     ('equipment.service_due', 'Equipment service due'),
     ('animal.attention', 'Animal sick or in quarantine'),
     ('quarantine.complete', 'Quarantine period finished'),
     ('timer.finished', 'Fill timer finished'),
 ]
-ONE_SHOT_TYPES = ('routine.scheduled', 'timer.finished', 'test')
+ONE_SHOT_TYPES = ('routine.scheduled', 'routine.step_finished', 'timer.finished', 'test')
+# Muting silences alerts, not jobs: a feeder schedule or a fill timer you started keeps working.
+NEVER_MUTED = ONE_SHOT_TYPES
 
 CLEAR_AFTER = timedelta(minutes=30)
 MAX_SCHEDULE_LATENESS = timedelta(minutes=5)
@@ -79,19 +82,17 @@ def collect_conditions(now=None):
             measured_at=log.measured_at.isoformat(),
         ))
 
-    for param in ParameterType.objects.exclude(stale_after_hours__isnull=True):
-        for tank in log_buckets():
-            latest = param.latest_log(tank)
-            if latest and now - latest.measured_at > timedelta(hours=param.stale_after_hours):
-                prefix = f"{tank.name}: " if tank and several_systems else ''
-                found.append(_condition(
-                    f"stale:{param.pk}:{tank.pk if tank else 0}:{latest.pk}", 'parameter.stale', 'warning',
-                    f"{prefix}No new {param.name} readings",
-                    f"Nothing logged for over {param.stale_after_hours} hours. Check the probe.",
-                    system_id=tank.pk if tank else None, subject=f"{param.name} probe",
-                    parameter=param.code, last_measured_at=latest.measured_at.isoformat(),
-                    tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
-                ))
+    for item in state['stale_params']:
+        param, latest, tank = item['param'], item['log'], item['tank']
+        prefix = f"{tank.name}: " if tank and several_systems else ''
+        found.append(_condition(
+            f"stale:{param.pk}:{tank.pk if tank else 0}:{latest.pk}", 'parameter.stale', 'warning',
+            f"{prefix}No new {param.name} readings",
+            f"Nothing logged for over {param.stale_after_hours} hours. Check the probe.",
+            system_id=tank.pk if tank else None, subject=f"{param.name} probe",
+            parameter=param.code, last_measured_at=latest.measured_at.isoformat(),
+            tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
+        ))
 
     for res in state['low_reservoirs']:
         found.append(_condition(
@@ -119,14 +120,6 @@ def collect_conditions(now=None):
             f"animal:{animal.pk}:{animal.status}", 'animal.attention', 'warning', f"{animal.name}: {animal.get_status_display()}",
             "This animal is flagged for attention.", system_id=animal.tank_id, subject=animal.name, animal=animal.name, status=animal.status,
         ))
-
-    for animal in not_retired(Animal.objects.filter(status='quarantine')).exclude(quarantine_started__isnull=True):
-        if animal.quarantine_complete:
-            found.append(_condition(
-                f"quarantine:{animal.pk}:{animal.quarantine_started}", 'quarantine.complete', 'info',
-                f"{animal.name} has finished quarantine",
-                f"Planned {animal.quarantine_days} days are up. Check it over before moving it.", animal=animal.name,
-            ))
     return found
 
 
@@ -155,6 +148,7 @@ def sync_conditions(now=None):
     """Fires conditions that have just become true and forgets those that stayed clear."""
     now = now or timezone.now()
     settings_obj = AppSettings.load()
+    muted = settings_obj.alerts_muted
     conditions = collect_conditions(now)
     current = {c['key']: c for c in conditions}
     known = {s.key: s for s in EventState.objects.exclude(event_type__in=ONE_SHOT_TYPES)}
@@ -163,6 +157,9 @@ def sync_conditions(now=None):
     for key, cond in current.items():
         state = known.get(key)
         if state is None:
+            # Not remembered while muted, so anything still wrong when the mute ends gets sent then.
+            if muted and settings_obj.events_baselined:
+                continue
             EventState.objects.create(key=key[:120], event_type=cond['type'], activated_at=now)
             # The first ever run only records what's already wrong, rather than sending a burst of old news.
             if settings_obj.events_baselined:
@@ -228,15 +225,59 @@ def fire_scheduled(now=None):
     return fired
 
 
+def end_finished_quarantines(now=None):
+    """When a quarantine's planned days are up: tell the user, keep a record, and end it."""
+    now = now or timezone.now()
+    finished = 0
+    animals = not_retired(Animal.objects.filter(status='quarantine')).exclude(quarantine_started__isnull=True).select_related('tank')
+    for animal in animals:
+        if not animal.quarantine_complete:
+            continue
+        title = f"{animal.name} has finished quarantine"
+        message = f"Its planned {animal.quarantine_days} days are up, so it's been marked healthy. Check it over before moving it."
+        emit('quarantine.complete', 'info', title, message, {
+            'animal': animal.name, 'tank': animal.tank.name if animal.tank else None, 'tank_id': animal.tank_id,
+        })
+        AlertRecord.objects.create(
+            issue_key=f"quarantine:{animal.pk}:{animal.quarantine_started}"[:120], event_type='quarantine.complete',
+            severity='info', tank=animal.tank, subject=animal.name, title=title[:200], message=message[:300],
+            started_at=now, resolved_at=now, resolution=AlertRecord.NOTICE,
+        )
+        QuarantineEntry.objects.create(animal=animal, kind='observation', notes='Planned quarantine finished, and it ended automatically.')
+        animal.status = 'healthy'
+        animal.quarantine_started = None
+        animal.save()
+        finished += 1
+    return finished
+
+
+def _step_endpoints(timer):
+    """The usual connections for this routine, plus any the step named. Those are the only way hardware fires from one step."""
+    usual = [e for e in WebhookEndpoint.objects.filter(is_active=True)
+             if e.wants('routine.step_finished', routine_id=timer.routine_id)]
+    named = [e for e in timer.endpoints.filter(is_active=True) if e not in usual]
+    return usual + named
+
+
 def finish_timers(now=None):
     """Marks finished fill timers and sends their alert."""
     now = now or timezone.now()
     fired = 0
-    for timer in FillTimer.objects.filter(status='running', ends_at__lte=now).select_related('reservoir'):
+    for timer in FillTimer.objects.filter(status='running', ends_at__lte=now).select_related('reservoir', 'routine'):
+        if timer.routine_id:
+            fired += emit(
+                'routine.step_finished', 'warning', f"Timer finished: {timer.name}", "Time's up.",
+                {'timer': timer.name, 'timer_id': timer.pk, 'routine': timer.routine.title, 'routine_id': timer.routine_id,
+                 'step': timer.name.removeprefix(f"{timer.routine.title}: ")},
+                routine_id=timer.routine_id,
+                endpoints=_step_endpoints(timer),
+            )
+            FillTimer.objects.filter(pk=timer.pk).update(status='finished', notified=True)
+            continue
         chosen = list(timer.endpoints.filter(is_active=True))
         fired += emit(
             'timer.finished', 'warning', f"Timer finished: {timer.name}",
-            "Check your fill now.",
+            "Check your fill now." if timer.reservoir_id else "Time's up.",
             {'timer': timer.name, 'timer_id': timer.pk, 'reservoir': timer.reservoir.name if timer.reservoir else None,
              'reservoir_id': timer.reservoir_id},
             reservoir_id=timer.reservoir_id,
@@ -274,7 +315,7 @@ def build_request(delivery):
         if endpoint.secret:
             digest = hmac.new(endpoint.secret.encode('utf-8'), body, hashlib.sha256).hexdigest()
             headers['X-Nudibranch-Signature'] = f"sha256={digest}"
-    headers['User-Agent'] = 'Nudibranch-Reef-Tracker'
+    headers['User-Agent'] = 'Nudibranch-Reef-Manager'
     return urllib.request.Request(endpoint.url, data=body, headers=headers, method='POST')
 
 
@@ -310,8 +351,10 @@ def send_delivery(delivery, now=None):
 
 def deliver_due(now=None, limit=50):
     now = now or timezone.now()
-    due = (WebhookDelivery.objects.select_related('endpoint')
-           .filter(status='pending', next_attempt_at__lte=now).order_by('created_at')[:limit])
+    due = WebhookDelivery.objects.select_related('endpoint').filter(status='pending', next_attempt_at__lte=now)
+    if AppSettings.load().alerts_muted:
+        due = due.filter(event_type__in=NEVER_MUTED)  # the rest wait until the mute ends
+    due = due.order_by('created_at')[:limit]
     sent = 0
     for delivery in due:
         sent += 1 if send_delivery(delivery, now) else 0

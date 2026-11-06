@@ -1,6 +1,5 @@
-"""Per-system colour schemes. The pages use Tailwind's cyan, blue and slate classes, so a theme swaps those palettes."""
+"""Per-tank colour schemes. The pages use Tailwind's cyan, blue and slate classes, so a theme swaps those palettes."""
 import colorsys
-import json
 
 _ORANGE = {'50': '#fff7ed', '100': '#ffedd5', '200': '#fed7aa', '300': '#fdba74', '400': '#fb923c', '500': '#f97316',
            '600': '#ea580c', '700': '#c2410c', '800': '#9a3412', '900': '#7c2d12', '950': '#431407'}
@@ -63,10 +62,16 @@ def palette_from_colors(primary, secondary):
     }
 
 
-def theme_colors_json(key):
-    """Palette overrides for tailwind.config. Built only from the constants above, so safe to print into a page."""
-    theme = THEMES.get(key) or THEMES[DEFAULT_THEME]
-    return json.dumps(theme['colors'])
+def theme_css(colors):
+    """CSS that swaps a tank's palette in (see tailwind.config.js). Empty for the default colours."""
+    if not colors:
+        return ''
+    variables = []
+    for family, steps in colors.items():
+        for step, value in steps.items():
+            channels = ' '.join(str(int(value[i:i + 2], 16)) for i in (1, 3, 5))
+            variables.append(f'--{family}-{step}:{channels}')
+    return ':root{' + ';'.join(variables) + '}'
 
 
 def background_color(key):

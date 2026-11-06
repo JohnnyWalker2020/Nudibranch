@@ -14,6 +14,8 @@
     <a href="{% url 'webhook_create' %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl text-center">+ Add connection</a>
   </div>
 
+  {% include 'aquarium/partials/mute_card.html' %}
+
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div class="p-4 rounded-2xl border {% if settings_obj.worker_online %}bg-emerald-500/10 border-emerald-500/30{% else %}bg-amber-500/10 border-amber-500/30{% endif %}">
       <p class="text-sm font-bold {% if settings_obj.worker_online %}text-emerald-300{% else %}text-amber-300{% endif %}">Background worker: {% if settings_obj.worker_online %}running{% else %}not running{% endif %}</p>

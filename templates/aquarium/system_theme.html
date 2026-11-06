@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}System Look | Nudibranch{% endblock %}
+{% block title %}Tank Look | Nudibranch{% endblock %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
   <div>
     <h1 class="text-2xl font-black text-white tracking-tight">{{ active_tank.name }}'s Look</h1>
-    <p class="text-xs text-slate-400 mt-0.5">Each system keeps its own colours and icon, so you can tell at a glance which one you're viewing</p>
+    <p class="text-xs text-slate-400 mt-0.5">Each tank keeps its own colours and icon, so you can tell at a glance which one you're viewing</p>
   </div>
 
   <form method="POST" enctype="multipart/form-data" class="space-y-6">
@@ -45,7 +45,7 @@
 
     <section class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3">
       <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">App icon</h2>
-      {% if aging_shown %}<p class="text-xs text-amber-300">🧓 This system is retired, so it shows the old version of whichever character you pick.</p>{% endif %}
+      {% if aging_shown %}<p class="text-xs text-amber-300">🧓 This tank is retired, so it shows the old version of whichever character you pick.</p>{% endif %}
       <div class="grid grid-cols-3 sm:grid-cols-5 gap-3 max-h-96 overflow-y-auto pr-1">
         <label class="cursor-pointer">
           <input type="radio" name="icon_choice" value="" class="peer sr-only" {% if not selected_icon %}checked{% endif %}>
@@ -92,7 +92,7 @@
       <div class="pt-3 border-t border-slate-800">
         <label for="id_custom_icon" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">{% if active_tank.custom_icon %}Replace your icon{% else %}Or add your own{% endif %}</label>
         <input id="id_custom_icon" type="file" name="custom_icon" accept="image/png,image/jpeg,image/webp,image/gif" class="w-full text-xs text-slate-300">
-        <p class="text-[11px] text-slate-500 mt-1">PNG, JPG, WebP or GIF, up to 5 MB. Square images look best. Your own icon never changes, even if the system retires.</p>
+        <p class="text-[11px] text-slate-500 mt-1">PNG, JPG, WebP or GIF, up to 5 MB. Square images look best. Your own icon never changes, even if the tank retires.</p>
         {% for err in form.custom_icon.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
       </div>
     </section>

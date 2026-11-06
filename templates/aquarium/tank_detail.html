@@ -61,7 +61,7 @@
       <span class="text-2xl font-black text-white">{{ tank.sump_gallons|floatformat:"-1" }}</span><span class="text-xs text-slate-400"> gal</span>
     </div>
     <div class="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4">
-      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total system</span>
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total water</span>
       <span class="text-2xl font-black text-cyan-400">{{ tank.total_system_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
       <span class="block text-[11px] text-slate-500">{{ tank.total_system_liters }} L{% if tank.plumbing_gallons %} · incl. {{ tank.plumbing_gallons|floatformat:"-1" }} gal plumbing{% else %} · <a href="{% url 'plumbing_create' tank.id %}" class="text-cyan-400 hover:underline">add plumbing</a>{% endif %}</span>
     </div>
@@ -145,12 +145,59 @@
     </div>
   </div>
 
+  <!-- Lights & PAR -->
+  <div id="light" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+    <div>
+      <h2 class="text-base font-bold text-white">💡 Lighting &amp; PAR estimate</h2>
+      <p class="text-xs text-slate-400">How much light reaches each depth at your current power settings</p>
+    </div>
+    {% if light.lights %}
+    <div class="space-y-2">
+      {% for eq in light.lights %}
+      <div class="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-2 {% if eq.status == 'offline' %}opacity-50{% endif %}">
+        <div class="flex items-baseline justify-between gap-2">
+          <a href="{% url 'equipment_edit' eq.id %}" class="text-sm font-bold text-white hover:text-cyan-400 truncate">{{ eq.name }}</a>
+          <span class="text-[11px] text-slate-500 shrink-0">{% if eq.wattage %}{{ eq.wattage }} W at 100%{% else %}<a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">add wattage</a>{% endif %}</span>
+        </div>
+        <form method="POST" action="{% url 'equipment_power' eq.id %}" class="flex items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}#light">
+                <label class="text-[11px] text-slate-400 shrink-0" for="light-{{ eq.id }}">Power</label>
+                <input type="range" min="1" max="100" value="{{ eq.power_setting_percent }}" class="flex-1 min-w-0 accent-cyan-500" oninput="this.nextElementSibling.value=this.value" aria-label="Light power setting">
+                <input type="number" name="power" id="light-{{ eq.id }}" min="1" max="100" value="{{ eq.power_setting_percent }}" class="w-14 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs text-center" oninput="this.previousElementSibling.value=this.value">
+                <span class="text-[11px] text-slate-400">%</span>
+                <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
+              </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% if light.levels %}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {% for level in light.levels %}
+      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+        <span class="text-[10px] text-slate-500 uppercase block font-semibold">{{ level.label }} · {{ level.inches|floatformat:"-1" }} in ({{ level.cm }} cm)</span>
+        <span class="text-lg font-bold text-cyan-400">about {{ level.par }} PAR</span>
+        <span class="block text-[10px] text-slate-500">{{ level.zone }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300"><strong>Rough estimate only, and it can easily be off by half.</strong> It uses {{ light.watts_now }} of {{ light.watts_full }} W and a typical reef LED, averaged across your tank, so it doesn't know your fixture, its height or its colour settings. The spot under a light will be much brighter than the corners. Please confirm with a PAR meter before placing sensitive corals.</p>
+    {% elif not tank.has_dimensions %}
+    <p class="text-xs text-slate-400"><a href="{% url 'tank_edit' tank.id %}" class="text-cyan-400 underline">Add this tank's dimensions</a> to see a PAR estimate.</p>
+    {% else %}
+    <p class="text-xs text-slate-400">Add a wattage to a light that's switched on to see a PAR estimate.</p>
+    {% endif %}
+    {% else %}
+    <p class="text-xs text-slate-500">No display lights on this tank. <a href="{% url 'equipment' %}" class="text-cyan-400 underline">Add a light</a> with its wattage to see a PAR estimate.</p>
+    {% endif %}
+  </div>
+
   <!-- Plumbing runs -->
   <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
     <div class="flex items-center justify-between gap-2">
       <div>
         <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🔧</span> Plumbing</h2>
-        <p class="text-[11px] text-slate-500">{% with runs=tank.plumbing_runs.all %}{% if runs %}{{ runs|length }} run{{ runs|length|pluralize }} · {{ tank.plumbing_feet }} ft · {{ tank.plumbing_gallons|floatformat:"-2" }} gal in pipes (included in total system){% else %}Add pipe runs to include the water in your plumbing in the system volume{% endif %}{% endwith %}</p>
+        <p class="text-[11px] text-slate-500">{% with runs=tank.plumbing_runs.all %}{% if runs %}{{ runs|length }} run{{ runs|length|pluralize }} · {{ tank.plumbing_feet }} ft · {{ tank.plumbing_gallons|floatformat:"-2" }} gal in pipes (included in total water){% else %}Add pipe runs to include the water in your plumbing in the total water volume{% endif %}{% endwith %}</p>
       </div>
       <a href="{% url 'plumbing_create' tank.id %}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700">+ Run</a>
     </div>

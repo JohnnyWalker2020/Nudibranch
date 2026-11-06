@@ -5,7 +5,7 @@ from .models import DashboardWidget
 
 # Default order = order of this list. `span` is 'full' (whole row) or 'half'.
 DASHBOARD_WIDGETS = [
-    {'key': 'alerts', 'title': 'System alerts', 'icon': '⚠️', 'span': 'full',
+    {'key': 'alerts', 'title': 'Tank alerts', 'icon': '⚠️', 'span': 'full',
      'description': 'Out-of-range tests, low reservoirs, overdue routines and service'},
     {'key': 'parameters', 'title': 'Parameter cards', 'icon': '🧪', 'span': 'full',
      'description': 'Latest value of every tracked parameter'},
@@ -18,7 +18,7 @@ DASHBOARD_WIDGETS = [
     {'key': 'recent_logs', 'title': 'Recent test logs', 'icon': '📋', 'span': 'half',
      'description': 'Your latest measurements'},
     {'key': 'tank_summary', 'title': 'Tank & flow summary', 'icon': '🏛️', 'span': 'half',
-     'description': 'System volume and estimated turnover per tank'},
+     'description': 'Total volume and estimated turnover per tank'},
     {'key': 'livestock', 'title': 'Livestock roster', 'icon': '🐠', 'span': 'half',
      'description': 'Photos and groups of your animals'},
     {'key': 'webcam', 'title': 'Tank webcam', 'icon': '📹', 'span': 'half',

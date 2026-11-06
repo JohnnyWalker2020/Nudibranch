@@ -22,7 +22,7 @@
     {% if tanks|length > 1 %}
     <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
       <span class="text-[10px] uppercase font-bold text-slate-500 px-1 shrink-0">Show:</span>
-      <a href="{% url 'equipment' %}?tank=all{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank_id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">All systems</a>
+      <a href="{% url 'equipment' %}?tank=all{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank_id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">All tanks</a>
       {% for t in tanks %}
         <a href="{% url 'equipment' %}?tank={{ t.id }}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_tank_id == t.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">{{ t.name }}</a>
       {% endfor %}
@@ -61,6 +61,22 @@
               {% if eq.status == 'offline' %}<span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700">OFFLINE</span>{% endif %}
             </div>
           </div>
+
+          {% if eq.category == 'lighting' %}
+            <!-- Light power, which the PAR estimate on the tank page uses -->
+            <div class="mt-4 p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/20 space-y-2">
+              <form method="POST" action="{% url 'equipment_power' eq.id %}" class="flex items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <label class="text-[11px] text-slate-400 shrink-0" for="light-{{ eq.id }}">Power</label>
+                <input type="range" min="1" max="100" value="{{ eq.power_setting_percent }}" class="flex-1 min-w-0 accent-cyan-500" oninput="this.nextElementSibling.value=this.value" aria-label="Light power setting">
+                <input type="number" name="power" id="light-{{ eq.id }}" min="1" max="100" value="{{ eq.power_setting_percent }}" class="w-14 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs text-center" oninput="this.previousElementSibling.value=this.value">
+                <span class="text-[11px] text-slate-400">%</span>
+                <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
+              </form>
+              <p class="text-[10px] text-slate-500">{% if eq.wattage %}About {% widthratio eq.wattage 100 eq.power_setting_percent %} W of {{ eq.wattage }} W.{% else %}<a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">Add its wattage</a> to estimate power and light levels.{% endif %}{% if eq.tank_id and not eq.sump_id %} <a href="{% url 'tank_detail' eq.tank_id %}#light" class="text-cyan-400 hover:underline">See PAR estimate</a>{% endif %}</p>
+            </div>
+          {% endif %}
 
           {% if eq.category == 'return_pump' or eq.category == 'wavemaker' %}
             <!-- Power setting & estimated flow -->

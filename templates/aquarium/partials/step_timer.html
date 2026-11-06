@@ -1,0 +1,11 @@
+{% load l10n %}{% if step.timer %}
+<span data-step-timer data-ends="{{ step.timer.ends_at|date:'c' }}" data-name="{{ step.timer.name }}" class="shrink-0 px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-xs font-black text-cyan-400 tabular-nums">--:--</span>
+{% else %}
+<form hx-post="{% url 'timer_start' %}" hx-swap="outerHTML" class="shrink-0">
+  <input type="hidden" name="minutes" value="{{ step.minutes|unlocalize }}">
+  <input type="hidden" name="name" value="{{ step.timer_name }}">
+  <input type="hidden" name="routine" value="{{ step.routine_id }}">
+  {% if step.webhook %}<input type="hidden" name="webhook" value="{{ step.webhook }}">{% endif %}
+  <button class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-cyan-400 whitespace-nowrap">⏱️ {{ step.label }}{% if step.webhook %} → {{ step.webhook }}{% endif %}</button>
+</form>
+{% endif %}

@@ -165,7 +165,7 @@
 
   <!-- Manual routines -->
   <div class="space-y-4">
-    <h2 class="text-base font-bold text-white">📋 Routines &amp; Checklists</h2>
+    <h2 id="checklists" class="scroll-mt-32 text-base font-bold text-white">📋 Routines &amp; Checklists</h2>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {% for routine in manual_routines %}
         <div class="bg-slate-900 border {% if routine.is_due %}border-amber-500/50{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4">
@@ -207,11 +207,14 @@
             {% endif %}
             {% if routine.notes %}<p class="text-xs text-slate-400 mt-2 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ routine.notes }}</p>{% endif %}
             <div class="mt-4 space-y-2">
-              {% for item in routine.checklist_items %}
-                <label class="flex items-center gap-3 p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl hover:border-slate-700 cursor-pointer group">
-                  <input type="checkbox" onchange="toggleItemStrike(this)" class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-cyan-500 cursor-pointer">
-                  <span class="text-xs text-slate-300 group-hover:text-white item-text">{{ item }}</span>
-                </label>
+              {% for step in routine.steps %}
+                <div class="flex items-center gap-2 p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl hover:border-slate-700">
+                  <label class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group">
+                    <input type="checkbox" onchange="toggleItemStrike(this)" class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-cyan-500 cursor-pointer">
+                    <span class="text-xs text-slate-300 group-hover:text-white item-text">{{ step.text }}</span>
+                  </label>
+                  {% if step.minutes %}{% include 'aquarium/partials/step_timer.html' %}{% endif %}
+                </div>
               {% empty %}
                 <p class="text-xs text-slate-500 italic">No steps defined.</p>
               {% endfor %}
@@ -379,6 +382,27 @@
 
   volumePicker({ prefix: 'salt', input: 'calc-volume', unit: () => currentVolumeUnit, scope: 'custom', onChange: recalculateSalt });
 
+  // Timers started from a routine's step. They count down from the server's end time, so a reload doesn't change them.
+  function tickStepTimers() {
+    const now = Date.now();
+    document.querySelectorAll('[data-step-timer]').forEach(el => {
+      const left = Math.max(0, Math.ceil((Date.parse(el.dataset.ends) - now) / 1000));
+      const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), s = String(left % 60).padStart(2, '0');
+      el.textContent = left ? (h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`) : 'Done!';
+      if (!left && !el.dataset.alerted) {
+        el.dataset.alerted = '1';
+        el.classList.add('animate-pulse');
+        nudiBeep();
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Timer finished', { body: el.dataset.name });
+        }
+      }
+    });
+  }
+  setInterval(tickStepTimers, 1000);
+  document.body.addEventListener('htmx:afterSwap', tickStepTimers);
+  tickStepTimers();
+
   async function recalculateSalt() {
     const q = new URLSearchParams({
       volume: $('calc-volume').value, volume_unit: currentVolumeUnit,
@@ -393,6 +417,11 @@
         $('output-lbs').innerText = data.lbs; $('output-cups').innerText = data.cups;
         $('salt-at-target').classList.toggle('hidden', !data.already_at_target);
         $('salt-estimate-note').classList.toggle('hidden', !(parseFloat(data.start_salinity) > 0) || data.already_at_target);
+      } else {
+        // A bad number shouldn't leave the last good answer on screen as if it still applied.
+        ['output-grams', 'output-ounces', 'output-lbs', 'output-cups'].forEach(id => { $(id).innerText = '-'; });
+        $('salt-at-target').classList.add('hidden');
+        $('salt-estimate-note').classList.add('hidden');
       }
     } catch (err) { console.warn(err); }
   }

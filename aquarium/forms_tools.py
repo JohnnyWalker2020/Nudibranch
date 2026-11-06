@@ -106,7 +106,7 @@ class CostEntryForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = CostEntry
         fields = ['description', 'amount', 'spent_on', 'category', 'tank']
-        labels = {'tank': 'System', 'spent_on': 'Date', 'amount': 'Cost', 'description': 'What was it'}
+        labels = {'tank': 'Tank', 'spent_on': 'Date', 'amount': 'Cost', 'description': 'What was it'}
         widgets = {
             'description': forms.TextInput(attrs={'placeholder': 'e.g. One more coral, I promise'}),
             'spent_on': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
@@ -115,7 +115,7 @@ class CostEntryForm(StyledFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['tank'].empty_label = 'Not tied to one system'
+        self.fields['tank'].empty_label = 'Not tied to one tank'
         self.fields['description'].required = False
         self.fields['description'].widget.attrs['placeholder'] = f'e.g. {random.choice(SIN_DESCRIPTIONS)}'
         self.replaced_price = None
@@ -279,7 +279,7 @@ class PlannedSystemForm(StyledFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['existing_tank'].empty_label = 'No, this is a new system'
+        self.fields['existing_tank'].empty_label = 'No, this is a new tank'
         self.fields['project'].empty_label = 'No project'
         self.fields['existing_tank'].queryset = Tank.objects.filter(is_archived=False)
 

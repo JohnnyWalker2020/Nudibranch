@@ -9,12 +9,12 @@
       <a href="{% url 'planner' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" aria-label="Back">←</a>
       <div>
         <h1 class="text-2xl font-black text-white tracking-tight">{{ project.name }}</h1>
-        <p class="text-xs text-slate-400">Everything here is still a plan. Nothing becomes real until you track that one system.</p>
+        <p class="text-xs text-slate-400">Everything here is still a plan. Nothing becomes real until you track that one tank.</p>
       </div>
     </div>
     <div class="flex items-center gap-2">
       <a href="{% url 'project_edit' project.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Edit project</a>
-      <a href="{% url 'plan_create' %}?project={{ project.id }}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">+ New system</a>
+      <a href="{% url 'plan_create' %}?project={{ project.id }}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">+ New tank</a>
     </div>
   </div>
 
@@ -22,7 +22,7 @@
 
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-      <span class="text-[10px] uppercase font-bold text-slate-500">Systems</span>
+      <span class="text-[10px] uppercase font-bold text-slate-500">Tanks</span>
       <p class="text-2xl font-black text-white">{{ rows|length }}</p>
       <p class="text-[11px] text-slate-500">{{ totals.tracked }} already tracking</p>
     </div>
@@ -83,7 +83,7 @@
   {% else %}
   <div class="py-12 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6">
     <span class="text-4xl">🗺️</span>
-    <h3 class="mt-3 text-base font-bold text-white">No systems in this project yet</h3>
+    <h3 class="mt-3 text-base font-bold text-white">No tanks in this project yet</h3>
     <p class="mt-1 text-xs text-slate-400">Add a new one, or bring in plans you already have.</p>
   </div>
   {% endif %}

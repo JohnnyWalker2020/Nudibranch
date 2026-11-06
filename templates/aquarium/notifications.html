@@ -11,7 +11,7 @@
       <div>
         <div class="flex items-center gap-2">
           <span class="text-2xl">🔔</span>
-          <h1 class="text-2xl font-black text-white tracking-tight">System Alerts &amp; Notifications</h1>
+          <h1 class="text-2xl font-black text-white tracking-tight">Tank Alerts &amp; Notifications</h1>
         </div>
         <p class="text-xs text-slate-400 mt-1">Out-of-range parameters, reservoir forecasts, due maintenance, and livestock health</p>
         <a href="{% url 'integrations' %}" class="inline-block mt-2 text-xs font-semibold text-cyan-400 hover:text-cyan-300">📲 Send alerts to your phone or Home Assistant →</a>
@@ -28,6 +28,8 @@
       </div>
     </div>
   </div>
+
+  {% include 'aquarium/partials/mute_card.html' %}
 
   <!-- Filters -->
   <div class="flex flex-wrap items-center gap-x-5 gap-y-2 bg-slate-900 border border-slate-800 rounded-2xl p-3">
@@ -49,7 +51,7 @@
     {% if total_alerts == 0 %}
       <div class="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-2">
         <span class="text-5xl">🌊</span>
-        <h3 class="text-base font-bold text-emerald-400">All Systems Nominal</h3>
+        <h3 class="text-base font-bold text-emerald-400">All Clear</h3>
         <p class="text-xs text-slate-400 max-w-md mx-auto">No out-of-range parameters, reservoirs are stocked, and maintenance is up to date.</p>
       </div>
     {% elif shown_alerts == 0 %}
@@ -108,6 +110,13 @@
                 <a href="{% url 'dosing' %}" class="px-3 py-1 bg-cyan-500 text-slate-950 font-bold text-xs rounded-lg">Dosing →</a>
               </div>
             </div>
+          </div>
+        {% endfor %}
+
+        {% for item in stale_params %}
+          <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 space-y-2">
+            <h3 class="text-base font-bold text-white">📡 No new {{ item.param.name }} readings</h3>
+            <p class="text-xs text-slate-400">Nothing logged for over {{ item.param.stale_after_hours }} hours. Last reading {{ item.log.measured_at|timesince }} ago. Check the probe.</p>
           </div>
         {% endfor %}
 
@@ -182,8 +191,8 @@
       <div class="p-4 flex items-start gap-3">
         <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 {% if record.severity == 'critical' %}bg-rose-500{% elif record.severity == 'warning' %}bg-amber-400{% else %}bg-cyan-400{% endif %}" aria-hidden="true"></span>
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-white">{{ record.title }}</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">{% if record.resolution == 'retired' %}Ended when the system retired{% else %}Resolved{% endif %} {{ record.resolved_at|date:"M j, g:i A" }} · lasted {{ record.duration_label }} · {{ record.severity|title }}</p>
+          <p class="text-sm font-semibold text-white">{{ record.display_title }}</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">{% if record.resolution == 'notice' %}{{ record.resolved_at|date:"M j, g:i A" }} · {{ record.message }}{% else %}{% if record.resolution == 'retired' %}Ended when the tank retired{% else %}Resolved{% endif %} {{ record.resolved_at|date:"M j, g:i A" }} · lasted {{ record.duration_label }} · {% if record.severity == 'info' %}Reminder{% else %}{{ record.severity|title }}{% endif %}{% endif %}</p>
         </div>
       </div>
       {% empty %}

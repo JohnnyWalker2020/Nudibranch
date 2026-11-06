@@ -1,5 +1,37 @@
 # Nudibranch: change summary
 
+## Round 10 (2026-11-06)
+
+Apply with `docker compose up -d --build`; migration 0025 runs on start.
+
+- **Quarantine ends by itself**: when the planned days are up, you get a notification, the animal is marked healthy and the quarantine ends.
+- **Mute notifications**: for a set time or until you turn them back on. Feeder schedules and timers keep working, and anything still wrong is sent when the mute ends.
+- **Step timers**: a routine's checklist step can have a timer, like `[5 min]`, started from the step. A new `routine.step_finished` event fires when it ends, and a step can name the connection it triggers, like `[5 min @Feeder]`.
+- **Light power and PAR**: lights get a power slider, and the tank page gives a rough PAR estimate at three depths.
+- **Log history**: Load more walks back through every reading, rather than stopping at 50.
+- **Works without internet**: Tailwind, htmx and Chart.js are now served from the app.
+- **Phones**: pinch zoom is allowed, and the page tabs show the main ones plus More.
+- **Photos**: animal photos are saved as JPEGs up to 1600 pixels. `compress_photos` shrinks older ones.
+- **Wording**: "system" is now "tank" throughout, apart from RO/DI systems.
+
+## Round 9 (2026-11-06)
+
+A full review of the code. Apply with `docker compose up -d --build`. There's no database change, but the image is rebuilt with Django 5.2.
+
+- **Settings kept on restart**: changed decimal places were being put back on every start, and deleted parameters and groups came back. They no longer do.
+- **API closed without a key**: with no `API_SECRET_KEY` set, anyone who could reach the logging API could post readings. It now refuses them.
+- **Crashes fixed**: `NaN` or `Infinity` typed as a reading or refill level, an RO/DI system with zero output in the fill calculator, a bad species link, and odd characters in API names.
+- **Uploads and page safety**: the quick photo button now checks it's really an image, text like `</script>` in a name can't break a page, and camera addresses must be web addresses.
+- **Calculators**: a target of fresh water no longer gives a full dose of salt, an impossible target shows a dash rather than the last answer, and impossible numbers get an error.
+- **Tanks**: deleting the primary tank promotes another, a retired tank can't be primary, and tank cards count only living animals.
+- **Quarantine**: finishing resets the day count for next time, and retired systems are left out of the list.
+- **Alerts**: probes that stop reporting now show on the Alerts page and badge, where they'd been sent only as notifications. Alert code failures are logged, not hidden.
+- **Speed**: typical pages run about 35 database queries instead of about 100. The worker clears old records every 30 minutes rather than every 20 seconds, and the quick log pop-up loads its data only when opened.
+- **Storage**: replaced or deleted photos and icons are removed from disk, phones no longer keep copies of every photo and backup, and an automatic backup can't delete itself.
+- **Forms**: negative reservoir levels and water changes are refused, and forms sharing a page no longer share field ids.
+- **Top bar**: the REEF badge is gone, which also stops pages scrolling sideways on phones. The app is now called Nudibranch Reef Manager.
+- **Upkeep**: moved to Django 5.2 LTS, removed unused packages and code, and `TIME_ZONE` can now be set in `.env`.
+
 ## Round 8 (2026-11-06)
 
 Apply with `docker compose up -d --build`; migrations 0022 to 0024 run on start.

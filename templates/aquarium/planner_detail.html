@@ -16,7 +16,7 @@
       <form method="POST" action="{% url 'plan_duplicate' plan.id %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Copy</button></form>
       <a href="{% url 'plan_edit' plan.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Edit plan</a>
       {% if a.untracked_count or not plan.tracked_tank %}
-      <a href="{% url 'plan_track' plan.id %}" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-bold text-xs rounded-xl">{% if plan.existing_tank or plan.tracked_tank %}Add to tracking{% else %}Start tracking this system{% endif %}</a>
+      <a href="{% url 'plan_track' plan.id %}" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-bold text-xs rounded-xl">{% if plan.existing_tank or plan.tracked_tank %}Add to tracking{% else %}Start tracking this tank{% endif %}</a>
       {% endif %}
     </div>
   </div>
@@ -119,7 +119,7 @@
       </div>
 
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">System checks</h2>
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Checks</h2>
         <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Return turnover</span><span class="font-semibold {% if a.flow.return_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.flow.return_turnover %}{{ a.flow.return_turnover }}x/hr{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.flow.return_range.0|floatformat:0 }}-{{ a.flow.return_range.1|floatformat:0 }})</span></span></div>
         <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Circulation</span><span class="font-semibold {% if a.flow.circulation_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.flow.circulation_turnover %}{{ a.flow.circulation_turnover }}x/hr{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.flow.circulation_range.0|floatformat:0 }}-{{ a.flow.circulation_range.1|floatformat:0 }})</span></span></div>
         <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Heating</span><span class="font-semibold {% if a.heater_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.heater_per_gal %}{{ a.heater_per_gal }} W/gal{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.heater_range.0|floatformat:0 }}-{{ a.heater_range.1|floatformat:0 }})</span></span></div>
