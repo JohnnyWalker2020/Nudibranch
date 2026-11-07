@@ -1,5 +1,17 @@
 # Nudibranch: change summary
 
+## Round 12 (2026-11-07)
+
+Apply with `docker compose up -d --build`; migration 0026 runs on start.
+
+- **Calculators on Tools**: the salt calculator and Dose Estimator now sit together on the Tools page. Routines and Dosing link to them.
+- **"Water" instead of "Parameters"**: the navigation says Water, and the page is Water Quality.
+- **Coral groups**: new SPS Corals, LPS Corals, Soft Corals and Anemones groups. The species catalog sorts its corals into them using the usual hobby labels, and a coral added from the catalog also stays in "Corals", so that filter still shows every coral. Animals already added from the catalog are added to their new group.
+- **Tap the unit to switch it**: in the salt calculator, Dose Estimator and fill timer, the unit sits inside each field (gal, L, SG, ppt) and is itself the button.
+- **One answer per calculator**: the salt calculator shows one amount, switchable between g, oz, lb and cups. The Dose Estimator shows one dose, switchable between g, oz, ml, tsp and fl oz depending on what it can work out, with the total, days and daily top-up in a sentence below. Each remembers the unit you last picked.
+- **No repeated tank box**: the calculators no longer show the tank name in a box of its own. Which volume to use is a small menu on the volume field's label.
+- **More compact pages**: Tools shows two tiles a row on phones; livestock without a photo get a slim "Add photo" strip; equipment service info is one line; dosing containers, the tank profile, PAR by depth, water test rows and the mute controls take less room; the Reef2Reef links on the alerts page fold away until opened.
+
 ## Round 11 (2026-11-06)
 
 Apply with `docker compose up -d --build`. There's no database change.

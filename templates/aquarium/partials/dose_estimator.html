@@ -1,0 +1,91 @@
+<!-- Dose Estimator. Needs dose_data and volume_tank, and dose_estimator_js.html after volume_picker_js.html. -->
+  <section id="dose-estimator" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
+    <div>
+      <h2 class="text-lg font-black text-white">Dose Estimator</h2>
+      <p class="text-xs text-slate-400">Fills from your latest logs, targets and tank size. Overwrite anything, and tap a unit to switch it.</p>
+      <p id="est-param-note" class="hidden mt-2 text-xs font-semibold text-amber-300"></p>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="col-span-2">
+        <label for="est-parameter" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Parameter</label>
+        <select id="est-parameter" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm"></select>
+      </div>
+      <div class="col-span-2">
+        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
+          <label for="est-gallons" class="block text-[11px] font-bold uppercase text-slate-400">Volume to treat</label>
+          {% include 'aquarium/partials/volume_picker.html' with prefix='est' %}
+        </div>
+        <div class="unit-field"><input id="est-gallons" type="number" step="0.1" min="0"><button type="button" id="est-gallons-unit" data-units="gal,L" data-name="Volume unit" value="gal" class="unit-btn">gal</button></div>
+        <p class="text-[10px] text-slate-500 mt-1">Connected water shares every dose, so use the total unless this water is separate, like a quarantine tank. A smaller number underdoses.</p>
+      </div>
+      <div>
+        <label for="est-current" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Current</label>
+        <div class="unit-field"><input id="est-current" type="number" step="any"><span id="est-unit-1" class="unit-suffix"></span></div>
+        <p id="est-current-note" class="text-[10px] text-slate-500 mt-1"></p>
+      </div>
+      <div>
+        <label for="est-target" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Target</label>
+        <div class="unit-field"><input id="est-target" type="number" step="any"><span id="est-unit-2" class="unit-suffix"></span></div>
+        <p id="est-target-note" class="text-[10px] text-slate-500 mt-1"></p>
+      </div>
+      <div>
+        <label for="est-loss" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Daily drop</label>
+        <div class="unit-field"><input id="est-loss" type="number" step="any" min="0"><span id="est-unit-3" class="unit-suffix"></span></div>
+        <p id="est-loss-note" class="text-[10px] text-slate-500 mt-1"></p>
+      </div>
+      <div>
+        <label for="est-max" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Max raise / day</label>
+        <div class="unit-field"><input id="est-max" type="number" step="any" min="0"><span id="est-unit-4" class="unit-suffix"></span></div>
+        <p class="text-[10px] text-slate-500 mt-1">Safety guideline, editable.</p>
+      </div>
+    </div>
+
+    <div class="p-3 sm:p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+      <div class="flex flex-wrap gap-2">
+        <button type="button" id="mode-dry" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500 text-slate-950">Dry chemical / DIY solution</button>
+        <button type="button" id="mode-label" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300">Commercial product (label)</button>
+      </div>
+
+      <div id="panel-dry" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="est-chemical" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Chemical</label>
+          <select id="est-chemical" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></select>
+        </div>
+        <div>
+          <label for="est-solution" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Solution strength <span class="normal-case font-normal text-slate-500">optional</span></label>
+          <div class="unit-field"><input id="est-solution" type="number" step="any" min="0" placeholder="e.g. 50"><span class="unit-suffix">g/L</span></div>
+          <p class="text-[10px] text-slate-500 mt-1">Fill it in to get ml of liquid as well as grams of powder.</p>
+        </div>
+      </div>
+
+      <div id="panel-label" class="hidden">
+        <p class="text-[11px] text-slate-400 mb-2">From the bottle: this much product raises it by this much in this much water.</p>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label for="est-label-ml" class="sr-only">Product amount</label><div class="unit-field"><input id="est-label-ml" type="number" step="any" min="0"><span class="unit-suffix">ml</span></div></div>
+          <div><label for="est-label-raise" class="sr-only">Raises by</label><div class="unit-field"><input id="est-label-raise" type="number" step="any" min="0"><span class="unit-suffix est-unit-text"></span></div></div>
+          <div><label for="est-label-gal" class="sr-only">In how much water</label><div class="unit-field"><input id="est-label-gal" type="number" step="any" min="0"><button type="button" id="est-label-gal-unit" data-units="gal,L" data-name="Water unit" value="gal" class="unit-btn">gal</button></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button type="button" id="est-run" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-sm rounded-xl shadow-lg active:scale-95 transition-all">Calculate</button>
+      <span id="est-error" class="text-xs text-rose-400"></span>
+    </div>
+
+    <div id="est-result" class="hidden p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
+      <div class="flex items-center justify-between gap-3">
+        <span id="est-amount-label" class="text-xs font-bold uppercase tracking-wider text-slate-400">Dose</span>
+        <span class="flex items-center gap-2">
+          <span id="est-amount" class="text-3xl font-black text-cyan-400">-</span>
+          <button type="button" id="est-amount-unit" data-units="g" data-name="Dose unit" value="g" class="unit-btn unit-inline">g</button>
+        </span>
+      </div>
+      <p id="est-detail" class="text-xs text-slate-300"></p>
+      <ul id="est-warnings" class="text-[11px] text-amber-300/90 space-y-1 list-disc pl-4"></ul>
+    </div>
+
+    <p id="dose-disclaimer" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300"><strong>Estimate only.</strong> Please confirm any dose independently against the product's instructions before adding it to your tank, then dose gradually and re-test.</p>
+  </section>
+{{ dose_data|json_script:"dose-data" }}

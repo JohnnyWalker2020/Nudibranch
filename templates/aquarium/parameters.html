@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Parameters | Nudibranch{% endblock %}
+{% block title %}Water Quality | Nudibranch{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-black text-white tracking-tight">Water Chemistry</h1>
+      <h1 class="text-2xl font-black text-white tracking-tight">Water Quality</h1>
       <p class="text-xs text-slate-400 mt-0.5">Historical measurements, trends, and the full log</p>
     </div>
     <div class="flex items-center gap-2">
@@ -18,7 +18,7 @@
   </div>
 
   <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-    <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors">All Parameters</a>
+    <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors">All tests</a>
     {% for pt in parameter_types %}
       <a href="{% url 'parameters' %}?param={{ pt.code }}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_code == pt.code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors flex items-center gap-2">
         <span class="w-2 h-2 rounded-full" style="background-color: {{ pt.color }}"></span>{{ pt.name }}
@@ -47,7 +47,7 @@
       <h3 class="text-base font-bold text-white">Log History</h3>
       <span class="text-xs text-slate-500">newest first</span>
     </div>
-    <div id="recent-logs-list" class="space-y-2">
+    <div id="recent-logs-list" class="space-y-1.5">
       {% for log in recent_logs %}
         {% include 'aquarium/partials/parameter_log_row.html' %}
       {% empty %}
@@ -61,7 +61,7 @@
 
 {% block extra_js %}
 <script>
-  // Empty code = "All Parameters" (the default view).
+  // Empty code = "All tests" (the default view).
   let activeCode = "{{ selected_param.code|default:''|escapejs }}";
   let activeDays = 30;
   let chartInstance = null;
@@ -84,7 +84,7 @@
       const result = await NudiCharts.loadParameterChart(document.getElementById('detailedChart'), activeCode, activeDays, chartInstance);
       chartInstance = result.chart;
       if (result.all) {
-        title.innerText = 'All Parameters';
+        title.innerText = 'All tests';
         subtitle.innerText = result.empty
           ? 'No readings in this period.'
           : 'Each line is scaled to its own ideal range (shaded band = in range). Hover a point for the real value.';

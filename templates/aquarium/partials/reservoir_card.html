@@ -1,9 +1,9 @@
 <!-- Expects `res` (DosingReservoir) in context -->
-<div class="bg-slate-900 border {% if res.is_low %}border-amber-500/50{% else %}border-slate-800{% endif %} rounded-2xl p-5 space-y-3 shadow-sm">
+<div class="bg-slate-900 border {% if res.is_low %}border-amber-500/50{% else %}border-slate-800{% endif %} rounded-2xl p-4 space-y-2.5 shadow-sm">
   <div class="flex items-start justify-between gap-2">
     <div class="min-w-0">
-      <h3 class="text-base font-bold text-white truncate">{{ res.name }}</h3>
-      <p class="text-[11px] text-slate-500">{{ res.tank.name }} · container size {{ res.capacity|floatformat:"-2" }} {{ res.unit }}</p>
+      <h3 class="text-sm font-bold text-white truncate">{{ res.name }}</h3>
+      {% if res.tank_id != active_tank.id %}<p class="text-[11px] text-slate-500">{{ res.tank.name }}</p>{% endif %}
     </div>
     {% if res.is_low %}<span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30">LOW</span>{% endif %}
   </div>
@@ -13,33 +13,24 @@
       <span class="text-slate-300 font-semibold">{{ res.current_level|floatformat:"-2" }} / {{ res.capacity|floatformat:"-2" }} {{ res.unit }}</span>
       <span class="text-slate-400">{{ res.percent_remaining }}%</span>
     </div>
-    <div class="h-2.5 rounded-full bg-slate-800 overflow-hidden">
+    <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
       <div class="h-full rounded-full" style="width: {{ res.percent_remaining }}%; background: {{ res.color }};"></div>
     </div>
   </div>
 
-  <div class="grid grid-cols-2 gap-2 text-xs">
-    <div class="bg-slate-950/60 rounded-xl p-2 border border-slate-800/60">
-      <span class="text-[10px] uppercase text-slate-500 font-semibold block">Daily use</span>
-      <span class="text-white font-bold">{{ res.daily_consumption|floatformat:"-2" }} {{ res.unit }}</span>
-    </div>
-    <div class="bg-slate-950/60 rounded-xl p-2 border border-slate-800/60">
-      <span class="text-[10px] uppercase text-slate-500 font-semibold block">Runs out</span>
-      {% if res.days_remaining is not None %}
-        <span class="text-white font-bold">~{{ res.days_remaining|floatformat:"-1" }} d</span>
-        <span class="text-[10px] text-slate-500 block">{{ res.estimated_empty_date|date:"M d" }}</span>
-      {% else %}<span class="text-slate-500">—</span>{% endif %}
-    </div>
-  </div>
+  <p class="text-[11px] text-slate-400">
+    {{ res.daily_consumption|floatformat:"-2" }} {{ res.unit }} a day
+    {% if res.days_remaining is not None %}· runs out in <span class="font-bold text-white">~{{ res.days_remaining|floatformat:"-1" }} d</span> ({{ res.estimated_empty_date|date:"M j" }}){% endif %}
+  </p>
 
-  <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-    <form method="POST" action="{% url 'refill_reservoir' res.id %}" class="flex items-center gap-1.5">
+  <div class="pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2">
+    <form method="POST" action="{% url 'refill_reservoir' res.id %}">
       {% csrf_token %}
-      <button type="submit" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700">Refill to full</button>
+      <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Refill to full</button>
     </form>
-    <div class="flex items-center gap-1.5">
-      <a href="{% url 'dosing_edit' res.id %}" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 font-semibold text-xs rounded-xl border border-slate-700">Resize / Edit</a>
-      <a href="{% url 'dosing_delete' res.id %}" class="px-2.5 py-1.5 text-rose-400 hover:bg-rose-500/10 font-semibold text-xs rounded-xl border border-rose-500/30">Delete</a>
+    <div class="flex items-center gap-3 text-xs font-semibold">
+      <a href="{% url 'dosing_edit' res.id %}" class="text-slate-400 hover:text-cyan-400">Edit</a>
+      <a href="{% url 'dosing_delete' res.id %}" class="text-slate-500 hover:text-rose-400">Delete</a>
     </div>
   </div>
 </div>

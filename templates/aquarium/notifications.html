@@ -3,22 +3,22 @@
 {% block title %}Alerts & Notifications | Nudibranch{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
+<div class="space-y-6">
 
   <!-- Header & health score -->
-  <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+  <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <div class="flex items-center gap-2">
           <span class="text-2xl">🔔</span>
           <h1 class="text-2xl font-black text-white tracking-tight">Tank Alerts &amp; Notifications</h1>
         </div>
-        <p class="text-xs text-slate-400 mt-1">Out-of-range parameters, reservoir forecasts, due maintenance, and livestock health</p>
+        <p class="hidden sm:block text-xs text-slate-400 mt-1">Out-of-range parameters, reservoir forecasts, due maintenance, and livestock health</p>
         <a href="{% url 'integrations' %}" class="inline-block mt-2 text-xs font-semibold text-cyan-400 hover:text-cyan-300">📲 Send alerts to your phone or Home Assistant →</a>
       </div>
-      <div class="flex items-center gap-4 bg-slate-950/80 border border-slate-800 p-4 rounded-2xl shrink-0">
-        <div class="flex items-center justify-center w-16 h-16 rounded-full border-4 {% if health_score >= 85 %}border-emerald-500 text-emerald-400{% elif health_score >= 65 %}border-amber-500 text-amber-400{% else %}border-rose-500 text-rose-400{% endif %}">
-          <span class="text-lg font-black tracking-tight">{{ health_score }}%</span>
+      <div class="flex items-center gap-3 bg-slate-950/80 border border-slate-800 px-3 py-2.5 rounded-2xl shrink-0">
+        <div class="flex items-center justify-center w-12 h-12 rounded-full border-4 {% if health_score >= 85 %}border-emerald-500 text-emerald-400{% elif health_score >= 65 %}border-amber-500 text-amber-400{% else %}border-rose-500 text-rose-400{% endif %}">
+          <span class="text-sm font-black tracking-tight">{{ health_score }}%</span>
         </div>
         <div>
           <span class="text-[10px] uppercase font-bold text-slate-500 block">Tank Stability Index</span>
@@ -207,34 +207,38 @@
   <div class="space-y-4">
     <h2 class="text-base font-bold text-white">📊 Last {{ history.days }} Day{{ history.days|pluralize }}</h2>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Alerts</span><span class="text-xl font-black text-white">{{ history.metrics.total }}</span><span class="text-[11px] text-slate-500 block">{{ history.metrics.open }} active · {{ history.metrics.fixed }} resolved</span></div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Reached critical</span><span class="text-xl font-black {% if history.metrics.critical %}text-rose-400{% else %}text-white{% endif %}">{{ history.metrics.critical }}</span></div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Average time to resolve</span><span class="text-sm font-bold text-white">{{ history.metrics.average|default:"Nothing resolved yet" }}</span>{% if history.metrics.longest %}<span class="text-[11px] text-slate-500 block">Longest: {{ history.metrics.longest }}</span>{% endif %}</div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><span class="text-[10px] uppercase font-bold text-slate-500 block">Most frequent</span>{% if history.metrics.most_frequent_times > 1 %}<span class="text-sm font-bold text-white break-words">{{ history.metrics.most_frequent }}</span><span class="text-[11px] text-slate-500 block">{{ history.metrics.most_frequent_times }} times</span>{% else %}<span class="text-sm font-bold text-white">Nothing has repeated</span>{% endif %}</div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3"><span class="text-[10px] uppercase font-bold text-slate-500 block">Alerts</span><span class="text-xl font-black text-white">{{ history.metrics.total }}</span><span class="text-[11px] text-slate-500 block">{{ history.metrics.open }} active · {{ history.metrics.fixed }} resolved</span></div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3"><span class="text-[10px] uppercase font-bold text-slate-500 block">Reached critical</span><span class="text-xl font-black {% if history.metrics.critical %}text-rose-400{% else %}text-white{% endif %}">{{ history.metrics.critical }}</span></div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3"><span class="text-[10px] uppercase font-bold text-slate-500 block">Average time to resolve</span><span class="text-sm font-bold text-white">{{ history.metrics.average|default:"Nothing resolved yet" }}</span>{% if history.metrics.longest %}<span class="text-[11px] text-slate-500 block">Longest: {{ history.metrics.longest }}</span>{% endif %}</div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3"><span class="text-[10px] uppercase font-bold text-slate-500 block">Most frequent</span>{% if history.metrics.most_frequent_times > 1 %}<span class="text-sm font-bold text-white break-words">{{ history.metrics.most_frequent }}</span><span class="text-[11px] text-slate-500 block">{{ history.metrics.most_frequent_times }} times</span>{% else %}<span class="text-sm font-bold text-white">Nothing has repeated</span>{% endif %}</div>
     </div>
     <p class="text-[11px] text-slate-500">Resolve times are most meaningful with automatic probes. With manual tests, a problem counts as resolved when you log a new test, so the time includes how long you took to re-test.</p>
   </div>
   {% endif %}
 
   <!-- Reef2Reef hub -->
-  <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5">
-    <div class="pb-4 border-b border-slate-800">
-      <h2 class="text-lg font-bold text-white">🌊 Reef2Reef Knowledge Hub</h2>
-      <p class="text-xs text-slate-400">Site-restricted searches of the Reef2Reef community (opens in a new tab)</p>
-    </div>
+  <details class="group bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 [&_summary::-webkit-details-marker]:hidden">
+    <summary class="flex items-center justify-between gap-3 cursor-pointer list-none">
+      <span>
+        <span class="block text-base font-bold text-white">🌊 Reef2Reef Knowledge Hub</span>
+        <span class="block text-[11px] text-slate-400">Search the Reef2Reef community for help (opens in a new tab)</span>
+      </span>
+      <span class="text-slate-500 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
+    </summary>
+    <div class="mt-4 space-y-4">
     <form action="https://www.google.com/search" method="GET" target="_blank" rel="noopener" class="flex gap-2">
       <input type="hidden" name="as_sitesearch" value="reef2reef.com">
       <input type="text" name="q" placeholder="Search Reef2Reef, e.g. 'high nitrate water change'" class="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
       <button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl">Search</button>
     </form>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-2">
       {% for f in r2r_forums %}
-        <a href="{{ f.url }}" target="_blank" rel="noopener" class="p-4 bg-slate-950/60 border border-slate-800/80 hover:border-cyan-500/50 rounded-2xl space-y-1.5 transition-colors">
-          <div class="flex items-center gap-3"><span class="text-2xl">{{ f.icon }}</span><h3 class="text-sm font-bold text-white">{{ f.name }}</h3></div>
-          <p class="text-xs text-slate-400 leading-relaxed">{{ f.desc }}</p>
+        <a href="{{ f.url }}" target="_blank" rel="noopener" title="{{ f.desc }}" class="flex items-center gap-2 p-2.5 bg-slate-950/60 border border-slate-800/80 hover:border-cyan-500/50 rounded-xl transition-colors">
+          <span class="text-lg leading-none">{{ f.icon }}</span><span class="text-xs font-bold text-white leading-tight">{{ f.name }}</span>
         </a>
       {% endfor %}
     </div>
-  </div>
+    </div>
+  </details>
 </div>
 {% endblock %}

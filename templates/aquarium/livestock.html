@@ -41,33 +41,30 @@
             <input type="file" id="photo-input-{{ animal.id }}" name="photo" accept="image/*" onchange="document.getElementById('photo-form-{{ animal.id }}').submit()">
           </form>
 
-          <div class="relative w-full h-48 bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-800 group">
+          <div class="relative w-full {% if animal.photo %}h-44{% else %}h-11{% endif %} bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-800 group">
             {% if animal.photo %}
               <img loading="lazy" src="{{ animal.photo.url }}" alt="{{ animal.name }}" class="w-full h-full object-cover">
               <button type="button" onclick="document.getElementById('photo-input-{{ animal.id }}').click()" class="absolute bottom-2.5 right-2.5 px-2.5 py-1.5 bg-slate-950/85 hover:bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-white">📷 Change</button>
             {% else %}
-              <div onclick="document.getElementById('photo-input-{{ animal.id }}').click()" class="w-full h-full flex flex-col items-center justify-center p-6 text-center cursor-pointer hover:bg-slate-900/60 transition-colors">
-                <span class="text-2xl">📷</span>
-                <span class="text-xs font-bold text-slate-400 group-hover:text-cyan-300 mt-2">+ Add photo</span>
-                <span class="text-[10px] text-slate-600">Snap from camera or upload</span>
-              </div>
+              <button type="button" onclick="document.getElementById('photo-input-{{ animal.id }}').click()" class="w-full h-full flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:text-cyan-300 hover:bg-slate-900/60 transition-colors">📷 Add photo</button>
             {% endif %}
-            {% if animal.count > 1 %}<span class="absolute top-3 left-3 bg-slate-900/90 border border-slate-700 text-white font-bold text-xs px-2.5 py-1 rounded-lg">{{ animal.count }}x</span>{% endif %}
-            <span class="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-md
-              {% if animal.status == 'healthy' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/40
-              {% elif animal.status == 'quarantine' %}bg-amber-500/20 text-amber-400 border border-amber-500/40
-              {% elif animal.status == 'monitoring' %}bg-rose-500/20 text-rose-400 border border-rose-500/40
-              {% else %}bg-slate-500/20 text-slate-400 border border-slate-500/40{% endif %}">{{ animal.get_status_display }}</span>
           </div>
 
           <div class="p-4 space-y-3">
-            <div>
-              <h3 class="text-base font-bold text-white tracking-tight">{{ animal.name }}</h3>
-              {% if animal.species %}<p class="text-xs text-slate-400 italic">{{ animal.species }}</p>{% endif %}
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h3 class="text-base font-bold text-white tracking-tight">{% if animal.count > 1 %}<span class="text-cyan-400">{{ animal.count }}×</span> {% endif %}{{ animal.name }}</h3>
+                {% if animal.species %}<p class="text-xs text-slate-400 italic">{{ animal.species }}</p>{% endif %}
+              </div>
+              <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md
+                {% if animal.status == 'healthy' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/40
+                {% elif animal.status == 'quarantine' %}bg-amber-500/20 text-amber-400 border border-amber-500/40
+                {% elif animal.status == 'monitoring' %}bg-rose-500/20 text-rose-400 border border-rose-500/40
+                {% else %}bg-slate-500/20 text-slate-400 border border-slate-500/40{% endif %}">{{ animal.get_status_display }}</span>
             </div>
             <div class="flex flex-wrap gap-1.5">
               {% if costs_enabled and animal.paid is not None %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30">💸 Paid {{ currency_symbol }}{{ animal.paid|floatformat:2 }}</span>{% endif %}
-              {% if animal.tank %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">🏛️ {{ animal.tank.name }}</span>{% endif %}
+              {% if animal.tank and animal.tank_id != active_tank.id %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">🏛️ {{ animal.tank.name }}</span>{% endif %}
               {% for g in animal.groups.all %}<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">{{ g.icon }} {{ g.name }}</span>{% empty %}{% if not animal.tank %}<span class="text-[10px] text-slate-500">No group assigned</span>{% endif %}{% endfor %}
             </div>
             {% if animal.notes %}<p class="text-xs text-slate-300 line-clamp-2 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ animal.notes }}</p>{% endif %}
@@ -82,8 +79,8 @@
             </div>
           </div>
         </div>
-        <div class="px-4 py-3 bg-slate-950/40 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
-          <span>{% if animal.acquired_date %}Acquired {{ animal.acquired_date|date:"M Y" }}{% else %}Date not set{% endif %}</span>
+        <div class="px-4 py-2 bg-slate-950/40 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
+          <span>{% if animal.acquired_date %}Acquired {{ animal.acquired_date|date:"M Y" }}{% endif %}</span>
           <div class="flex items-center gap-2">
             <a href="{% url 'animal_edit' animal.id %}" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold rounded-lg">Edit</a>
             <a href="{% url 'animal_delete' animal.id %}" class="px-3 py-1 text-rose-400 hover:bg-rose-500/10 font-semibold rounded-lg border border-rose-500/30">Delete</a>

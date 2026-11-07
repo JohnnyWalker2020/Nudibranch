@@ -225,7 +225,7 @@ Requests include `X-Nudibranch-Event` and `X-Nudibranch-Delivery` headers, plus 
 ## 🧪 Parameter Units & Decimal Precision
 
 You can change measurement units and customize decimal places for any parameter:
-- Click the **gear icon** ⚙️ on any dashboard parameter card, or select a parameter on the **Parameters** page and open its settings.
+- Click the **gear icon** ⚙️ on any dashboard parameter card, or select a parameter on the **Water** page and open its settings.
 - **Customizable Decimals**: Choose from `0` to `4` decimal places:
   - `0` decimals for whole-number metrics (e.g. `Calcium 420 ppm`, `Magnesium 1350 ppm`).
   - `1` decimal for tenths (e.g. `Alkalinity 8.4 dKH`, `Temperature 78.2 °F`).

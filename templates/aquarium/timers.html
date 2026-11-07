@@ -47,7 +47,6 @@
       </div>
 
       {% if ro_rows %}
-      {% include 'aquarium/partials/volume_picker.html' with prefix='fill' %}
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2">
           <label for="ro-select" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">RO/DI system</label>
@@ -55,16 +54,16 @@
             {% for row in ro_rows %}<option value="{{ row.system.id }}">{{ row.system.name }} ({{ row.gph }} gal/h)</option>{% endfor %}
           </select>
         </div>
-        <div>
-          <label for="gallons" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Volume to make</label>
-          <div class="flex gap-1.5">
-            <input id="gallons" type="number" step="0.01" min="0" class="min-w-0 flex-1 px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
-            <select id="gallons-unit" aria-label="Volume unit" class="px-2 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm"><option value="gal">gal</option><option value="L">L</option></select>
+        <div class="col-span-2 sm:col-span-1">
+          <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
+            <label for="gallons" class="block text-[10px] font-bold uppercase text-slate-400">Volume to make</label>
+            {% include 'aquarium/partials/volume_picker.html' with prefix='fill' %}
           </div>
+          <div class="unit-field"><input id="gallons" type="number" step="0.01" min="0"><button type="button" id="gallons-unit" data-units="gal,L" data-name="Volume unit" value="gal" class="unit-btn">gal</button></div>
         </div>
         <div>
-          <label for="stop-at" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Stop at %</label>
-          <input id="stop-at" type="number" min="1" max="100" value="90" class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+          <label for="stop-at" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Stop at</label>
+          <div class="unit-field"><input id="stop-at" type="number" min="1" max="100" value="90"><span class="unit-suffix">%</span></div>
         </div>
       </div>
       <div id="calc-result" class="hidden p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-300"></div>

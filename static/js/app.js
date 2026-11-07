@@ -103,3 +103,42 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   document.querySelectorAll('.fixed.inset-0.flex[id$="-modal"]').forEach(m => closeModal(m.id));
 });
+
+// ---- Unit buttons ------------------------------------------------------------
+// A unit shown beside a number is itself the switch: <button data-units="gal,L" value="gal">.
+// Tapping it moves to the next unit and fires "change", so code reads button.value like a select.
+// data-labels gives display text when it differs from the values, and data-remember keeps the choice.
+function setUnitButton(btn, value) {
+  const units = btn.dataset.units.split(',');
+  const labels = (btn.dataset.labels || btn.dataset.units).split(',');
+  const i = Math.max(0, units.indexOf(value));
+  btn.value = units[i];
+  btn.textContent = labels[i];
+  btn.setAttribute('aria-label', (btn.dataset.name || 'Unit') + ': ' + labels[i] + '. Tap to change.');
+  if (btn.dataset.remember) {
+    try { localStorage.setItem('nudi-unit-' + btn.dataset.remember, units[i]); } catch (e) { /* private mode */ }
+  }
+}
+function unitButtonOptions(btn) {
+  return btn.dataset.units.split(',');
+}
+document.addEventListener('click', e => {
+  const btn = e.target.closest('button[data-units]');
+  if (!btn) return;
+  e.preventDefault();
+  const units = unitButtonOptions(btn);
+  setUnitButton(btn, units[(units.indexOf(btn.value) + 1) % units.length]);
+  btn.dispatchEvent(new Event('change', { bubbles: true }));
+});
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('button[data-units]').forEach(btn => {
+    let saved = null;
+    if (btn.dataset.remember) {
+      try { saved = localStorage.getItem('nudi-unit-' + btn.dataset.remember); } catch (e) { /* private mode */ }
+    }
+    const start = btn.value;
+    setUnitButton(btn, saved && unitButtonOptions(btn).includes(saved) ? saved : start);
+    // A remembered unit has to reach the page's own code, which started with the default.
+    if (btn.value !== start) btn.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+});

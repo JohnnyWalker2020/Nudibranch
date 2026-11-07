@@ -86,6 +86,10 @@ class Command(BaseCommand):
             {"name": "Clownfish Pair", "icon": "🐠", "color": "#fb923c", "description": "Mated or bonded clownfish pair"},
             {"name": "Corals", "icon": "🪸", "color": "#ec4899", "description": "SPS, LPS, and soft corals"},
             {"name": "Invertebrates", "icon": "🦐", "color": "#a855f7", "description": "Shrimp, crabs, starfish, and urchins"},
+            {'name': 'SPS Corals', 'icon': '🌿', 'color': '#a3e635', 'description': 'Small-polyp stony corals like Acropora and Montipora. Usually want strong light, strong flow and very stable water.'},
+            {'name': 'LPS Corals', 'icon': '🧠', 'color': '#f97316', 'description': 'Large-polyp stony corals like hammers, torches and brains. Moderate light and flow.'},
+            {'name': 'Soft Corals', 'icon': '🍄', 'color': '#f472b6', 'description': 'Leathers, zoanthids, mushrooms, polyps and gorgonians. No stony skeleton, and usually the hardiest.'},
+            {'name': 'Anemones', 'icon': '🌺', 'color': '#e879f9', 'description': 'Anemones can move around the tank and sting nearby corals.'},
         ]
 
         if AnimalGroup.objects.exists():

@@ -50,7 +50,7 @@
       {% with current=request.resolver_match.url_name %}
       <nav class="hidden md:flex items-center gap-0.5 min-w-0 overflow-x-auto no-scrollbar">
         <a href="{% url 'dashboard' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'dashboard' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Dashboard</a>
-        <a href="{% url 'parameters' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'parameters' or current == 'parameter_settings' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Parameters</a>
+        <a href="{% url 'parameters' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'parameters' or current == 'parameter_settings' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Water</a>
         <a href="{% url 'livestock' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'livestock' or current == 'species_catalog' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Livestock</a>
         <a href="{% url 'tanks' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'tanks' or current == 'tank_detail' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Tanks</a>
         <a href="{% url 'equipment' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'equipment' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Equipment</a>
@@ -159,7 +159,7 @@
       </a>
       <a href="{% url 'parameters' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'parameters' or current == 'parameter_settings' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-        <span class="text-[10px] font-semibold">Params</span>
+        <span class="text-[10px] font-semibold">Water</span>
       </a>
       <a href="{% url 'livestock' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'livestock' or current == 'species_catalog' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <span class="text-lg leading-none">🐠</span>

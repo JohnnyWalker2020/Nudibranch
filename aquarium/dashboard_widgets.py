@@ -13,7 +13,7 @@ DASHBOARD_WIDGETS = [
      'description': 'Type a value, pick what it is, save'},
     {'key': 'reservoirs', 'title': 'Dosing & ATO levels', 'icon': '💧', 'span': 'half',
      'description': 'Reservoir levels and days remaining'},
-    {'key': 'trends', 'title': 'Parameter trends', 'icon': '📈', 'span': 'full',
+    {'key': 'trends', 'title': 'Water trends', 'icon': '📈', 'span': 'full',
      'description': 'Trend chart with a selector per parameter'},
     {'key': 'recent_logs', 'title': 'Recent test logs', 'icon': '📋', 'span': 'half',
      'description': 'Your latest measurements'},

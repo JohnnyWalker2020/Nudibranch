@@ -1,11 +1,11 @@
-<!-- Quick Parameter Log Modal (plain POST, then back to the page you were on) -->
+<!-- Quick water test log modal (plain POST, then back to the page you were on) -->
 <div id="quick-log-modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-sm">
   <div class="fixed inset-0" onclick="closeQuickLogModal()"></div>
 
   <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between pb-4 border-b border-slate-800">
       <div>
-        <h3 class="text-lg font-bold text-white">Log Parameter Reading</h3>
+        <h3 class="text-lg font-bold text-white">Log Water Test</h3>
         {% if active_tank %}<p class="text-xs text-cyan-400">For {{ active_tank.name }}</p>{% endif %}
       </div>
       <button type="button" onclick="closeQuickLogModal()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800" aria-label="Close">✕</button>

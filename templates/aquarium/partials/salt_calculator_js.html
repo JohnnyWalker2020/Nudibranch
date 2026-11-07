@@ -1,0 +1,93 @@
+<script>
+  // Salt mixing calculator. Global functions, because its fields call them from onchange.
+  const saltEl = id => document.getElementById(id);
+  let currentVolumeUnit = 'gal';
+  let currentSalinityUnit = 'sg';
+  let currentStartUnit = 'sg';
+  // SG and ppt, using 1.026 SG = 35 ppt. Anything at or below fresh water stays at 0.
+  const toPpt = sg => sg > 1 ? (sg - 1.0) / 0.026 * 35.0 : 0;
+  const toSg = ppt => ppt > 0 ? 1.0 + (ppt / 35.0) * 0.026 : 0;
+
+  function setVolumeUnit(unit) {
+    if (currentVolumeUnit === unit) return;
+    const input = saltEl('calc-volume');
+    const v = parseFloat(input.value) || 10;
+    input.value = (unit === 'L' ? v * 3.78541 : v / 3.78541).toFixed(1);
+    input.step = unit === 'L' ? '1' : '0.5';
+    currentVolumeUnit = unit;
+    recalculateSalt();
+  }
+
+  function setSalinityUnit(unit) {
+    if (currentSalinityUnit === unit) return;
+    const input = saltEl('calc-salinity');
+    const v = parseFloat(input.value) || (unit === 'ppt' ? 1.026 : 35);
+    if (unit === 'ppt') {
+      input.value = toPpt(v).toFixed(1);
+      input.min = '20'; input.max = '45'; input.step = '0.5';
+    } else {
+      input.value = toSg(v).toFixed(3);
+      input.min = '1.015'; input.max = '1.035'; input.step = '0.001';
+    }
+    currentSalinityUnit = unit;
+    recalculateSalt();
+  }
+
+  // The starting salinity has its own unit, because it may come from a different instrument than the target.
+  function setStartUnit(unit) {
+    if (currentStartUnit === unit) return;
+    const input = saltEl('calc-start-salinity');
+    const v = parseFloat(input.value) || 0;
+    if (unit === 'ppt') {
+      input.value = v > 1 ? toPpt(v).toFixed(1) : '0';
+      input.step = '0.5';
+    } else {
+      input.value = v > 0 ? toSg(v).toFixed(3) : '0';
+      input.step = '0.001';
+    }
+    currentStartUnit = unit;
+    recalculateSalt();
+  }
+
+  // The server takes one salinity unit, so the starting value is sent in the target's unit.
+  function startInTargetUnit() {
+    const v = parseFloat(saltEl('calc-start-salinity').value) || 0;
+    if (currentStartUnit === currentSalinityUnit) return v;
+    return currentSalinityUnit === 'ppt' ? toPpt(v) : toSg(v);
+  }
+
+  volumePicker({ prefix: 'salt', input: 'calc-volume', unit: () => currentVolumeUnit, scope: 'custom', onChange: recalculateSalt });
+
+  // One result, shown in whichever unit its button is set to.
+  let saltResult = null;
+  const SALT_FIELDS = { g: 'grams', oz: 'ounces', lb: 'lbs', cups: 'cups' };
+  function showSalt() {
+    saltEl('salt-output').innerText = saltResult ? saltResult[SALT_FIELDS[saltEl('salt-output-unit').value]] : '-';
+  }
+  saltEl('salt-output-unit').addEventListener('change', showSalt);
+
+  async function recalculateSalt() {
+    const q = new URLSearchParams({
+      volume: saltEl('calc-volume').value, volume_unit: currentVolumeUnit,
+      brand: saltEl('calc-brand').value, salinity: saltEl('calc-salinity').value, salinity_unit: currentSalinityUnit,
+      start_salinity: startInTargetUnit(),
+    });
+    try {
+      const res = await fetch('{% url "water_change_calc_api" %}?' + q.toString());
+      const data = await res.json();
+      if (data.grams !== undefined) {
+        saltResult = data;
+        showSalt();
+        saltEl('salt-at-target').classList.toggle('hidden', !data.already_at_target);
+        saltEl('salt-estimate-note').classList.toggle('hidden', !(parseFloat(data.start_salinity) > 0) || data.already_at_target);
+      } else {
+        // A bad number shouldn't leave the last good answer on screen as if it still applied.
+        saltResult = null;
+        showSalt();
+        saltEl('salt-at-target').classList.add('hidden');
+        saltEl('salt-estimate-note').classList.add('hidden');
+      }
+    } catch (err) { console.warn(err); }
+  }
+  recalculateSalt();
+</script>

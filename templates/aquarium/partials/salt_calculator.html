@@ -1,0 +1,52 @@
+<!-- Salt mixing calculator. Needs salt_brands, sample_mix and volume_tank, and salt_calculator_js.html after volume_picker_js.html. -->
+  <div id="salt-calculator" class="scroll-mt-32 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+    <div>
+      <h2 class="text-lg font-bold text-white">🧂 Salt Mixing Calculator</h2>
+      <p class="text-xs text-slate-400">How much salt to mix for your target salinity. Tap a unit to switch it.</p>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="col-span-2 lg:col-span-1">
+        <label for="calc-brand" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Salt brand</label>
+        <select id="calc-brand" onchange="recalculateSalt()" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
+          {% for b_key, b in salt_brands.items %}<option value="{{ b_key }}">{{ b.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-span-2 lg:col-span-1">
+        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
+          <label id="label-volume" for="calc-volume" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">Water volume</label>
+          {% include 'aquarium/partials/volume_picker.html' with prefix='salt' %}
+        </div>
+        <div class="unit-field">
+          <input type="number" id="calc-volume" value="10" min="0.5" step="0.5" oninput="recalculateSalt()">
+          <button type="button" id="calc-volume-unit" data-units="gal,L" data-name="Volume unit" value="gal" onchange="setVolumeUnit(this.value)" class="unit-btn">gal</button>
+        </div>
+      </div>
+      <div>
+        <label id="label-salinity" for="calc-salinity" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Target salinity</label>
+        <div class="unit-field">
+          <input type="number" id="calc-salinity" value="1.026" min="1.015" max="1.035" step="0.001" oninput="recalculateSalt()">
+          <button type="button" id="calc-salinity-unit" data-units="sg,ppt" data-labels="SG,ppt" data-name="Target salinity unit" value="sg" onchange="setSalinityUnit(this.value)" class="unit-btn">SG</button>
+        </div>
+      </div>
+      <div>
+        <label id="label-start-salinity" for="calc-start-salinity" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Starting salinity</label>
+        <div class="unit-field">
+          <input type="number" id="calc-start-salinity" value="0" min="0" step="0.001" oninput="recalculateSalt()">
+          <button type="button" id="calc-start-unit" data-units="sg,ppt" data-labels="SG,ppt" data-name="Starting salinity unit" value="sg" onchange="setStartUnit(this.value)" class="unit-btn">SG</button>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">0 for fresh RO/DI water</p>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-950/80 border border-slate-800 rounded-2xl">
+      <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Salt to add</span>
+      <span class="flex items-center gap-2">
+        <span id="salt-output" class="text-3xl font-black text-cyan-400">{{ sample_mix.grams }}</span>
+        <button type="button" id="salt-output-unit" data-units="g,oz,lb,cups" data-labels="g,oz,lb,cups (approx)" data-name="Salt amount unit" data-remember="salt-output" value="g" class="unit-btn unit-inline">g</button>
+      </span>
+    </div>
+    <p id="salt-at-target" class="hidden text-xs font-semibold text-amber-300">This water is already at or above your target, so it doesn't need any salt.</p>
+    <p id="salt-estimate-note" class="hidden text-xs text-slate-400">This is an estimate that depends on your salinity reading, and small changes are the most sensitive to reading errors. Add the salt gradually and re-test.</p>
+    <p id="salt-disclaimer" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300"><strong>Estimate only.</strong> Please confirm these amounts independently against your salt's instructions, and check the mixed water with a calibrated refractometer or salinity meter before using it.</p>
+  </div>

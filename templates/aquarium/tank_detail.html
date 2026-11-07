@@ -29,49 +29,45 @@
     </div>
   </div>
 
-  <!-- Substrate & live rock -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+  <!-- Volume, dimensions, substrate & live rock -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-2 bg-slate-900 border border-slate-800 rounded-2xl">
+    <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Display</span>
+      <span class="text-lg font-black text-white">{{ tank.volume_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
+    </div>
+    <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Sump</span>
+      <span class="text-lg font-black text-white">{{ tank.sump_gallons|floatformat:"-1" }}</span><span class="text-xs text-slate-400"> gal</span>
+    </div>
+    <div class="bg-slate-950/60 rounded-xl border border-cyan-500/30 px-3 py-2 min-w-0">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total water</span>
+      <span class="text-lg font-black text-cyan-400">{{ tank.total_system_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
+      <span class="block text-[10px] text-slate-500">{{ tank.total_system_liters }} L{% if tank.plumbing_gallons %} · incl. {{ tank.plumbing_gallons|floatformat:"-1" }} gal plumbing{% else %} · <a href="{% url 'plumbing_create' tank.id %}" class="text-cyan-400 hover:underline">add plumbing</a>{% endif %}</span>
+    </div>
+    <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
+      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Dimensions</span>
+      {% if tank.has_dimensions %}
+        <span class="text-sm font-bold text-white">{{ tank.width|floatformat:"-1" }} × {{ tank.depth|floatformat:"-1" }} × {{ tank.height|floatformat:"-1" }} {{ tank.dimension_unit }}</span>
+        {% if tank.estimated_gallons and tank.capacity_is_manual %}<span class="block text-[10px] text-slate-500">Estimate: {{ tank.estimated_gallons }} gal</span>{% endif %}
+      {% else %}
+        <a href="{% url 'tank_edit' tank.id %}" class="text-xs font-semibold text-cyan-400 hover:underline">Add dimensions</a>
+      {% endif %}
+    </div>
+    <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Substrate</span>
       {% if tank.substrate_type %}
-        <span class="text-sm font-bold text-white block">{{ tank.get_substrate_type_display }}{% if tank.substrate_amount_label %} · {{ tank.substrate_amount_label }}{% endif %}</span>
-        {% if tank.substrate_product %}<a href="{% url 'equipment_edit' tank.substrate_product.id %}?next={{ request.path|urlencode }}" class="text-[11px] font-semibold text-cyan-400 hover:underline">🏖️ {{ tank.substrate_product.name }}</a>{% endif %}
+        <span class="text-sm font-bold text-white block truncate">{{ tank.get_substrate_type_display }}{% if tank.substrate_amount_label %} · {{ tank.substrate_amount_label }}{% endif %}</span>
+        {% if tank.substrate_product %}<a href="{% url 'equipment_edit' tank.substrate_product.id %}?next={{ request.path|urlencode }}" class="block truncate text-[10px] font-semibold text-cyan-400 hover:underline">🏖️ {{ tank.substrate_product.name }}</a>{% endif %}
       {% else %}
         <a href="{% url 'tank_edit' tank.id %}" class="text-xs font-semibold text-cyan-400 hover:underline">Add substrate</a>
       {% endif %}
     </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+    <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Live rock</span>
       {% if tank.live_rock_label %}
         <span class="text-sm font-bold text-white">{{ tank.live_rock_label }}</span>
       {% else %}
         <a href="{% url 'tank_edit' tank.id %}" class="text-xs font-semibold text-cyan-400 hover:underline">Add live rock</a>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Volume & dimensions -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Display volume</span>
-      <span class="text-2xl font-black text-white">{{ tank.volume_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
-    </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Sump volume</span>
-      <span class="text-2xl font-black text-white">{{ tank.sump_gallons|floatformat:"-1" }}</span><span class="text-xs text-slate-400"> gal</span>
-    </div>
-    <div class="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4">
-      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total water</span>
-      <span class="text-2xl font-black text-cyan-400">{{ tank.total_system_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
-      <span class="block text-[11px] text-slate-500">{{ tank.total_system_liters }} L{% if tank.plumbing_gallons %} · incl. {{ tank.plumbing_gallons|floatformat:"-1" }} gal plumbing{% else %} · <a href="{% url 'plumbing_create' tank.id %}" class="text-cyan-400 hover:underline">add plumbing</a>{% endif %}</span>
-    </div>
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-      <span class="text-[10px] text-slate-500 uppercase font-semibold block">Dimensions</span>
-      {% if tank.has_dimensions %}
-        <span class="text-sm font-bold text-white">{{ tank.width|floatformat:"-1" }} × {{ tank.depth|floatformat:"-1" }} × {{ tank.height|floatformat:"-1" }} {{ tank.dimension_unit }}</span>
-        {% if tank.estimated_gallons and tank.capacity_is_manual %}<span class="block text-[11px] text-slate-500">Dimension estimate: {{ tank.estimated_gallons }} gal</span>{% endif %}
-      {% else %}
-        <span class="text-sm text-slate-500">Not entered</span>
       {% endif %}
     </div>
   </div>
@@ -172,16 +168,18 @@
       {% endfor %}
     </div>
     {% if light.levels %}
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div class="divide-y divide-slate-800/80 bg-slate-950/60 rounded-xl border border-slate-800/60">
       {% for level in light.levels %}
-      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
-        <span class="text-[10px] text-slate-500 uppercase block font-semibold">{{ level.label }} · {{ level.inches|floatformat:"-1" }} in ({{ level.cm }} cm)</span>
-        <span class="text-lg font-bold text-cyan-400">about {{ level.par }} PAR</span>
-        <span class="block text-[10px] text-slate-500">{{ level.zone }}</span>
+      <div class="flex items-center justify-between gap-3 px-3 py-2">
+        <div class="min-w-0">
+          <span class="text-[10px] text-slate-500 uppercase block font-semibold">{{ level.label }} · {{ level.inches|floatformat:"-1" }} in ({{ level.cm }} cm)</span>
+          <span class="block text-[11px] text-slate-400 truncate">{{ level.zone }}</span>
+        </div>
+        <span class="shrink-0 text-base font-bold text-cyan-400">about {{ level.par }} PAR</span>
       </div>
       {% endfor %}
     </div>
-    <p class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300"><strong>Rough estimate only, and it can easily be off by half.</strong> It uses {{ light.watts_now }} of {{ light.watts_full }} W and a typical reef LED, averaged across your tank, so it doesn't know your fixture, its height or its colour settings. The spot under a light will be much brighter than the corners. Please confirm with a PAR meter before placing sensitive corals.</p>
+    <p class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300"><strong>Rough estimate only, and it can easily be off by half.</strong> It uses {{ light.watts_now }} of {{ light.watts_full }} W and a typical reef LED, averaged across your tank, so it doesn't know your fixture, its height or its colour settings. The spot under a light will be much brighter than the corners. Please confirm with a PAR meter before placing sensitive corals.</p>
     {% elif not tank.has_dimensions %}
     <p class="text-xs text-slate-400"><a href="{% url 'tank_edit' tank.id %}" class="text-cyan-400 underline">Add this tank's dimensions</a> to see a PAR estimate.</p>
     {% else %}

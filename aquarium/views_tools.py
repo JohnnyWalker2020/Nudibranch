@@ -31,7 +31,7 @@ from .models import (
     QuarantineEntry, ROSystem, SpeciesCatalog, Tank, WebcamFeed, WebhookDelivery, WebhookEndpoint,
     WishlistItem, in_system, not_retired,
 )
-from .views import _delete_object, _edit_object, _flash_form_errors, _safe_next, _to_decimal, _to_int, safe_json, tank_volume_choices
+from .views import _delete_object, calculator_context, _edit_object, _flash_form_errors, _safe_next, _to_decimal, _to_int, safe_json, tank_volume_choices
 
 MAX_TIMER_SECONDS = 24 * 60 * 60
 
@@ -332,13 +332,15 @@ def cost_delete_view(request, entry_id):
 
 def tools_view(request):
     settings_obj = AppSettings.load()
+    tank = get_active_tank(request)
     return render(request, 'aquarium/tools.html', {
+        **calculator_context(tank),
         'settings_obj': settings_obj,
         'plan_count': PlannedSystem.objects.count(),
         'running_timers': FillTimer.objects.filter(status='running').count(),
         'endpoint_count': WebhookEndpoint.objects.filter(is_active=True).count(),
         'quarantine_count': not_retired(Animal.objects.filter(status='quarantine')).count(),
-        'power': power.power_summary(get_active_tank(request)),
+        'power': power.power_summary(tank),
         'latest_backup': next(iter(backups.list_backups()), None),
     })
 

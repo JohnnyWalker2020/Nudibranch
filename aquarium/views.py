@@ -943,6 +943,9 @@ def species_add_to_tank(request, species_id):
             acquired_date=timezone.localdate()
         )
         animal.groups.add(group_obj)
+        if species.category == 'coral' and group_name not in ('Corals', 'Anemones'):
+            corals, _ = AnimalGroup.objects.get_or_create(name='Corals', defaults={'icon': '🪸', 'color': '#ec4899'})
+            animal.groups.add(corals)
         messages.success(request, f"Added {count}x {species.name} to {target_tank.name if target_tank else 'your roster'}.")
         for warning in new_warnings:
             if warning['level'] != 'info':
@@ -1064,21 +1067,28 @@ def dosing_view(request):
     tank = get_active_tank(request)
     reservoirs = in_system(DosingReservoir.objects.select_related('tank'), tank)
 
-    dose_data = {
-        'parameters': _dose_context(tank),
-        'chemicals': [
-            {'key': k, 'name': c['name'], 'parameter': c['parameter']}
-            for k, c in DOSE_CHEMICALS.items()
-        ],
-    }
-
     return render(request, 'aquarium/dosing.html', {
         'dosing_containers': reservoirs.filter(reservoir_type='dosing_additive'),
         'ato_containers': reservoirs.filter(reservoir_type='ato_freshwater'),
         'form': DosingReservoirForm(initial={'tank': tank}),
-        'dose_data': dose_data,
-        'volume_tank': tank_volume_choices(tank),
     })
+
+
+def calculator_context(tank):
+    """What the salt calculator and Dose Estimator need. They live on the Tools page."""
+    return {
+        'dose_data': {
+            'parameters': _dose_context(tank),
+            'chemicals': [
+                {'key': k, 'name': c['name'], 'parameter': c['parameter']}
+                for k, c in DOSE_CHEMICALS.items()
+            ],
+        },
+        'sample_mix': calculate_salt_mix(volume=10.0, volume_unit='gal', brand_key='tropic_marin_pro',
+                                         target_salinity=1.026, salinity_unit='sg'),
+        'salt_brands': SALT_MIX_RECIPES,
+        'volume_tank': tank_volume_choices(tank),
+    }
 
 
 def dose_calc_api(request):
@@ -1509,18 +1519,12 @@ def routines_view(request):
         (r for r in routines if r.is_automated),
         key=lambda r: (not r.is_active, r.upcoming['at'] if r.upcoming else timezone.now() + timedelta(days=30)))
     water_changes = in_system(WaterChangeLog.objects.select_related('tank'), tank)[:10]
-    sample_mix = calculate_salt_mix(volume=10.0, volume_unit='gal', brand_key='tropic_marin_pro',
-                                    target_salinity=1.026, salinity_unit='sg')
-
     return render(request, 'aquarium/routines.html', {
         'manual_routines': manual_routines,
         'automated_routines': automated_routines,
         'water_changes': water_changes,
         'wc_form': WaterChangeLogForm(initial={'tank': tank}, auto_id='wc_%s'),
         'routine_form': MaintenanceRoutineForm(initial={'tank': tank}),
-        'sample_mix': sample_mix,
-        'salt_brands': SALT_MIX_RECIPES,
-        'volume_tank': tank_volume_choices(tank),
     })
 
 

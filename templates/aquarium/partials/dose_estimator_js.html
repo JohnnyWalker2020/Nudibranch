@@ -1,0 +1,154 @@
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById('dose-data').textContent);
+  const $ = id => document.getElementById(id);
+  const P = D.parameters;
+  let mode = 'dry';
+
+  // populate selects
+  Object.values(P).forEach(p => $('est-parameter').add(new Option(p.name, p.code)));
+  const volume = volumePicker({ prefix: 'est', input: 'est-gallons', unitSelect: 'est-gallons-unit', scope: 'system' });
+
+  function fmt(n, d) { return n === null || n === undefined ? '—' : Number(n).toFixed(d); }
+
+  function fillChemicals() {
+    const code = $('est-parameter').value;
+    const sel = $('est-chemical'); sel.innerHTML = '';
+    D.chemicals.filter(c => c.parameter === code).forEach(c => sel.add(new Option(c.name, c.key)));
+  }
+
+  function fillDefaults() {
+    const p = P[$('est-parameter').value];
+    const u = p.unit;
+    ['est-unit-1', 'est-unit-2', 'est-unit-3', 'est-unit-4'].forEach(id => $(id).textContent = u);
+    document.querySelectorAll('.est-unit-text').forEach(e => e.textContent = u);
+    $('est-current').value = p.current !== null ? p.current : '';
+    $('est-current-note').textContent = p.current !== null ? 'Last test ' + p.measured_at + (p.display_unit !== u ? ' (converted from ' + p.display_unit + ')' : '') : (p.available ? 'No test logged yet' : 'Enter your test result');
+    $('est-target').value = p.target !== null ? p.target : '';
+    $('est-target-note').textContent = p.target === null ? '' : (p.ideal_min !== null ? 'Middle of your ideal range ' + p.ideal_min + '–' + p.ideal_max : 'About natural seawater. Change it to suit.');
+    $('est-param-note').textContent = p.note;
+    $('est-param-note').classList.toggle('hidden', !p.note);
+    // These have no chemical worked out here, so they use the product's own label.
+    setMode(p.label_only ? 'label' : 'dry');  // this resets the buttons' classes, so it goes first
+    $('mode-dry').classList.toggle('hidden', p.label_only);
+    if (p.daily_change !== null && p.daily_change < 0) {
+      $('est-loss').value = Math.abs(p.daily_change);
+      $('est-loss-note').textContent = 'From your last 14 days of logs (only valid if not dosing)';
+    } else {
+      $('est-loss').value = '';
+      $('est-loss-note').textContent = p.daily_change !== null ? 'Logs show no drop' : 'Not enough logs to estimate';
+    }
+    $('est-max').value = p.max_daily;
+    $('est-result').classList.add('hidden');
+  }
+
+  function setMode(m) {
+    mode = m;
+    $('panel-dry').classList.toggle('hidden', m !== 'dry');
+    $('panel-label').classList.toggle('hidden', m !== 'label');
+    $('mode-dry').className = 'px-3 py-1.5 rounded-lg text-xs font-semibold ' + (m === 'dry' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300');
+    $('mode-label').className = 'px-3 py-1.5 rounded-lg text-xs font-semibold ' + (m === 'label' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300');
+  }
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  async function run() {
+    $('est-error').textContent = '';
+    const q = new URLSearchParams({
+      parameter: $('est-parameter').value,
+      current: $('est-current').value, target: $('est-target').value,
+      gallons: volume.gallons(), daily_loss: $('est-loss').value || 0, max_daily: $('est-max').value,
+    });
+    if (mode === 'dry') {
+      q.set('chemical', $('est-chemical').value);
+      if ($('est-solution').value) q.set('solution_g_l', $('est-solution').value);
+    } else {
+      q.set('label_ml', $('est-label-ml').value);
+      q.set('label_raise', $('est-label-raise').value);
+      const labelWater = parseFloat($('est-label-gal').value);
+      q.set('label_gallons', isNaN(labelWater) ? '' : ($('est-label-gal-unit').value === 'L' ? labelWater / 3.78541 : labelWater));
+    }
+    let r, data;
+    try {
+      r = await fetch('{% url "dose_calc_api" %}?' + q.toString());
+      data = await r.json();
+    } catch (e) { $('est-error').textContent = 'Could not reach the server.'; return; }
+    if (!r.ok) { $('est-error').textContent = data.error || 'Check your inputs.'; return; }
+
+    lastResult = data;
+    showResult();
+  }
+
+  // The answer is one amount. Its button offers the units this result can be shown in.
+  let lastResult = null;
+  const UNITS = {
+    g: { from: 'g', factor: 1 }, oz: { from: 'g', factor: 1 / 28.3495 },
+    ml: { from: 'ml', factor: 1 }, tsp: { from: 'ml', factor: 1 / 4.92892 }, 'fl oz': { from: 'ml', factor: 1 / 29.5735 },
+  };
+  const amountPlaces = n => (n < 0.1 ? 3 : n < 1 ? 2 : n < 10 ? 1 : 0);
+  function savedDoseUnit() {
+    try { return localStorage.getItem('nudi-unit-dose-output'); } catch (e) { return null; }
+  }
+
+  function showResult() {
+    const data = lastResult, u = data.unit, btn = $('est-amount-unit');
+    const places = n => Math.abs(n) < 1 ? 3 : 2;  // iodine and phosphate move in tiny steps
+    const multiDay = data.needs_raise && data.correction_days > 1;
+    // The big number is the correction, or the daily top-up when no correction is needed.
+    const pick = data.needs_raise
+      ? { g: multiDay ? data.correction_per_day_grams : data.correction_grams, ml: multiDay ? data.correction_per_day_ml : data.correction_ml }
+      : { g: data.maintenance_grams_per_day, ml: data.maintenance_ml_per_day };
+    const has = v => v !== null && v !== undefined;
+    const available = Object.keys(UNITS).filter(k => has(pick[UNITS[k].from]));
+    const inUnit = (values, unit) => (has(values[UNITS[unit].from]) ? values[UNITS[unit].from] * UNITS[unit].factor : null);
+
+    if (!available.length) {
+      $('est-amount-label').textContent = 'Dose';
+      $('est-amount').textContent = 'None';
+      btn.classList.add('hidden');
+      $('est-detail').textContent = data.needs_raise
+        ? 'Fill in the chemical or the label amounts to get a dose.'
+        : 'Already at or above target, and no daily drop is set, so there is nothing to dose.';
+    } else {
+      btn.classList.remove('hidden');
+      btn.dataset.units = available.join(',');
+      const want = available.includes(btn.value) && btn.dataset.chosen ? btn.value : savedDoseUnit();
+      setUnitButton(btn, available.includes(want) ? want : available[0]);
+      const unit = btn.value, amount = inUnit(pick, unit);
+      const amountText = values => { const v = inUnit(values, unit); return v === null ? null : fmt(v, amountPlaces(v)) + ' ' + unit; };
+      $('est-amount-label').textContent = !data.needs_raise ? 'Daily to hold level' : multiDay ? 'Dose per day' : 'Dose';
+      $('est-amount').textContent = fmt(amount, amountPlaces(amount));
+      const parts = [];
+      if (data.needs_raise) {
+        const total = amountText({ g: data.correction_grams, ml: data.correction_ml });
+        parts.push('Raises it ' + (data.delta > 0 ? '+' : '') + fmt(data.delta, places(data.delta)) + ' ' + u +
+          (multiDay ? ' over ' + data.correction_days + ' days (+' + fmt(data.correction_per_day_raise, places(data.correction_per_day_raise)) + ' ' + u + ' a day)' + (total ? ', ' + total + ' in total' : '') : '') + '.');
+        if (data.daily_loss > 0) {
+          const hold = amountText({ g: data.maintenance_grams_per_day, ml: data.maintenance_ml_per_day });
+          if (hold) parts.push('Then about ' + hold + ' a day holds it, as it drops about ' + fmt(data.daily_loss, places(data.daily_loss)) + ' ' + u + ' a day.');
+        }
+      } else {
+        parts.push('Already at target. It drops about ' + fmt(data.daily_loss, places(data.daily_loss)) + ' ' + u + ' a day, so this holds it there.');
+      }
+      const kind = UNITS[unit].from === 'g' ? 'of dry powder' : (mode === 'label' ? 'of the product' : 'of your solution');
+      parts.push('Amounts are ' + kind + ', for ' + fmt(data.system_gallons, 1) + ' gal (' + fmt(data.system_liters, 0) + ' L).');
+      $('est-detail').textContent = parts.join(' ');
+    }
+    $('est-warnings').innerHTML = data.warnings.map(w => '<li>' + esc(w) + '</li>').join('');
+    $('est-result').classList.remove('hidden');
+  }
+  $('est-amount-unit').addEventListener('change', () => {
+    const btn = $('est-amount-unit');
+    btn.dataset.chosen = '1';
+    try { localStorage.setItem('nudi-unit-dose-output', btn.value); } catch (e) { /* private mode */ }
+    if (lastResult) showResult();
+  });
+
+  $('est-parameter').addEventListener('change', () => { fillChemicals(); fillDefaults(); });
+  $('mode-dry').addEventListener('click', () => setMode('dry'));
+  $('mode-label').addEventListener('click', () => setMode('label'));
+  $('est-run').addEventListener('click', run);
+
+  fillChemicals(); fillDefaults();
+})();
+</script>

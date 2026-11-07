@@ -872,7 +872,7 @@ class WebhookTargetingTests(TestCase):
 
 
 class CalculatorVolumeTests(TestCase):
-    PAGES = ('dosing', 'routines', 'timers')
+    PAGES = ('tools', 'timers')
 
     def test_pages_use_the_selected_system(self):
         from .models import Sump
@@ -1019,7 +1019,7 @@ class SystemScopeTests(ServerMixin, TestCase):
     def test_system_calculators_read_that_systems_tests(self):
         self.log(self.main, 8.5)
         self.log(self.qt, 6.0)
-        current = lambda: self.client.get(reverse('dosing')).context['dose_data']['parameters']['alkalinity']['current']
+        current = lambda: self.client.get(reverse('tools')).context['dose_data']['parameters']['alkalinity']['current']
         self.assertEqual(current(), 8.5)
         self.select(self.qt)
         self.assertEqual(current(), 6.0)
@@ -1113,7 +1113,7 @@ class ParameterTargetTests(TestCase):
         self.assertContains(self.client.get('/'), '5.0 – 40.0')
         alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9)
         alk.targets.create(tank=self.soft, min_ideal=Decimal('7'), max_ideal=Decimal('8'))
-        dose = self.client.get(reverse('dosing')).context['dose_data']['parameters']['alkalinity']
+        dose = self.client.get(reverse('tools')).context['dose_data']['parameters']['alkalinity']
         self.assertEqual((dose['ideal_min'], dose['ideal_max'], dose['target']), (7.0, 8.0, 7.5))
         data = self.client.get(reverse('api_parameter_types'), {'tank': 'Soft'}).json()['parameters']
         self.assertEqual({p['code']: p['max_ideal'] for p in data}['nitrate'], 40.0)
@@ -2427,8 +2427,8 @@ class MuteTests(TestCase):
 
     def test_pages_show_it(self):
         self.bad_reading()
-        self.assertContains(self.client.get(reverse('notifications')), 'Mute notifications for')
-        self.assertContains(self.client.get(reverse('integrations')), 'Mute notifications for')
+        self.assertContains(self.client.get(reverse('notifications')), 'id="mute-duration"')
+        self.assertContains(self.client.get(reverse('integrations')), 'id="mute-duration"')
         self.assertContains(self.client.get(reverse('tanks')), 'id="alert-banner"')
         self.mute(duration='1h')
         self.assertContains(self.client.get(reverse('notifications')), 'Unmute now')
@@ -2754,11 +2754,24 @@ class ExtraDosingTests(TestCase):
         self.assertEqual(data['correction_per_day_raise'], 0.017)
 
     def test_units_sit_beside_their_fields(self):
-        Page = self.client.get(reverse('routines')).content.decode()
+        Page = self.client.get(reverse('tools')).content.decode()
         for unit in ('calc-volume-unit', 'calc-salinity-unit', 'calc-start-unit'):
             self.assertIn(f'id="{unit}"', Page)
         self.assertNotIn('btn-unit-', Page)
-        self.assertContains(self.client.get(reverse('dosing')), 'id="est-label-gal-unit"')
+        self.assertContains(self.client.get(reverse('tools')), 'id="est-label-gal-unit"')
+
+    def test_units_are_buttons_and_each_answer_is_shown_once(self):
+        salt = self.client.get(reverse('tools')).content.decode()
+        self.assertIn('id="calc-volume-unit" data-units="gal,L"', salt)
+        self.assertIn('id="salt-output-unit" data-units="g,oz,lb,cups"', salt)
+        self.assertNotIn('output-ounces', salt)
+        dose = self.client.get(reverse('tools')).content.decode()
+        for unit in ('est-gallons-unit', 'est-label-gal-unit', 'est-amount-unit'):
+            self.assertIn(f'id="{unit}" data-units=', dose)
+        self.assertIn('id="est-amount"', dose)
+        # The tank comes from the top of the page, so the calculators no longer repeat it in a box.
+        self.assertNotIn('Change it at the top of the page', dose)
+        self.assertIn('All water (tank + sump)', dose)
 
     def test_they_need_a_label(self):
         response = self.estimate(parameter='iodine', current=0.02, target=0.06, gallons=50)
@@ -2776,7 +2789,7 @@ class ExtraDosingTests(TestCase):
     def test_page_data(self):
         ParameterType.objects.update_or_create(code='nitrate', defaults={'name': 'Nitrate', 'unit': 'ppm', 'min_ideal': 2, 'max_ideal': 12})
         ParameterType.objects.filter(code__in=['iodine', 'potassium', 'strontium']).delete()
-        data = self.client.get(reverse('dosing')).context['dose_data']['parameters']
+        data = self.client.get(reverse('tools')).context['dose_data']['parameters']
         self.assertEqual(set(data) >= {'alkalinity', 'nitrate', 'phosphate', 'potassium', 'iodine', 'strontium'}, True)
         self.assertEqual(data['nitrate']['target'], 7)
         self.assertEqual(data['iodine']['target'], 0.06)
@@ -2788,7 +2801,7 @@ class ExtraDosingTests(TestCase):
     def test_tracked_in_ppb_is_converted(self):
         iodine, _ = ParameterType.objects.update_or_create(code='iodine', defaults={'name': 'Iodine', 'unit': 'ppb', 'min_ideal': 40, 'max_ideal': 80})
         ParameterLog.objects.create(parameter_type=iodine, tank=self.tank, value=30)
-        entry = self.client.get(reverse('dosing')).context['dose_data']['parameters']['iodine']
+        entry = self.client.get(reverse('tools')).context['dose_data']['parameters']['iodine']
         self.assertEqual(entry['current'], 0.03)
         self.assertEqual(entry['target'], 0.06)
 
@@ -2848,22 +2861,27 @@ class SaltCalculatorTests(TestCase):
         return self.client.get(reverse('water_change_calc_api'), query).json()
 
     def test_reachable_from_tabs_and_tools(self):
-        target = reverse('routines') + '#salt-calculator'
-        self.assertContains(self.client.get(reverse('tanks')), target)
-        self.assertContains(self.client.get(reverse('tools')), target)
-        self.assertContains(self.client.get(reverse('routines')), 'id="salt-calculator"')
+        self.assertContains(self.client.get(reverse('tanks')), reverse('tools') + '#salt-calculator')
+        self.assertContains(self.client.get(reverse('tools')), 'href="#salt-calculator"')
+        self.assertContains(self.client.get(reverse('tools')), 'id="salt-calculator"')
+        # Moved to Tools, with a pointer left where it used to be.
+        routines = self.client.get(reverse('routines'))
+        self.assertNotContains(routines, 'id="salt-calculator"')
+        self.assertContains(routines, reverse('tools') + '#salt-calculator')
 
     def test_calculators_say_they_are_estimates_to_confirm(self):
-        for name in ('routines', 'dosing'):
+        for name in ('tools',):
             page = self.client.get(reverse(name))
             self.assertContains(page, 'Estimate only.')
             self.assertContains(page, 'confirm')
             self.assertContains(page, 'independently')
     def test_dose_estimator_reachable_from_tabs_and_tools(self):
-        target = reverse('dosing') + '#dose-estimator'
-        self.assertContains(self.client.get(reverse('tanks')), target)
-        self.assertContains(self.client.get(reverse('tools')), target)
-        self.assertContains(self.client.get(reverse('dosing')), 'id="dose-estimator"')
+        self.assertContains(self.client.get(reverse('tanks')), reverse('tools') + '#dose-estimator')
+        self.assertContains(self.client.get(reverse('tools')), 'href="#dose-estimator"')
+        self.assertContains(self.client.get(reverse('tools')), 'id="dose-estimator"')
+        dosing = self.client.get(reverse('dosing'))
+        self.assertNotContains(dosing, 'id="dose-estimator"')
+        self.assertContains(dosing, reverse('tools') + '#dose-estimator')
 
     def test_starting_salinity_defaults_to_fresh_water(self):
         fresh = self.mix()
@@ -2961,7 +2979,7 @@ class SubstrateTests(TestCase):
         self.assertEqual(compute_alert_state(tank=self.tank)['due_equipment'], [pump])
         page = self.client.get(reverse('equipment'), {'category': 'substrate'})
         self.assertContains(page, 'Sand')
-        self.assertNotContains(page, 'Maintenance cycle')
+        self.assertNotContains(page, 'Service every')
 
     def test_empty_profile_offers_to_add(self):
         page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
@@ -3551,3 +3569,40 @@ class PageSmokeTests(TestCase):
         self.assertTrue(ro and endpoint)
         self.assert_all_ok()
         self.assertContains(self.client.get(reverse('species_catalog')), '+ gal')
+
+
+class CoralGroupAndWaterWordingTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+
+    def test_coral_groups_exist(self):
+        names = set(AnimalGroup.objects.values_list('name', flat=True))
+        self.assertTrue({'SPS Corals', 'LPS Corals', 'Soft Corals', 'Anemones'} <= names)
+
+    def test_catalog_corals_join_their_type_and_corals(self):
+        hammer = SpeciesCatalog.objects.create(name='Test Hammer', category='coral', suggested_group='LPS Corals')
+        self.client.post(reverse('species_add_to_tank', args=[hammer.pk]), {'tank': self.tank.pk, 'count': 1})
+        groups = set(Animal.objects.get(name='Test Hammer').groups.values_list('name', flat=True))
+        self.assertEqual(groups, {'LPS Corals', 'Corals'})
+
+    def test_anemones_are_not_filed_as_corals(self):
+        rfa = SpeciesCatalog.objects.create(name='Test Anemone', category='coral', suggested_group='Anemones')
+        self.client.post(reverse('species_add_to_tank', args=[rfa.pk]), {'tank': self.tank.pk, 'count': 1})
+        groups = set(Animal.objects.get(name='Test Anemone').groups.values_list('name', flat=True))
+        self.assertEqual(groups, {'Anemones'})
+
+    def test_catalog_file_sorts_every_coral(self):
+        import csv
+        from pathlib import Path as _Path
+        with open(_Path(__file__).resolve().parent / 'species_catalog.csv', encoding='utf-8-sig', newline='') as fh:
+            rows = list(csv.DictReader(fh))
+        corals = [r for r in rows if r['category'] == 'coral']
+        self.assertTrue(corals)
+        self.assertEqual({r['suggested_group'] for r in corals}, {'SPS Corals', 'LPS Corals', 'Soft Corals', 'Anemones'})
+
+    def test_navigation_says_water(self):
+        page = self.client.get(reverse('dashboard')).content.decode()
+        self.assertIn('>Water</a>', page)
+        self.assertIn('>Water</span>', page)
+        self.assertNotIn('>Params<', page)
+        self.assertContains(self.client.get(reverse('parameters')), 'Water Quality')

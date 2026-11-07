@@ -147,7 +147,7 @@ Amphipods,Gammarus sp.,cleanup_crew,Cleanup Crew,Beginner,Yes,Detritivore,Tiny c
 Skunk Cleaner Shrimp,Lysmata amboinensis,invert,Invertebrates,Beginner,Yes,Omnivore / Cleaner,Bold and friendly. Sets up cleaning stations where fish queue to have parasites removed.,,,,🦐
 Blood Red Fire Shrimp,Lysmata debelius,invert,Invertebrates,Beginner,Yes,Omnivore,Deep crimson red with striking white antennae and legs. Shy scavenger.,,,,🦐
 Tiger Pistol Shrimp,Alpheus bellulus,invert,Invertebrates,Moderate,Yes,Carnivore,Excavates elaborate underground burrows shared with watchman gobies.,,,,🦐
-Bubble Tip Anemone (BTA),Entacmaea quadricolor,invert,Invertebrates,Moderate,Yes,Photosynthetic / Meaty foods,Natural host for clownfish. Requires stable mature water parameters and good lighting.,30,12,semi,🪸
+Bubble Tip Anemone (BTA),Entacmaea quadricolor,invert,Anemones,Moderate,Yes,Photosynthetic / Meaty foods,Natural host for clownfish. Requires stable mature water parameters and good lighting.,30,12,semi,🪸
 Tuxedo Urchin,Mespilia globulus,invert,Invertebrates,Beginner,Yes,Herbivore,Voracious algae grazer that covers itself with small debris and shells for camouflage.,,,,🦔
 Harlequin Shrimp,Hymenocera picta,invert,Invertebrates,Expert,With Caution,Carnivore (starfish only),Stunning but eats only live starfish. Plan a long-term food supply before buying.,10,2,peaceful,🦐
 Sexy Shrimp,Thor amboinensis,invert,Invertebrates,Beginner,With Caution,Omnivore,Tiny dancing shrimp ideal for nanos. May nibble zoanthids and anemones.,,,,🦐
@@ -174,69 +174,69 @@ Chocolate Chip Starfish,Protoreaster nodosus,invert,Invertebrates,Beginner,No,Om
 Sea Hare,Dolabella auricularia,invert,Invertebrates,Moderate,Yes,Herbivore (hair algae),Big appetite for hair algae. Often starves once the algae is gone. Guard pump intakes.,55,8,peaceful,🐌
 Berghia Nudibranch,Berghia stephanieae,invert,Invertebrates,Moderate,Yes,Carnivore (aiptasia only),The namesake sea slug. Eats only aiptasia and starves once it runs out. Guard intakes and avoid predators.,,,,🐌
 Lettuce Sea Slug,Elysia crispata,invert,Invertebrates,Moderate,Yes,Herbivore (bryopsis and algae),Often sold as a lettuce nudibranch but is a sacoglossan. Feeds on algae and needs a steady supply.,,,,🐌
-Green Star Polyps (GSP),Pachyclavularia violacea,coral,Corals,Beginner,Yes,Photosynthetic,Extremely hardy neon green mat. Keep on an isolated rock island to prevent spreading over rockwork.,,,,🪸
-Zoanthids & Palys,Zoanthus sp.,coral,Corals,Beginner,Yes,Photosynthetic,Vibrant button polyps in endless color morphs. Note: Handle with care due to palytoxin.,,,,🪸
-Duncan Coral,Duncanopsammia axifuga,coral,Corals,Beginner,Yes,Photosynthetic / Target feeder,Hardy LPS coral with large green fleshy polyps. Spawns new heads rapidly.,,,,🪸
-Hammer Coral,Euphyllia ancora,coral,Corals,Moderate,Yes,Photosynthetic,Waving tentacles with hammer-shaped tips. Moderate light and gentle oscillating flow.,,,,🪸
-Torch Coral,Euphyllia glabrescens,coral,Corals,Moderate,Yes,Photosynthetic,Prized long waving tentacles with glowing tips. Keep space between it and other non-Euphyllia.,,,,🪸
-Frogspawn Coral,Euphyllia divisa,coral,Corals,Moderate,Yes,Photosynthetic,Multilobed tentacles resembling frog eggs. Hardy and stunning under blue actinics.,,,,🪸
-Candy Cane Coral,Caulastraea furcata,coral,Corals,Beginner,Yes,Photosynthetic,Hardy trumpet-shaped LPS coral. Extends feeder tentacles at night.,,,,🪸
-Montipora Cap,Montipora capricornis,coral,Corals,Moderate,Yes,Photosynthetic,The best beginner SPS coral. Forms stunning swirling plates under good lighting.,,,,🪸
-Toadstool Leather Coral,Sarcophyton sp.,coral,Corals,Beginner,Yes,Photosynthetic,Hardy mushroom-shaped soft coral with long flowing polyp tentacles.,,,,🪸
-Pulsing Xenia,Xenia sp.,coral,Corals,Beginner,With Caution,Photosynthetic / Filter feeder,Pulsing soft coral that can spread fast. Isolate it on its own rock.,,,,🪸
-Kenya Tree Coral,Capnella sp.,coral,Corals,Beginner,Yes,Photosynthetic,Very hardy tree-shaped soft coral. Drops branches and spreads readily.,,,,🪸
-Finger Leather Coral,Sinularia sp.,coral,Corals,Beginner,Yes,Photosynthetic,Hardy soft coral. Can release chemicals that affect SPS so run carbon.,,,,🪸
-Cabbage Leather Coral,Sinularia dura,coral,Corals,Beginner,Yes,Photosynthetic,Flat ruffled leather coral that does well in low to moderate light.,,,,🪸
-Devil's Hand Leather Coral,Lobophytum sp.,coral,Corals,Beginner,Yes,Photosynthetic,Tough finger-lobed leather coral. Sheds a waxy layer from time to time.,,,,🪸
-Colt Coral,Klyxum sp.,coral,Corals,Beginner,Yes,Photosynthetic,Soft bushy coral that sways in flow. Grows fast and may need trimming.,,,,🪸
-Clove Polyps,Clavularia sp.,coral,Corals,Beginner,With Caution,Photosynthetic,Fast-spreading mat coral with feathery polyps. Isolate it on its own rock.,,,,🪸
-Anthelia,Anthelia sp.,coral,Corals,Beginner,With Caution,Photosynthetic / Filter feeder,Waving hand soft coral. Can spread rapidly across rockwork.,,,,🪸
-Yellow Polyps,Parazoanthus gracilis,coral,Corals,Beginner,Yes,Photosynthetic / Filter feeder,Hardy golden polyps that spread slowly. Handle with gloves like other zoanthid relatives.,,,,🪸
-Pipe Organ Coral,Tubipora musica,coral,Corals,Moderate,Yes,Photosynthetic / Filter feeder,Red skeleton with green polyps. Appreciates moderate flow and stable water.,,,,🪸
-Discosoma Mushroom,Discosoma sp.,coral,Corals,Beginner,With Caution,Photosynthetic,Hardy low-light mushroom. Can overgrow and sting neighbors over time.,,,,🪸
-Rhodactis Mushroom,Rhodactis sp.,coral,Corals,Beginner,With Caution,Photosynthetic,Hairy-looking mushroom that handles low light and low flow. Give it some space.,,,,🪸
-Bounce Mushroom,Rhodactis inchoata,coral,Corals,Expert,With Caution,Photosynthetic,Prized bubble-covered mushroom. Expensive and slower to settle than most mushrooms.,,,,🪸
-Ricordea Florida,Ricordea florida,coral,Corals,Moderate,Yes,Photosynthetic / Meaty foods,Bubbly Atlantic mushroom in many colors. Loves a mature tank and small meaty foods.,,,,🪸
-Ricordea Yuma,Ricordea yuma,coral,Corals,Moderate,Yes,Photosynthetic / Meaty foods,Pacific ricordea with a multicolored center. Needs moderate light and low to moderate flow.,,,,🪸
-Sea Rod Gorgonian,Eunicea sp.,coral,Corals,Moderate,Yes,Photosynthetic,Photosynthetic Caribbean gorgonian. Needs good flow to shed its waxy coating.,,,,🪸
-Sea Fan,Gorgonia ventalina,coral,Corals,Moderate,Yes,Photosynthetic / Filter feeder,Fan-shaped gorgonian. Place it across steady flow.,,,,🪸
-Carnation Coral,Dendronephthya sp.,coral,Corals,Expert,Yes,Filter feeder (non-photosynthetic),Non-photosynthetic and hard to keep alive. Needs constant very fine feeding.,,,,🪸
-Sun Coral,Tubastraea sp.,coral,Corals,Expert,Yes,Meaty foods (non-photosynthetic),Non-photosynthetic orange polyps. Needs individual target feeding. Thrives under overhangs.,,,,🪸
-Goniopora,Goniopora sp.,coral,Corals,Expert,Yes,Photosynthetic / Target feeder,Flowerpot coral with long polyps. Has improved in captivity but is still often short-lived.,,,,🪸
-Alveopora,Alveopora sp.,coral,Corals,Expert,Yes,Photosynthetic / Target feeder,Similar to goniopora with twelve tentacles per polyp. Needs mature stable water.,,,,🪸
-Bubble Coral,Plerogyra sinuosa,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Inflated bubble tissue by day and long stinging sweepers at night. Give it plenty of room.,,,,🪸
-Open Brain Coral,Trachyphyllia geoffroyi,coral,Corals,Moderate,Yes,Photosynthetic / Target feeder,Sits on sand with low flow. Large fleshy polyp that loves to be fed.,,,,🪸
-Lobophyllia,Lobophyllia sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Colorful fleshy LPS. Needs lower flow and space because it sends out sweepers at night.,,,,🪸
-Acan Lord,Micromussa lordhowensis,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Colorful LPS often sold as Acanthastrea. Low to moderate light. Feeds eagerly at night.,,,,🪸
-Acan Echinata,Acanthastrea echinata,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Fleshy encrusting LPS. Does well on rock and can be aggressive to close neighbors.,,,,🪸
-Blastomussa,Blastomussa merleti,coral,Corals,Beginner,Yes,Photosynthetic / Target feeder,Hardy low-light LPS with round polyps. Fairly peaceful and good in shaded spots.,,,,🪸
-Favia,Dipsastraea sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Moon coral often still sold as Favia. Extends sweeper tentacles at night.,,,,🪸
-Favites,Favites sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Honeycomb brain coral with shared polyp walls. Gives off sweepers at night.,,,,🪸
-Chalice Coral,Echinophyllia sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Plating LPS with vivid colored mouths. Moderate light and flow. Can sting neighbors.,,,,🪸
-Plate Coral,Fungia sp.,coral,Corals,Moderate,Yes,Photosynthetic / Target feeder,Free-living coral for the sand bed. Can inflate and move. Keep clear of neighbors.,,,,🪸
-Elegance Coral,Catalaphyllia jardinei,coral,Corals,Expert,With Caution,Photosynthetic / Target feeder,Stunning but delicate and very aggressive. Place on sand in low to moderate flow.,,,,🪸
-Galaxea,Galaxea fascicularis,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Fine tubular LPS with very long powerful sweepers. Give it a wide buffer zone.,,,,🪸
-Scroll Coral,Turbinaria reniformis,coral,Corals,Moderate,Yes,Photosynthetic,Plating coral that does best with good light and moderate flow. Often quite durable.,,,,🪸
-Branching Hammer Coral,Euphyllia paraancora,coral,Corals,Moderate,With Caution,Photosynthetic,Branching form of hammer coral. Moderate light and flow. Sweepers need space.,,,,🪸
-Scolymia,Scolymia sp.,coral,Corals,Moderate,With Caution,Photosynthetic / Target feeder,Round single-polyp LPS. Low light and low flow. Feed regularly.,,,,🪸
-Button Coral,Cynarina lacrymalis,coral,Corals,Moderate,Yes,Photosynthetic / Target feeder,Translucent inflated single-polyp LPS. Likes the sand bed in low flow.,,,,🪸
-Birdsnest Coral,Seriatopora hystrix,coral,Corals,Moderate,Yes,Photosynthetic,Fine-branching SPS with strong light and flow. Often the first branching SPS a keeper tries.,,,,🪸
-Stylophora,Stylophora pistillata,coral,Corals,Moderate,Yes,Photosynthetic,Fast-growing branching SPS. Good light and flow. Comes in pink and green.,,,,🪸
-Pocillopora,Pocillopora damicornis,coral,Corals,Moderate,Yes,Photosynthetic,Fast-growing and forgiving SPS. Can spread on its own through tiny larvae.,,,,🪸
-Montipora Digitata,Montipora digitata,coral,Corals,Moderate,Yes,Photosynthetic,Finger-like and fast-growing. Among the easier SPS to start with.,,,,🪸
-Montipora Setosa,Montipora setosa,coral,Corals,Moderate,Yes,Photosynthetic,Short fine branching SPS popular for bright colors. Needs strong light and flow.,,,,🪸
-Acropora Millepora,Acropora millepora,coral,Corals,Expert,Yes,Photosynthetic,Classic staghorn-style SPS. Needs very stable alkalinity with strong light and flow.,,,,🪸
-Acropora Tenuis,Acropora tenuis,coral,Corals,Expert,Yes,Photosynthetic,Fast-growing table-forming SPS. Needs very stable water plus strong light and flow.,,,,🪸
-Psammocora,Psammocora sp.,coral,Corals,Moderate,Yes,Photosynthetic,Encrusting SPS with a velvety texture. Moderate light and flow.,,,,🪸
-Hydnophora,Hydnophora sp.,coral,Corals,Moderate,With Caution,Photosynthetic,Horn coral that grows branches. Its sweepers sting neighbors despite small polyps.,,,,🪸
-Leptoseris,Leptoseris sp.,coral,Corals,Moderate,Yes,Photosynthetic,Thin plating coral that tolerates lower light well. Vulnerable to being shaded or stung.,,,,🪸
-Porites,Porites sp.,coral,Corals,Moderate,Yes,Photosynthetic,Slow-growing stony coral. Durable once settled. Watch for red bugs and flatworms.,,,,🪸
-Cyphastrea,Cyphastrea sp.,coral,Corals,Beginner,Yes,Photosynthetic,Encrusting stony coral. Tolerant of low to moderate light and a good first small-polyp coral.,,,,🪸
-Pavona Cactus Coral,Pavona cactus,coral,Corals,Moderate,Yes,Photosynthetic,Thin upright plates. Moderate light and flow. Can spread over time.,,,,🪸
-Rock Flower Anemone,Epicystis crucifer,coral,Corals,Beginner,Yes,Photosynthetic / Meaty foods,Colorful Atlantic anemone that tends to stay put. Usually does not host clownfish.,10,4,peaceful,🪸
-Long Tentacle Anemone,Macrodactyla doreensis,coral,Corals,Moderate,With Caution,Photosynthetic / Meaty foods,Buries its foot in sand and hosts clownfish. Guard pump intakes because anemones can wander.,40,20,semi,🪸
-Mini Maxi Carpet Anemone,Stichodactyla tapetum,coral,Corals,Moderate,With Caution,Photosynthetic / Meaty foods,Small colorful carpet anemone. Strong sting and can wander. Guard pump intakes.,20,6,semi,🪸
-Condylactis Anemone,Condylactis gigantea,coral,Corals,Moderate,With Caution,Photosynthetic / Meaty foods,Atlantic anemone with purple-tipped tentacles. Rarely hosts clownfish. Can sting neighbors.,30,12,semi,🪸
-Sebae Anemone,Heteractis crispa,coral,Corals,Expert,With Caution,Photosynthetic / Meaty foods,Long-tentacled host anemone. Often bleached when sold. Avoid white specimens.,55,20,semi,🪸
-Ritteri Anemone,Heteractis magnifica,coral,Corals,Expert,With Caution,Photosynthetic / Meaty foods,Spectacular but demanding. Needs intense light and strong flow. Likes high perches.,75,36,semi,🪸
-Haddon's Carpet Anemone,Stichodactyla haddoni,coral,Corals,Expert,With Caution,Photosynthetic / Meaty foods,Very large with a powerful sting that can catch fish. Needs a big mature tank.,75,30,aggressive,🪸
+Green Star Polyps (GSP),Pachyclavularia violacea,coral,Soft Corals,Beginner,Yes,Photosynthetic,Extremely hardy neon green mat. Keep on an isolated rock island to prevent spreading over rockwork.,,,,🪸
+Zoanthids & Palys,Zoanthus sp.,coral,Soft Corals,Beginner,Yes,Photosynthetic,Vibrant button polyps in endless color morphs. Note: Handle with care due to palytoxin.,,,,🪸
+Duncan Coral,Duncanopsammia axifuga,coral,LPS Corals,Beginner,Yes,Photosynthetic / Target feeder,Hardy LPS coral with large green fleshy polyps. Spawns new heads rapidly.,,,,🪸
+Hammer Coral,Euphyllia ancora,coral,LPS Corals,Moderate,Yes,Photosynthetic,Waving tentacles with hammer-shaped tips. Moderate light and gentle oscillating flow.,,,,🪸
+Torch Coral,Euphyllia glabrescens,coral,LPS Corals,Moderate,Yes,Photosynthetic,Prized long waving tentacles with glowing tips. Keep space between it and other non-Euphyllia.,,,,🪸
+Frogspawn Coral,Euphyllia divisa,coral,LPS Corals,Moderate,Yes,Photosynthetic,Multilobed tentacles resembling frog eggs. Hardy and stunning under blue actinics.,,,,🪸
+Candy Cane Coral,Caulastraea furcata,coral,LPS Corals,Beginner,Yes,Photosynthetic,Hardy trumpet-shaped LPS coral. Extends feeder tentacles at night.,,,,🪸
+Montipora Cap,Montipora capricornis,coral,SPS Corals,Moderate,Yes,Photosynthetic,The best beginner SPS coral. Forms stunning swirling plates under good lighting.,,,,🪸
+Toadstool Leather Coral,Sarcophyton sp.,coral,Soft Corals,Beginner,Yes,Photosynthetic,Hardy mushroom-shaped soft coral with long flowing polyp tentacles.,,,,🪸
+Pulsing Xenia,Xenia sp.,coral,Soft Corals,Beginner,With Caution,Photosynthetic / Filter feeder,Pulsing soft coral that can spread fast. Isolate it on its own rock.,,,,🪸
+Kenya Tree Coral,Capnella sp.,coral,Soft Corals,Beginner,Yes,Photosynthetic,Very hardy tree-shaped soft coral. Drops branches and spreads readily.,,,,🪸
+Finger Leather Coral,Sinularia sp.,coral,Soft Corals,Beginner,Yes,Photosynthetic,Hardy soft coral. Can release chemicals that affect SPS so run carbon.,,,,🪸
+Cabbage Leather Coral,Sinularia dura,coral,Soft Corals,Beginner,Yes,Photosynthetic,Flat ruffled leather coral that does well in low to moderate light.,,,,🪸
+Devil's Hand Leather Coral,Lobophytum sp.,coral,Soft Corals,Beginner,Yes,Photosynthetic,Tough finger-lobed leather coral. Sheds a waxy layer from time to time.,,,,🪸
+Colt Coral,Klyxum sp.,coral,Soft Corals,Beginner,Yes,Photosynthetic,Soft bushy coral that sways in flow. Grows fast and may need trimming.,,,,🪸
+Clove Polyps,Clavularia sp.,coral,Soft Corals,Beginner,With Caution,Photosynthetic,Fast-spreading mat coral with feathery polyps. Isolate it on its own rock.,,,,🪸
+Anthelia,Anthelia sp.,coral,Soft Corals,Beginner,With Caution,Photosynthetic / Filter feeder,Waving hand soft coral. Can spread rapidly across rockwork.,,,,🪸
+Yellow Polyps,Parazoanthus gracilis,coral,Soft Corals,Beginner,Yes,Photosynthetic / Filter feeder,Hardy golden polyps that spread slowly. Handle with gloves like other zoanthid relatives.,,,,🪸
+Pipe Organ Coral,Tubipora musica,coral,Soft Corals,Moderate,Yes,Photosynthetic / Filter feeder,Red skeleton with green polyps. Appreciates moderate flow and stable water.,,,,🪸
+Discosoma Mushroom,Discosoma sp.,coral,Soft Corals,Beginner,With Caution,Photosynthetic,Hardy low-light mushroom. Can overgrow and sting neighbors over time.,,,,🪸
+Rhodactis Mushroom,Rhodactis sp.,coral,Soft Corals,Beginner,With Caution,Photosynthetic,Hairy-looking mushroom that handles low light and low flow. Give it some space.,,,,🪸
+Bounce Mushroom,Rhodactis inchoata,coral,Soft Corals,Expert,With Caution,Photosynthetic,Prized bubble-covered mushroom. Expensive and slower to settle than most mushrooms.,,,,🪸
+Ricordea Florida,Ricordea florida,coral,Soft Corals,Moderate,Yes,Photosynthetic / Meaty foods,Bubbly Atlantic mushroom in many colors. Loves a mature tank and small meaty foods.,,,,🪸
+Ricordea Yuma,Ricordea yuma,coral,Soft Corals,Moderate,Yes,Photosynthetic / Meaty foods,Pacific ricordea with a multicolored center. Needs moderate light and low to moderate flow.,,,,🪸
+Sea Rod Gorgonian,Eunicea sp.,coral,Soft Corals,Moderate,Yes,Photosynthetic,Photosynthetic Caribbean gorgonian. Needs good flow to shed its waxy coating.,,,,🪸
+Sea Fan,Gorgonia ventalina,coral,Soft Corals,Moderate,Yes,Photosynthetic / Filter feeder,Fan-shaped gorgonian. Place it across steady flow.,,,,🪸
+Carnation Coral,Dendronephthya sp.,coral,Soft Corals,Expert,Yes,Filter feeder (non-photosynthetic),Non-photosynthetic and hard to keep alive. Needs constant very fine feeding.,,,,🪸
+Sun Coral,Tubastraea sp.,coral,LPS Corals,Expert,Yes,Meaty foods (non-photosynthetic),Non-photosynthetic orange polyps. Needs individual target feeding. Thrives under overhangs.,,,,🪸
+Goniopora,Goniopora sp.,coral,LPS Corals,Expert,Yes,Photosynthetic / Target feeder,Flowerpot coral with long polyps. Has improved in captivity but is still often short-lived.,,,,🪸
+Alveopora,Alveopora sp.,coral,LPS Corals,Expert,Yes,Photosynthetic / Target feeder,Similar to goniopora with twelve tentacles per polyp. Needs mature stable water.,,,,🪸
+Bubble Coral,Plerogyra sinuosa,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Inflated bubble tissue by day and long stinging sweepers at night. Give it plenty of room.,,,,🪸
+Open Brain Coral,Trachyphyllia geoffroyi,coral,LPS Corals,Moderate,Yes,Photosynthetic / Target feeder,Sits on sand with low flow. Large fleshy polyp that loves to be fed.,,,,🪸
+Lobophyllia,Lobophyllia sp.,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Colorful fleshy LPS. Needs lower flow and space because it sends out sweepers at night.,,,,🪸
+Acan Lord,Micromussa lordhowensis,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Colorful LPS often sold as Acanthastrea. Low to moderate light. Feeds eagerly at night.,,,,🪸
+Acan Echinata,Acanthastrea echinata,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Fleshy encrusting LPS. Does well on rock and can be aggressive to close neighbors.,,,,🪸
+Blastomussa,Blastomussa merleti,coral,LPS Corals,Beginner,Yes,Photosynthetic / Target feeder,Hardy low-light LPS with round polyps. Fairly peaceful and good in shaded spots.,,,,🪸
+Favia,Dipsastraea sp.,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Moon coral often still sold as Favia. Extends sweeper tentacles at night.,,,,🪸
+Favites,Favites sp.,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Honeycomb brain coral with shared polyp walls. Gives off sweepers at night.,,,,🪸
+Chalice Coral,Echinophyllia sp.,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Plating LPS with vivid colored mouths. Moderate light and flow. Can sting neighbors.,,,,🪸
+Plate Coral,Fungia sp.,coral,LPS Corals,Moderate,Yes,Photosynthetic / Target feeder,Free-living coral for the sand bed. Can inflate and move. Keep clear of neighbors.,,,,🪸
+Elegance Coral,Catalaphyllia jardinei,coral,LPS Corals,Expert,With Caution,Photosynthetic / Target feeder,Stunning but delicate and very aggressive. Place on sand in low to moderate flow.,,,,🪸
+Galaxea,Galaxea fascicularis,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Fine tubular LPS with very long powerful sweepers. Give it a wide buffer zone.,,,,🪸
+Scroll Coral,Turbinaria reniformis,coral,LPS Corals,Moderate,Yes,Photosynthetic,Plating coral that does best with good light and moderate flow. Often quite durable.,,,,🪸
+Branching Hammer Coral,Euphyllia paraancora,coral,LPS Corals,Moderate,With Caution,Photosynthetic,Branching form of hammer coral. Moderate light and flow. Sweepers need space.,,,,🪸
+Scolymia,Scolymia sp.,coral,LPS Corals,Moderate,With Caution,Photosynthetic / Target feeder,Round single-polyp LPS. Low light and low flow. Feed regularly.,,,,🪸
+Button Coral,Cynarina lacrymalis,coral,LPS Corals,Moderate,Yes,Photosynthetic / Target feeder,Translucent inflated single-polyp LPS. Likes the sand bed in low flow.,,,,🪸
+Birdsnest Coral,Seriatopora hystrix,coral,SPS Corals,Moderate,Yes,Photosynthetic,Fine-branching SPS with strong light and flow. Often the first branching SPS a keeper tries.,,,,🪸
+Stylophora,Stylophora pistillata,coral,SPS Corals,Moderate,Yes,Photosynthetic,Fast-growing branching SPS. Good light and flow. Comes in pink and green.,,,,🪸
+Pocillopora,Pocillopora damicornis,coral,SPS Corals,Moderate,Yes,Photosynthetic,Fast-growing and forgiving SPS. Can spread on its own through tiny larvae.,,,,🪸
+Montipora Digitata,Montipora digitata,coral,SPS Corals,Moderate,Yes,Photosynthetic,Finger-like and fast-growing. Among the easier SPS to start with.,,,,🪸
+Montipora Setosa,Montipora setosa,coral,SPS Corals,Moderate,Yes,Photosynthetic,Short fine branching SPS popular for bright colors. Needs strong light and flow.,,,,🪸
+Acropora Millepora,Acropora millepora,coral,SPS Corals,Expert,Yes,Photosynthetic,Classic staghorn-style SPS. Needs very stable alkalinity with strong light and flow.,,,,🪸
+Acropora Tenuis,Acropora tenuis,coral,SPS Corals,Expert,Yes,Photosynthetic,Fast-growing table-forming SPS. Needs very stable water plus strong light and flow.,,,,🪸
+Psammocora,Psammocora sp.,coral,SPS Corals,Moderate,Yes,Photosynthetic,Encrusting SPS with a velvety texture. Moderate light and flow.,,,,🪸
+Hydnophora,Hydnophora sp.,coral,SPS Corals,Moderate,With Caution,Photosynthetic,Horn coral that grows branches. Its sweepers sting neighbors despite small polyps.,,,,🪸
+Leptoseris,Leptoseris sp.,coral,LPS Corals,Moderate,Yes,Photosynthetic,Thin plating coral that tolerates lower light well. Vulnerable to being shaded or stung.,,,,🪸
+Porites,Porites sp.,coral,SPS Corals,Moderate,Yes,Photosynthetic,Slow-growing stony coral. Durable once settled. Watch for red bugs and flatworms.,,,,🪸
+Cyphastrea,Cyphastrea sp.,coral,SPS Corals,Beginner,Yes,Photosynthetic,Encrusting stony coral. Tolerant of low to moderate light and a good first small-polyp coral.,,,,🪸
+Pavona Cactus Coral,Pavona cactus,coral,SPS Corals,Moderate,Yes,Photosynthetic,Thin upright plates. Moderate light and flow. Can spread over time.,,,,🪸
+Rock Flower Anemone,Epicystis crucifer,coral,Anemones,Beginner,Yes,Photosynthetic / Meaty foods,Colorful Atlantic anemone that tends to stay put. Usually does not host clownfish.,10,4,peaceful,🪸
+Long Tentacle Anemone,Macrodactyla doreensis,coral,Anemones,Moderate,With Caution,Photosynthetic / Meaty foods,Buries its foot in sand and hosts clownfish. Guard pump intakes because anemones can wander.,40,20,semi,🪸
+Mini Maxi Carpet Anemone,Stichodactyla tapetum,coral,Anemones,Moderate,With Caution,Photosynthetic / Meaty foods,Small colorful carpet anemone. Strong sting and can wander. Guard pump intakes.,20,6,semi,🪸
+Condylactis Anemone,Condylactis gigantea,coral,Anemones,Moderate,With Caution,Photosynthetic / Meaty foods,Atlantic anemone with purple-tipped tentacles. Rarely hosts clownfish. Can sting neighbors.,30,12,semi,🪸
+Sebae Anemone,Heteractis crispa,coral,Anemones,Expert,With Caution,Photosynthetic / Meaty foods,Long-tentacled host anemone. Often bleached when sold. Avoid white specimens.,55,20,semi,🪸
+Ritteri Anemone,Heteractis magnifica,coral,Anemones,Expert,With Caution,Photosynthetic / Meaty foods,Spectacular but demanding. Needs intense light and strong flow. Likes high perches.,75,36,semi,🪸
+Haddon's Carpet Anemone,Stichodactyla haddoni,coral,Anemones,Expert,With Caution,Photosynthetic / Meaty foods,Very large with a powerful sting that can catch fish. Needs a big mature tank.,75,30,aggressive,🪸
