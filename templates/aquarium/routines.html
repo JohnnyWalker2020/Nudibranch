@@ -24,18 +24,6 @@
         <h2 class="text-lg font-bold text-white">🧂 Salt Mixing Calculator</h2>
         <p class="text-xs text-slate-400">Salt weight and cups for your target salinity</p>
       </div>
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-          <span class="text-[10px] uppercase font-bold text-slate-500 px-2">Volume:</span>
-          <button type="button" id="btn-unit-gal" onclick="setVolumeUnit('gal')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950">Gallons</button>
-          <button type="button" id="btn-unit-L" onclick="setVolumeUnit('L')" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white">Liters</button>
-        </div>
-        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-          <span class="text-[10px] uppercase font-bold text-slate-500 px-2">Salinity:</span>
-          <button type="button" id="btn-unit-sg" onclick="setSalinityUnit('sg')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950">SG</button>
-          <button type="button" id="btn-unit-ppt" onclick="setSalinityUnit('ppt')" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white">ppt</button>
-        </div>
-      </div>
     </div>
 
     {% include 'aquarium/partials/volume_picker.html' with prefix='salt' %}
@@ -48,24 +36,24 @@
         </select>
       </div>
       <div class="space-y-1.5">
-        <label id="label-volume" class="block text-xs font-bold uppercase tracking-wider text-slate-400">2. Water volume (gallons)</label>
+        <label id="label-volume" class="block text-xs font-bold uppercase tracking-wider text-slate-400">2. Water volume</label>
         <div class="flex rounded-xl overflow-hidden border border-slate-800 bg-slate-950 focus-within:ring-2 focus-within:ring-cyan-500">
-          <input type="number" id="calc-volume" value="10" min="0.5" step="0.5" oninput="recalculateSalt()" class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
-          <span id="badge-volume-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase">GAL</span>
+          <input type="number" id="calc-volume" value="10" min="0.5" step="0.5" oninput="recalculateSalt()" class="w-full min-w-0 px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
+          <select id="calc-volume-unit" aria-label="Volume unit" autocomplete="off" onchange="setVolumeUnit(this.value)" class="shrink-0 w-[4.25rem] px-2 bg-slate-900 border-0 border-l border-slate-800 text-xs text-cyan-400 font-bold focus:outline-none focus:ring-0"><option value="gal">gal</option><option value="L">L</option></select>
         </div>
       </div>
       <div class="space-y-1.5">
-        <label id="label-salinity" class="block text-xs font-bold uppercase tracking-wider text-slate-400">3. Target salinity (SG)</label>
+        <label id="label-salinity" class="block text-xs font-bold uppercase tracking-wider text-slate-400">3. Target salinity</label>
         <div class="flex rounded-xl overflow-hidden border border-slate-800 bg-slate-950 focus-within:ring-2 focus-within:ring-cyan-500">
-          <input type="number" id="calc-salinity" value="1.026" min="1.015" max="1.035" step="0.001" oninput="recalculateSalt()" class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
-          <span id="badge-salinity-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase">SG</span>
+          <input type="number" id="calc-salinity" value="1.026" min="1.015" max="1.035" step="0.001" oninput="recalculateSalt()" class="w-full min-w-0 px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
+          <select id="calc-salinity-unit" aria-label="Target salinity unit" autocomplete="off" onchange="setSalinityUnit(this.value)" class="shrink-0 w-[4.25rem] px-2 bg-slate-900 border-0 border-l border-slate-800 text-xs text-cyan-400 font-bold focus:outline-none focus:ring-0"><option value="sg">SG</option><option value="ppt">ppt</option></select>
         </div>
       </div>
       <div class="space-y-1.5">
-        <label id="label-start-salinity" for="calc-start-salinity" class="block text-xs font-bold uppercase tracking-wider text-slate-400">4. Starting salinity (SG)</label>
+        <label id="label-start-salinity" for="calc-start-salinity" class="block text-xs font-bold uppercase tracking-wider text-slate-400">4. Starting salinity</label>
         <div class="flex rounded-xl overflow-hidden border border-slate-800 bg-slate-950 focus-within:ring-2 focus-within:ring-cyan-500">
-          <input type="number" id="calc-start-salinity" value="0" min="0" step="0.001" oninput="recalculateSalt()" class="w-full px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
-          <span id="badge-start-salinity-unit" class="inline-flex items-center px-4 bg-slate-900 border-l border-slate-800 text-xs text-cyan-400 font-bold uppercase">SG</span>
+          <input type="number" id="calc-start-salinity" value="0" min="0" step="0.001" oninput="recalculateSalt()" class="w-full min-w-0 px-4 py-3 bg-transparent text-white font-bold text-lg focus:outline-none">
+          <select id="calc-start-unit" aria-label="Starting salinity unit" autocomplete="off" onchange="setStartUnit(this.value)" class="shrink-0 w-[4.25rem] px-2 bg-slate-900 border-0 border-l border-slate-800 text-xs text-cyan-400 font-bold focus:outline-none focus:ring-0"><option value="sg">SG</option><option value="ppt">ppt</option></select>
         </div>
         <p class="text-[11px] text-slate-500">Leave at 0 for fresh RO/DI water</p>
       </div>
@@ -319,8 +307,7 @@
 <script>
   let currentVolumeUnit = 'gal';
   let currentSalinityUnit = 'sg';
-  const ON = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-cyan-500 text-slate-950';
-  const OFF = 'px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white';
+  let currentStartUnit = 'sg';
   const $ = id => document.getElementById(id);
 
   // Position automated-schedule ticks and the "now" marker on each 24h timeline.
@@ -336,19 +323,16 @@
     cb.closest('label').querySelector('.item-text').classList.toggle('text-slate-500', cb.checked);
   }
 
+  // SG and ppt, using 1.026 SG = 35 ppt. Anything at or below fresh water stays at 0.
+  const toPpt = sg => sg > 1 ? (sg - 1.0) / 0.026 * 35.0 : 0;
+  const toSg = ppt => ppt > 0 ? 1.0 + (ppt / 35.0) * 0.026 : 0;
+
   function setVolumeUnit(unit) {
     if (currentVolumeUnit === unit) return;
     const input = $('calc-volume');
     const v = parseFloat(input.value) || 10;
-    if (unit === 'L') {
-      input.value = (v * 3.78541).toFixed(1); input.step = '1';
-      $('label-volume').innerText = '2. Water volume (liters)'; $('badge-volume-unit').innerText = 'L';
-    } else {
-      input.value = (v / 3.78541).toFixed(1); input.step = '0.5';
-      $('label-volume').innerText = '2. Water volume (gallons)'; $('badge-volume-unit').innerText = 'GAL';
-    }
-    $('btn-unit-L').className = unit === 'L' ? ON : OFF;
-    $('btn-unit-gal').className = unit === 'gal' ? ON : OFF;
+    input.value = (unit === 'L' ? v * 3.78541 : v / 3.78541).toFixed(1);
+    input.step = unit === 'L' ? '1' : '0.5';
     currentVolumeUnit = unit;
     recalculateSalt();
   }
@@ -356,28 +340,39 @@
   function setSalinityUnit(unit) {
     if (currentSalinityUnit === unit) return;
     const input = $('calc-salinity');
-    const v = parseFloat(input.value) || 1.026;
-    const startInput = $('calc-start-salinity');
-    const start = parseFloat(startInput.value) || 0;
+    const v = parseFloat(input.value) || (unit === 'ppt' ? 1.026 : 35);
     if (unit === 'ppt') {
-      startInput.value = start > 1 ? ((start - 1.0) / 0.026 * 35.0).toFixed(1) : '0';
-      startInput.step = '0.5';
-      $('label-start-salinity').innerText = '4. Starting salinity (ppt)'; $('badge-start-salinity-unit').innerText = 'PPT';
-      input.value = ((v - 1.0) / 0.026 * 35.0).toFixed(1);
+      input.value = toPpt(v).toFixed(1);
       input.min = '20'; input.max = '45'; input.step = '0.5';
-      $('label-salinity').innerText = '3. Target salinity (ppt)'; $('badge-salinity-unit').innerText = 'PPT';
     } else {
-      startInput.value = start > 0 ? (1.0 + (start / 35.0) * 0.026).toFixed(3) : '0';
-      startInput.step = '0.001';
-      $('label-start-salinity').innerText = '4. Starting salinity (SG)'; $('badge-start-salinity-unit').innerText = 'SG';
-      input.value = (1.0 + (v / 35.0) * 0.026).toFixed(3);
+      input.value = toSg(v).toFixed(3);
       input.min = '1.015'; input.max = '1.035'; input.step = '0.001';
-      $('label-salinity').innerText = '3. Target salinity (SG)'; $('badge-salinity-unit').innerText = 'SG';
     }
-    $('btn-unit-ppt').className = unit === 'ppt' ? ON : OFF;
-    $('btn-unit-sg').className = unit === 'sg' ? ON : OFF;
     currentSalinityUnit = unit;
     recalculateSalt();
+  }
+
+  // The starting salinity has its own unit, because it may come from a different instrument than the target.
+  function setStartUnit(unit) {
+    if (currentStartUnit === unit) return;
+    const input = $('calc-start-salinity');
+    const v = parseFloat(input.value) || 0;
+    if (unit === 'ppt') {
+      input.value = v > 1 ? toPpt(v).toFixed(1) : '0';
+      input.step = '0.5';
+    } else {
+      input.value = v > 0 ? toSg(v).toFixed(3) : '0';
+      input.step = '0.001';
+    }
+    currentStartUnit = unit;
+    recalculateSalt();
+  }
+
+  // The server takes one salinity unit, so the starting value is sent in the target's unit.
+  function startInTargetUnit() {
+    const v = parseFloat($('calc-start-salinity').value) || 0;
+    if (currentStartUnit === currentSalinityUnit) return v;
+    return currentSalinityUnit === 'ppt' ? toPpt(v) : toSg(v);
   }
 
   volumePicker({ prefix: 'salt', input: 'calc-volume', unit: () => currentVolumeUnit, scope: 'custom', onChange: recalculateSalt });
@@ -407,7 +402,7 @@
     const q = new URLSearchParams({
       volume: $('calc-volume').value, volume_unit: currentVolumeUnit,
       brand: $('calc-brand').value, salinity: $('calc-salinity').value, salinity_unit: currentSalinityUnit,
-      start_salinity: $('calc-start-salinity').value || 0,
+      start_salinity: startInTargetUnit(),
     });
     try {
       const res = await fetch('{% url "water_change_calc_api" %}?' + q.toString());

@@ -2753,6 +2753,13 @@ class ExtraDosingTests(TestCase):
         self.assertEqual(data['correction_days'], 3)
         self.assertEqual(data['correction_per_day_raise'], 0.017)
 
+    def test_units_sit_beside_their_fields(self):
+        Page = self.client.get(reverse('routines')).content.decode()
+        for unit in ('calc-volume-unit', 'calc-salinity-unit', 'calc-start-unit'):
+            self.assertIn(f'id="{unit}"', Page)
+        self.assertNotIn('btn-unit-', Page)
+        self.assertContains(self.client.get(reverse('dosing')), 'id="est-label-gal-unit"')
+
     def test_they_need_a_label(self):
         response = self.estimate(parameter='iodine', current=0.02, target=0.06, gallons=50)
         self.assertEqual(response.status_code, 400)

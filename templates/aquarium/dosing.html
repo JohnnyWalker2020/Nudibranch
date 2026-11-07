@@ -81,7 +81,7 @@
         <p id="est-loss-note" class="text-[10px] text-slate-500 mt-1"></p>
       </div>
       <div>
-        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Max raise / day</label>
+        <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Max raise / day <span id="est-unit-4" class="normal-case text-slate-500"></span></label>
         <input id="est-max" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
         <p class="text-[10px] text-slate-500 mt-1">Safety guideline, editable.</p>
       </div>
@@ -108,7 +108,7 @@
       <div id="panel-label" class="hidden"><div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div><label class="block text-[11px] text-slate-400 mb-1">Label: ml of product</label><input id="est-label-ml" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></div>
         <div><label class="block text-[11px] text-slate-400 mb-1">raises by (<span class="est-unit-text"></span>)</label><input id="est-label-raise" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></div>
-        <div><label class="block text-[11px] text-slate-400 mb-1">in how many gallons</label><input id="est-label-gal" type="number" step="any" min="0" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></div>
+        <div><label for="est-label-gal" class="block text-[11px] text-slate-400 mb-1">in how much water</label><div class="flex gap-1.5"><input id="est-label-gal" type="number" step="any" min="0" class="min-w-0 flex-1 px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"><select id="est-label-gal-unit" aria-label="Water unit" autocomplete="off" class="px-2 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"><option value="gal">gal</option><option value="L">L</option></select></div></div>
       </div></div>
     </div>
 
@@ -181,7 +181,7 @@
   function fillDefaults() {
     const p = P[$('est-parameter').value];
     const u = p.unit;
-    ['est-unit-1', 'est-unit-2', 'est-unit-3'].forEach(id => $(id).textContent = '(' + u + ')');
+    ['est-unit-1', 'est-unit-2', 'est-unit-3', 'est-unit-4'].forEach(id => $(id).textContent = '(' + u + ')');
     document.querySelectorAll('.est-unit-text').forEach(e => e.textContent = u);
     $('est-current').value = p.current !== null ? p.current : '';
     $('est-current-note').textContent = p.current !== null ? 'Last test ' + p.measured_at + (p.display_unit !== u ? ' (converted from ' + p.display_unit + ')' : '') : (p.available ? 'No test logged yet' : 'Enter your test result');
@@ -231,7 +231,8 @@
     } else {
       q.set('label_ml', $('est-label-ml').value);
       q.set('label_raise', $('est-label-raise').value);
-      q.set('label_gallons', $('est-label-gal').value);
+      const labelWater = parseFloat($('est-label-gal').value);
+      q.set('label_gallons', isNaN(labelWater) ? '' : ($('est-label-gal-unit').value === 'L' ? labelWater / 3.78541 : labelWater));
     }
     let r, data;
     try {

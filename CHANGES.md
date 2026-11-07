@@ -4,6 +4,7 @@
 
 Apply with `docker compose up -d --build`. There's no database change.
 
+- **Units beside each field**: the salt calculator's units now sit next to the volume, target and starting salinity, and each salinity can use its own unit. The Dose Estimator's label amount can be in gallons or liters.
 - **More dosing options**: the Dose Estimator adds nitrate, phosphate, potassium, iodine and strontium, using the amounts on the product's own label.
 - **Label dose fixed**: the Dose Estimator's product label mode scaled the wrong way with tank size, giving too much on a tank smaller than the label's volume and too little on a bigger one. Please re-check any dose worked out with it before this fix.
 
