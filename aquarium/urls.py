@@ -170,6 +170,9 @@ urlpatterns = [
     # Fill timers & RO systems
     path('timers/', tools.timers_view, name='timers'),
     path('timers/start/', tools.timer_start_view, name='timer_start'),
+    path('timers/saved/add/', tools.quick_timer_create_view, name='quick_timer_create'),
+    path('timers/saved/<int:timer_id>/edit/', tools.quick_timer_edit_view, name='quick_timer_edit'),
+    path('timers/saved/<int:timer_id>/delete/', tools.quick_timer_delete_view, name='quick_timer_delete'),
     path('timers/<int:timer_id>/cancel/', tools.timer_cancel_view, name='timer_cancel'),
     path('timers/<int:timer_id>/extend/', tools.timer_extend_view, name='timer_extend'),
     path('timers/<int:timer_id>/dismiss/', tools.timer_dismiss_view, name='timer_dismiss'),

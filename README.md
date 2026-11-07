@@ -86,7 +86,9 @@ tailscale serve --bg 8000
 Tailscale may ask you to approve Serve the first time. Add the `https://` address it shows to `CSRF_TRUSTED_ORIGINS` in `.env`, then run `docker compose up -d` again.
 
 - **Install it on your phone:** open that address and use your browser's install or add to home screen option. Installing needs HTTPS, which this provides.
-- **Keep Tailscale connected:** with the default `BIND_ADDRESS`, your phone needs Tailscale on even at home.
+- **Keep Tailscale connected:** with the default `BIND_ADDRESS`, your phone needs Tailscale on even at home. A device using your phone's hotspot needs Tailscale too.
+- **If it can't connect:** the app shows **Can't reach Nudibranch** with a **Try again** button, rather than an old saved copy of the page. That usually means Tailscale is off.
+- **App icon:** the browser tab and the installed app use your main tank's icon. Browsers fetch the new icon the next time they load a page. On an iPhone, an icon already on the home screen keeps its old picture until you remove it and add it again.
 - **Webcams:** cameras with local network addresses won't load away from home unless they're also reachable through Tailscale.
 
 ---
@@ -94,7 +96,10 @@ Tailscale may ask you to approve Serve the first time. Add the `https://` addres
 ## ✨ Features
 
 ### Multiple tanks
-Pick a tank from the **Tank** menu at the top of any page. The dashboard, parameters, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that tank. Your choice is remembered per device, and the menu flags other tanks that have alerts.
+Pick a tank from the **Tank** menu at the top of any page (beside the logo on a phone). The dashboard, water tests, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that tank. Your choice is remembered per device, and the menu flags other tanks that have alerts.
+
+- **Sizes shown:** wherever a tank is named, its size is the total water: display, sumps and plumbing. The tank's own page still breaks it down.
+- **Order:** the ↑ and ↓ buttons on the **Tanks** page set the order of the tanks there and in the Tank menu.
 
 - **Shared across tanks:** the wishlist, plans, species catalog, parameter names and units, webhooks, backups and the quarantine list.
 - **All tanks views:** Equipment and Power can show every tank at once.
@@ -102,8 +107,9 @@ Pick a tank from the **Tank** menu at the top of any page. The dashboard, parame
 - **Retiring a tank:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and its character ages into the old version. You can bring it back at any time. Your own uploaded icon never changes.
 - **Icon settings:** under **Tools > Settings**, **Disable icon aging** keeps retired tanks young, **Enable old version icons** lets any tank use an old version, and **Enable random icons** gives tanks with no chosen icon a different character on every page.
 
-### Water parameters
-- Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges. **Load more** walks back through your whole log.
+### Water quality
+- Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges. The **Water** page shows your last 10 readings, and **Load more** walks back through the rest.
+- **Quick Add Test** logs a test for the selected tank, or pick another tank in its menu.
 - Each tank can have its own target ranges, or use the shared defaults.
 - Change units and decimals, with automatic conversion of past readings.
 - Want to see the charts and alerts in action first? Add 90 days of made-up tests with `docker compose exec web python manage.py seed_demo_readings`, and take them out again by adding `--remove`. Your own readings are left alone. Limit it to one tank with `--tank NAME`.
@@ -111,6 +117,7 @@ Pick a tank from the **Tank** menu at the top of any page. The dashboard, parame
 ### Livestock and species catalog
 - Track animals with photos, groups, health status and notes. Photos are saved as JPEGs up to 1600 pixels on the longest side to keep them small, and the originals aren't kept. To shrink photos from before this, run `docker compose exec web python manage.py compress_photos`.
 - Browse **240+ built-in species** with care level, diet, reef safety, minimum tank size, adult size and temperament. Add one with a single tap.
+- **Groups** work like tags, and an animal can be in several. Corals from the catalog go into **SPS Corals**, **LPS Corals** or **Soft Corals** (using the usual hobby labels) and also stay in **Corals**. Anemones get their own **Anemones** group.
 - See **compatibility warnings** when an animal may be too big for the tank, may fight, isn't reef safe, or would push the fish load too high.
 - **Quarantine tracker:** day counter and medication and observation log. When the planned days are up, you get a notification and the quarantine ends, marking the animal healthy.
 - **Growth timeline:** dated photos of each animal with a before and after slider.
@@ -123,13 +130,14 @@ The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spr
 - **Wishlist:** save animals and gear with a priority, price, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
 
 ### Equipment, dosing and maintenance
-- **Tank profile:** dimensions, sumps and plumbing, plus substrate type and amount, its linked product, and live rock, in lb or kg.
+- **Tank profile:** dimensions, sumps and plumbing, plus substrate type and amount, its linked product, and live rock, in lb or kg. Split a sump into chambers under **Edit sump**.
 - **Equipment:** service intervals, placement in the display or sump, and pump flow and turnover estimates.
 - **Dosing and top-off:** reservoir levels and run-out forecasts.
-- **Calculators:** the Dose Estimator, Salt Mixing Calculator and Fill Timer calculator use the selected tank's volume, or a custom one. Open the salt calculator or Dose Estimator from the page tabs or from **Tools**. The salt calculator can start from water that already has salt in it, and the Dose Estimator starts from your latest test. It works out dry chemicals or a product's label for alkalinity, calcium and magnesium, and uses the product's label for nitrate, phosphate, potassium, iodine and strontium. Results are estimates, so confirm them independently before using them.
+- **Calculators:** the Salt Mixing Calculator, Dose Estimator and PAR estimate are together on the **Tools** page. They use the selected tank's volume, or a custom one. Tap a unit (gal, L, SG, ppt, g, oz and so on) to switch it, and each answer appears once, in the unit you pick. The salt calculator can start from water that already has salt in it, and the Dose Estimator starts from your latest test. It works out dry chemicals or a product's label for alkalinity, calcium and magnesium, and uses the product's label for nitrate, phosphate, potassium, iodine and strontium. Results are estimates, so confirm them independently before using them.
+- **Water changes:** log one from the dashboard's **Water Change** button or the Routines page. Enter the amount in gallons, liters or a % of the tank's total water, the salinity in SG or ppt, and pick the salt from the calculator's list.
 - **Routines:** manual checklists and automated schedules with flexible repeats, plus water change history.
 - **Step timers:** give a checklist step a timer by ending it with the time in brackets, such as `Wait for the colour to develop [5 min]`. A button on the step starts the countdown, and it beeps when it's done. To also trigger one of your connections when it finishes, name it: `[5 min @Feeder]`.
-- **Lighting and PAR:** set each light's power with a slider, and the tank page gives a rough PAR estimate near the top, in the middle and at the bottom. It averages across the tank from wattage and dimensions, and can easily be off by half, so confirm with a PAR meter before placing sensitive corals.
+- **Lighting and PAR:** set each light's power with a slider, and the PAR estimate on **Tools** gives a rough figure near the top, in the middle and at the bottom of the tank. It averages across the tank from wattage and dimensions, and can easily be off by half, so confirm with a PAR meter before placing sensitive corals.
 - **Power cost:** estimated electricity use and cost from equipment wattage. Set your price under **Tools > Settings**.
 
 ### Alerts
@@ -137,8 +145,10 @@ The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spr
 - **Mute notifications** for a set time, or until you turn them back on. Phone alerts and alert webhooks pause, while alerts still show on the site, and feeder schedules and timers keep working. Anything still wrong when the mute ends is sent then.
 - Resolved alerts are kept for 7 days. Change that, up to 30, under **Tools > Settings**. The history starts when you install this version.
 
-### Fill timers
-Enter your RO/DI specs to estimate fill time and waste water, then start a timer that beeps on the page and can alert your phone.
+### Timers
+- **On the dashboard:** a countdown card where you tap a preset (1, 2, 3, 5, 10 or 30 minutes, or an hour) or nudge it with − and +, then press **Start**. Next to it, **Add a timer** saves ones you use often, like "Feeding, 3 min", each as its own card with a Start button. Change or delete one with its **Edit** link.
+- **Fill timers:** enter your RO/DI specs to estimate fill time and waste water, then start a timer.
+- Every timer runs on the server, so it keeps going if you close or reload the page, beeps when it ends, and can alert your phone.
 
 > A timer only reminds you. **It can't shut off water**, so use a float valve or a timed shut-off on anything that could overflow.
 

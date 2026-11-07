@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q, Sum
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -30,11 +30,11 @@ from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_da
 from .forms import (
     AnimalForm, AnimalGroupForm, AnimalPhotoUploadForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
     ParameterLogEditForm, ParameterSettingsForm, ParameterTypeForm, QuickParameterLogForm,
-    SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
+    QuickTimerForm, SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
 )
 from .models import (
     Animal, AnimalGroup, AppSettings, DosingReservoir, Equipment, FillTimer, MaintenanceRoutine, ParameterLog,
-    ParameterType, SpeciesCatalog, Sump, SumpChamber, Tank, WaterChangeLog, WebcamFeed,
+    ParameterType, QuickTimer, SpeciesCatalog, Sump, SumpChamber, Tank, WaterChangeLog, WebcamFeed,
     ParameterTarget, PlumbingRun, RANGE_FIELDS, in_system, latest_logs_by_parameter, not_retired, reef2reef_search,
 )
 
@@ -170,8 +170,17 @@ def dashboard_view(request):
     if 'countdown' in enabled_keys:
         context['countdown_presets'] = COUNTDOWN_PRESETS
         # A plain timer already running (not a fill or a routine step) shows on the countdown card.
-        context['countdown_timer'] = (FillTimer.objects.filter(status='running', reservoir__isnull=True, routine__isnull=True)
-                                      .order_by('-started_at').first())
+        running = list(FillTimer.objects.filter(status='running', reservoir__isnull=True, routine__isnull=True).order_by('-started_at'))
+        context['countdown_timer'] = next((run for run in running if not run.quick_timer_id), None)
+        latest_run = {}
+        for run in running:
+            if run.quick_timer_id:
+                latest_run.setdefault(run.quick_timer_id, run)
+        saved = list(QuickTimer.objects.all())
+        for timer in saved:
+            timer.running = latest_run.get(timer.pk)
+        context['quick_timers'] = saved
+        context['quick_timer_form'] = QuickTimerForm(auto_id='qt_%s')
 
     # Only run the queries a visible widget actually needs.
     if 'recent_logs' in enabled_keys:
@@ -1789,6 +1798,41 @@ def notifications_view(request):
 # ==========================================
 # PWA service worker (must be served from "/" so it can control the whole site)
 # ==========================================
+
+def app_icon_view(request, size):
+    """The browser tab and home-screen icon: the main tank's icon, or the standard nudibranch."""
+    from . import app_icon
+    path = app_icon.png(size)
+    if path is None:
+        return redirect('/static/icons/icon.svg')
+    response = FileResponse(open(path, 'rb'), content_type='image/png')
+    response['Cache-Control'] = 'public, max-age=86400'  # the links carry a version, so a new icon is a new address
+    return response
+
+
+def manifest_view(request):
+    """The install details for the home-screen app, with the main tank's icon."""
+    from . import app_icon
+    tag = app_icon.version()
+    if tag == 'default':
+        app_icons = [{'src': '/static/icons/icon.svg', 'sizes': '192x192 512x512', 'type': 'image/svg+xml', 'purpose': 'any'}]
+    else:
+        app_icons = [{'src': f'/app-icon/{size}.png?v={tag}', 'sizes': f'{size}x{size}', 'type': 'image/png', 'purpose': 'any'}
+                     for size in (192, 512)]
+    response = JsonResponse({
+        'name': 'Nudibranch Reef Manager',
+        'short_name': 'Nudibranch',
+        'description': 'Saltwater aquarium parameter tracker, livestock manager, and webcam viewer',
+        'start_url': '/',
+        'display': 'standalone',
+        'background_color': '#0f172a',
+        'theme_color': '#0f172a',
+        'orientation': 'portrait-primary',
+        'icons': app_icons,
+    }, content_type='application/manifest+json')
+    response['Cache-Control'] = 'no-cache'
+    return response
+
 
 def service_worker_view(request):
     path = settings.BASE_DIR / 'static' / 'sw.js'

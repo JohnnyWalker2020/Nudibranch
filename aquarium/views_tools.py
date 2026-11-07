@@ -26,9 +26,10 @@ from .forms_tools import (
     QuarantineEntryForm, QuarantinePlanForm, ROSystemForm, SystemThemeForm, WebhookEndpointForm, WishlistEquipmentForm,
     WishlistLivestockForm,
 )
+from .forms import QuickTimerForm
 from .models import (
     Animal, AnimalPhoto, AppSettings, CostEntry, currency_choices, MaintenanceRoutine, PlanProject, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
-    QuarantineEntry, ROSystem, SpeciesCatalog, Tank, WebcamFeed, WebhookDelivery, WebhookEndpoint,
+    QuarantineEntry, QuickTimer, ROSystem, SpeciesCatalog, Tank, WebcamFeed, WebhookDelivery, WebhookEndpoint,
     WishlistItem, in_system, not_retired,
 )
 from .views import _delete_object, calculator_context, _edit_object, _flash_form_errors, _safe_next, _to_decimal, _to_int, safe_json, tank_volume_choices
@@ -702,6 +703,9 @@ def timers_view(request):
 def timer_start_view(request):
     minutes = _to_decimal(request.POST.get('minutes'))
     seconds = int(float(minutes) * 60) if minutes is not None and minutes.is_finite() else 0
+    saved = QuickTimer.objects.filter(pk=_to_int(request.POST.get('quick_timer'), None)).first()
+    if saved:
+        seconds = saved.seconds
     from_step = bool(getattr(request, 'htmx', False))
     as_json = request.POST.get('format') == 'json'  # the dashboard's countdown timer
     if not 0 < seconds <= MAX_TIMER_SECONDS:
@@ -712,10 +716,14 @@ def timer_start_view(request):
         messages.error(request, "Enter a time between a few seconds and 24 hours.")
         return redirect('timers')
     reservoir = DosingReservoir.objects.filter(pk=_to_int(request.POST.get('reservoir'), None)).first()
+    quick = QuickTimer.objects.filter(pk=_to_int(request.POST.get('quick_timer'), None)).first()
     name = (request.POST.get('name') or '').strip()[:100] or (f"Fill {reservoir.name}" if reservoir else 'Timer')
+    if quick:  # a saved dashboard timer runs for its own time
+        name = quick.name
     now = timezone.now()
     routine = MaintenanceRoutine.objects.filter(pk=_to_int(request.POST.get('routine'), None)).first()
-    timer = FillTimer.objects.create(name=name, reservoir=reservoir, routine=routine, started_at=now, ends_at=now + timedelta(seconds=seconds))
+    timer = FillTimer.objects.create(name=name, reservoir=reservoir, routine=routine, quick_timer=quick,
+                                     started_at=now, ends_at=now + timedelta(seconds=seconds))
     chosen = [pk for pk in (_to_int(raw, None) for raw in request.POST.getlist('endpoints')) if pk]
     timer.endpoints.set(WebhookEndpoint.objects.filter(pk__in=chosen))
     if request.POST.get('webhook'):  # a routine's step can name the connection it triggers
@@ -726,6 +734,28 @@ def timer_start_view(request):
         return render(request, 'aquarium/partials/step_timer.html', {'step': {'timer': timer}})
     messages.success(request, f"Timer started: {name}.")
     return redirect('timers')
+
+
+@require_POST
+def quick_timer_create_view(request):
+    form = QuickTimerForm(request.POST)
+    if form.is_valid():
+        timer = form.save()
+        messages.success(request, f"Added the {timer.name} timer ({timer.duration_label}).")
+    else:
+        _flash_form_errors(request, form)
+    return redirect(_safe_next(request, 'dashboard'))
+
+
+def quick_timer_edit_view(request, timer_id):
+    return _edit_object(request, QuickTimer, QuickTimerForm, timer_id, title='Edit Timer',
+                        subtitle='A saved timer on the dashboard', back_url='/',
+                        delete_url=f'/timers/saved/{timer_id}/delete/')
+
+
+def quick_timer_delete_view(request, timer_id):
+    timer = get_object_or_404(QuickTimer, pk=timer_id)
+    return _delete_object(request, QuickTimer, timer_id, label=timer.name, back_url='/')
 
 
 @require_POST

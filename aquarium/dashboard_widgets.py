@@ -7,8 +7,8 @@ from .models import DashboardWidget
 DASHBOARD_WIDGETS = [
     {'key': 'alerts', 'title': 'Tank alerts', 'icon': '⚠️', 'span': 'full',
      'description': 'Out-of-range tests, low reservoirs, overdue routines and service'},
-    {'key': 'countdown', 'title': 'Countdown timer', 'icon': '⏱️', 'span': 'half',
-     'description': 'Pick a time and press Start. Alerts your phone when it ends'},
+    {'key': 'countdown', 'title': 'Timers', 'icon': '⏱️', 'span': 'full',
+     'description': 'A countdown plus your saved timers, each ready to start. Alerts your phone when one ends'},
     {'key': 'parameters', 'title': 'Parameter cards', 'icon': '🧪', 'span': 'full',
      'description': 'Latest value of every tracked parameter'},
     {'key': 'quick_measure', 'title': 'Quick measurements', 'icon': '⚡', 'span': 'half',

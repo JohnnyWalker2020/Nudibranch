@@ -30,6 +30,7 @@ from .themes import theme_css
 from .schedule import parse_step
 from . import backups, compatibility, events, fill, planner, power, timelapse
 from .models import (
+    QuickTimer,
     WaterChangeLog,
     AlertRecord, Animal, AnimalGroup, AnimalPhoto, AppSettings, CostEntry, ParameterTarget, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
     ParameterLog, ParameterType, Sump, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
@@ -2279,7 +2280,9 @@ class ReviewFixTests(TestCase):
         for page in ('parameters', 'dashboard', 'notifications', 'dosing'):
             with CaptureQueriesContext(connection) as queries:
                 self.assertEqual(self.client.get(reverse(page)).status_code, 200)
-            self.assertLess(len(queries), 40, page)
+            # A fixed amount per page: 40 readings and 12 parameters must not add queries. The dashboard's
+            # timers and app icon added a few fixed ones, so the cap is 45.
+            self.assertLess(len(queries), 45, page)
 
     def test_list_status_uses_each_systems_own_targets(self):
         ParameterTarget.objects.create(tank=self.tank, parameter_type=self.alk, min_ideal=10, max_ideal=11)
@@ -3790,8 +3793,8 @@ class CountdownTimerTests(TestCase):
 
     def test_card_is_on_the_dashboard(self):
         page = self.client.get(reverse('dashboard'))
-        self.assertContains(page, 'id="countdown"')
-        self.assertContains(page, 'id="cd-start"')
+        self.assertContains(page, 'id="timer-cards"')
+        self.assertContains(page, 'data-adjustable')
         self.assertIsNone(page.context['countdown_timer'])
 
     def test_start_extend_and_stop(self):
@@ -3865,11 +3868,71 @@ class QuickTestTankAndOfflineTests(TestCase):
     def test_countdown_presets(self):
         page = self.client.get(reverse('dashboard')).content.decode()
         for seconds, label in ((60, '1m'), (180, '3m'), (1800, '30m'), (3600, '1h')):
-            self.assertIn(f'data-cd-preset="{seconds}"', page)
-        self.assertNotIn('cd-name', page)
+            self.assertIn(f'data-preset="{seconds}"', page)
+        self.assertNotIn("What's it for", page)
 
     def test_offline_shows_a_message_not_an_old_page(self):
         sw = self.client.get('/sw.js').content.decode()
         self.assertIn("Can't reach Nudibranch", sw)
         self.assertIn("req.mode === 'navigate'", sw)
         self.assertIn("nudibranch-v6", sw)
+
+
+class SavedTimerAndAppIconTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True, icon_choice='01-dragon-mage-young')
+
+    def test_add_a_saved_timer(self):
+        self.client.post(reverse('quick_timer_create'), {'name': 'Feeding', 'minutes': '3', 'next': '/'})
+        self.client.post(reverse('quick_timer_create'), {'name': 'Alk test', 'minutes': '0.5', 'next': '/'})
+        feeding, alk = QuickTimer.objects.all()
+        self.assertEqual((feeding.name, feeding.seconds, feeding.duration_label, feeding.clock), ('Feeding', 180, '3 min', '03:00'))
+        self.assertEqual((alk.seconds, alk.duration_label), (30, '30 sec'))
+        page = self.client.get(reverse('dashboard'))
+        self.assertContains(page, f'data-quick-id="{feeding.pk}"')
+        self.assertContains(page, 'Add a timer')
+
+    def test_bad_times_are_refused(self):
+        for minutes in ('0', '-1', '5000', ''):
+            self.client.post(reverse('quick_timer_create'), {'name': 'X', 'minutes': minutes})
+        self.assertFalse(QuickTimer.objects.exists())
+
+    def test_starting_a_saved_timer_uses_its_own_time(self):
+        saved = QuickTimer.objects.create(name='Feeding', seconds=180)
+        data = self.client.post(reverse('timer_start'), {'quick_timer': saved.pk, 'minutes': '999', 'name': 'other', 'format': 'json'}).json()
+        timer = FillTimer.objects.get(pk=data['id'])
+        self.assertEqual((timer.name, timer.quick_timer), ('Feeding', saved))
+        self.assertAlmostEqual((timer.ends_at - timezone.now()).total_seconds(), 180, delta=5)
+        page = self.client.get(reverse('dashboard'))
+        self.assertEqual(page.context['quick_timers'][0].running, timer)
+        self.assertIsNone(page.context['countdown_timer'])
+
+    def test_edit_and_delete(self):
+        saved = QuickTimer.objects.create(name='Feeding', seconds=180)
+        self.assertContains(self.client.get(reverse('quick_timer_edit', args=[saved.pk])), 'value="3"')
+        self.client.post(reverse('quick_timer_edit', args=[saved.pk]), {'name': 'Feed', 'minutes': '90'})
+        saved.refresh_from_db()
+        self.assertEqual((saved.name, saved.seconds, saved.duration_label), ('Feed', 5400, '1 hr 30 min'))
+        self.client.post(reverse('quick_timer_delete', args=[saved.pk]))
+        self.assertFalse(QuickTimer.objects.exists())
+
+    def test_app_icon_follows_the_main_tank(self):
+        from . import app_icon
+        path = app_icon.source_file()
+        self.assertTrue(path and path.name.startswith('01-dragon-mage'))
+        page = self.client.get(reverse('dashboard')).content.decode()
+        self.assertIn(f'/app-icon/32.png?v={app_icon.version()}', page)
+        manifest = self.client.get('/manifest.json').json()
+        self.assertEqual([i['sizes'] for i in manifest['icons']], ['192x192', '512x512'])
+        response = self.client.get('/app-icon/192.png')
+        self.assertEqual(response['Content-Type'], 'image/png')
+        from PIL import Image
+        import io
+        with Image.open(io.BytesIO(b''.join(response.streaming_content))) as image:
+            self.assertEqual(image.size, (192, 192))
+
+    def test_app_icon_falls_back_without_one(self):
+        Tank.objects.all().delete()
+        self.assertRedirects(self.client.get('/app-icon/192.png'), '/static/icons/icon.svg', fetch_redirect_response=False)
+        self.assertEqual(self.client.get('/manifest.json').json()['icons'][0]['src'], '/static/icons/icon.svg')
+        self.assertEqual(self.client.get('/app-icon/77.png').status_code, 302)

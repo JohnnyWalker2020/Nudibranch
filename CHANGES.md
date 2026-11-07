@@ -2,7 +2,7 @@
 
 ## Round 13 (2026-11-07)
 
-Apply with `docker compose up -d --build`; migration 0027 runs on start.
+Apply with `docker compose up -d --build`; migrations 0027 and 0028 run on start.
 
 - **Shorter log history**: the Water page shows the last 10 readings, and Load more adds 25 at a time.
 - **PAR estimate on Tools**: lighting and PAR moved from the tank page to Tools, with a link left on each tank. Opening it from a tank or a light shows that tank.
@@ -13,6 +13,8 @@ Apply with `docker compose up -d --build`; migration 0027 runs on start.
 - **Log Water Change units**: tap gal/L and SG/ppt beside the amount and salinity. It's still stored as gallons and SG, using the calculator's 35 ppt = 1.026 SG.
 - **Water change from the dashboard**: a Water Change button beside Quick Add Test. The amount can be gal, L or % of the tank's total water, and the tank defaults to the selected one but can be changed in the popup.
 - **Countdown timer on the dashboard**: a compact card. Tap a preset (1, 2, 3, 5, 10, 30 min or 1 hr) or nudge it with − and +, then press Start. It runs on the server, so it survives a reload and sends a phone alert when it ends. +1 min and Stop while it runs.
+- **Saved timers**: **Add a timer** on the dashboard saves one with its name and time, like "Feeding, 3 min", as its own card with a Start button. The timer cards are the same size as the water test cards. Migration 0028 runs on start.
+- **App icon follows the main tank**: the browser tab and the installed app use the primary tank's icon.
 - **Quick Add Test picks the tank**: the popup has a tank menu, starting on the selected tank.
 - **No more out-of-date pages**: when a phone can't reach the server, it now says so with a Try again button, instead of quietly showing a saved copy of a page that could be days old.
 - **Water change popup fields match**: the tank, salt brand, notes and date fields now look like the amount and salinity boxes, and the date fits on phones.

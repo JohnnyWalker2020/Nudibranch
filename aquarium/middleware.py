@@ -9,8 +9,8 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 # Static files are served before this runs. /admin/ has its own sign-in, for staff only.
-PUBLIC_PREFIXES = ('/login/', '/setup/', '/static/', '/admin/')
-PUBLIC_PATHS = ('/sw.js', '/favicon.ico')
+PUBLIC_PREFIXES = ('/login/', '/setup/', '/static/', '/admin/', '/app-icon/')
+PUBLIC_PATHS = ('/sw.js', '/favicon.ico', '/manifest.json')
 # This endpoint checks the API key itself.
 KEY_CHECKED_PATHS = ('/api/parameters/log/',)
 # This one also works for a device holding the key.

@@ -8,7 +8,7 @@ from django.utils import timezone
 from .models import (
     AppSettings, ParameterLog, Animal, AnimalGroup, ParameterType, Tank, Sump, SumpChamber,
     Equipment, DosingReservoir, MaintenanceRoutine, WaterChangeLog, WebcamFeed,
-    PlumbingRun, WEEKDAYS, WebhookEndpoint,
+    PlumbingRun, QuickTimer, WEEKDAYS, WebhookEndpoint,
 )
 from .schedule import REPEAT_PRESETS, parse_step, preset_key
 
@@ -921,3 +921,27 @@ class MaintenanceRoutineForm(forms.ModelForm):
 # Every tank menu loads what the tank names need in one go (see TANK_TOTAL_PREFETCH).
 for _form in (ParameterLogEditForm, AnimalForm, DosingReservoirForm, WebcamFeedForm, MaintenanceRoutineForm):
     _form.base_fields['tank'].queryset = _form.base_fields['tank'].queryset.prefetch_related(*TANK_TOTAL_PREFETCH)
+
+
+class QuickTimerForm(forms.ModelForm):
+    """A saved dashboard timer. The time is typed in minutes and kept in seconds."""
+    minutes = forms.DecimalField(min_value=Decimal('0.25'), max_value=Decimal('1440'), decimal_places=2,
+                                 widget=forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any', 'placeholder': 'e.g. 5'}),
+                                 help_text="Up to 24 hours. 0.5 is 30 seconds.")
+
+    class Meta:
+        model = QuickTimer
+        fields = ['name']
+        widgets = {'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Feeding, Alk test'})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields['minutes'].initial = (Decimal(self.instance.seconds) / 60).quantize(Decimal('0.01')).normalize()
+
+    def save(self, commit=True):
+        self.instance.seconds = int(self.cleaned_data['minutes'] * 60)
+        if not self.instance.pk and not self.instance.position:
+            last = QuickTimer.objects.aggregate(models.Max('position'))['position__max']
+            self.instance.position = 0 if last is None else last + 1
+        return super().save(commit)

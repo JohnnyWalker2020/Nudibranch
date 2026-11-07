@@ -18,6 +18,8 @@ urlpatterns = [
     path('setup/', aquarium_tools.setup_view, name='setup'),
     # Service worker must live at the site root to control every page (a file under /static/ only controls /static/).
     path('sw.js', aquarium_views.service_worker_view, name='service_worker'),
+    path('manifest.json', aquarium_views.manifest_view, name='manifest'),
+    path('app-icon/<int:size>.png', aquarium_views.app_icon_view, name='app_icon'),
     path('', include('aquarium.urls')),
 ]
 

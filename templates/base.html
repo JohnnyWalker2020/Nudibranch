@@ -6,14 +6,19 @@
   <title>{% block title %}Nudibranch Reef Manager{% endblock %}</title>
 
   <!-- PWA Metadata & iOS Support (Stable Canonical Icon) -->
-  <link rel="manifest" href="/static/manifest.json">
+  <link rel="manifest" href="/manifest.json?v={{ app_icon_version|default:'default' }}">
   <meta name="theme-color" content="{{ theme_background|default:'#0f172a' }}">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Nudibranch">
+  {% if app_icon_version and app_icon_version != 'default' %}
+  <link rel="apple-touch-icon" href="/app-icon/180.png?v={{ app_icon_version }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="/app-icon/32.png?v={{ app_icon_version }}">
+  {% else %}
   <link rel="apple-touch-icon" href="/static/icons/icon.svg">
   <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+  {% endif %}
 
   <!-- Served from this app, so everything works without internet. See "Development" in the README to rebuild them. -->
   <link rel="stylesheet" href="/static/css/tailwind.css">

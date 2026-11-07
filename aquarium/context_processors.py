@@ -54,10 +54,21 @@ def alerts_processor(request):
         }
 
 
+def _app_icon_version(tanks=None):
+    try:
+        from . import app_icon
+        if tanks is None:
+            return app_icon.version()
+        return app_icon.version(app_icon.source_file(app_icon.main_tank(tanks), find=False))
+    except Exception:  # never let the icon stop a page
+        logger.exception("Couldn't work out the app icon")
+        return 'default'
+
+
 def system_processor(request):
     """The selected system, every system's alert count for the selector, and this system's look."""
     if _signed_out(request):
-        return {'theme_background': '#0f172a'}
+        return {'theme_background': '#0f172a', 'app_icon_version': _app_icon_version()}
     try:
         active = get_active_tank(request)
         settings_obj = AppSettings.load()
@@ -83,6 +94,7 @@ def system_processor(request):
             'alerts_muted_until': settings_obj.alerts_muted_until,
             'costs_enabled': settings_obj.costs_enabled,
             'currency_symbol': settings_obj.currency_symbol,
+            'app_icon_version': _app_icon_version(tanks),
         }
     except Exception:
         # Expected during initial migrations.

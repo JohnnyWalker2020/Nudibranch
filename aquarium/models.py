@@ -1389,6 +1389,33 @@ class ROSystem(models.Model):
         return f"{self.name} ({self.rated_gpd} GPD)"
 
 
+class QuickTimer(models.Model):
+    """A saved timer on the dashboard, like "Feeding, 3 min", ready to start with one tap."""
+    name = models.CharField(max_length=60)
+    seconds = models.PositiveIntegerField(help_text="How long it runs")
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+    def __str__(self):
+        return f"{self.name} ({self.duration_label})"
+
+    @property
+    def duration_label(self):
+        hours, rest = divmod(self.seconds, 3600)
+        minutes, seconds = divmod(rest, 60)
+        parts = [f"{hours} hr" if hours else '', f"{minutes} min" if minutes else '', f"{seconds} sec" if seconds else '']
+        return ' '.join(part for part in parts if part) or '0 sec'
+
+    @property
+    def clock(self):
+        """The time as the countdown shows it, e.g. 05:00 or 1:30:00."""
+        hours, rest = divmod(self.seconds, 3600)
+        minutes, seconds = divmod(rest, 60)
+        return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+
+
 class FillTimer(models.Model):
     """A running countdown, e.g. while an ATO reservoir fills."""
     STATUS_CHOICES = [('running', 'Running'), ('finished', 'Finished'), ('cancelled', 'Cancelled')]
@@ -1397,6 +1424,8 @@ class FillTimer(models.Model):
     reservoir = models.ForeignKey(DosingReservoir, on_delete=models.SET_NULL, null=True, blank=True, related_name='timers')
     routine = models.ForeignKey(MaintenanceRoutine, on_delete=models.SET_NULL, null=True, blank=True, related_name='timers',
                                 help_text="Set when this timer belongs to a step of a routine")
+    quick_timer = models.ForeignKey(QuickTimer, on_delete=models.SET_NULL, null=True, blank=True, related_name='runs',
+                                    help_text="Set when started from a saved timer on the dashboard")
     started_at = models.DateTimeField(default=timezone.now)
     ends_at = models.DateTimeField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='running')
