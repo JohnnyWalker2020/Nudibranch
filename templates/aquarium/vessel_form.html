@@ -134,6 +134,16 @@
       <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">Save</button>
     </div>
   </form>
+
+  {% if kind == 'sump' and sump %}
+  <section id="chambers" class="scroll-mt-32 mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+    <div>
+      <h2 class="text-lg font-bold text-white">Chambers</h2>
+      <p class="text-xs text-slate-400">Split {{ sump.name }} into the sections the water flows through. Saved on its own, separately from the details above.</p>
+    </div>
+    {% include 'aquarium/partials/sump_chambers.html' %}
+  </section>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -167,4 +177,5 @@
 
   })();
 </script>
+{% if kind == 'sump' and sump %}{% include 'aquarium/partials/sump_chambers_js.html' %}{% endif %}
 {% endblock %}

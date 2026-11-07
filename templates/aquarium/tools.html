@@ -44,6 +44,11 @@
       <span class="hidden sm:block text-xs text-slate-400 mt-1.5">Work out how much to dose for alkalinity, calcium, magnesium, nitrate, phosphate, and more.</span>
       <span class="mt-auto pt-2 text-[11px] font-semibold text-cyan-400 truncate">Open calculator</span>
     </a>
+    <a href="#light" class="flex flex-col bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-4 transition-all">
+      <span class="flex items-start gap-2"><span class="text-xl sm:text-2xl leading-none">💡</span><span class="text-sm font-bold text-white leading-tight">PAR Estimate</span></span>
+      <span class="hidden sm:block text-xs text-slate-400 mt-1.5">Roughly how much light reaches each depth at your light settings.</span>
+      <span class="mt-auto pt-2 text-[11px] font-semibold text-cyan-400 truncate">{{ light_tank.name|default:"Open estimate" }}</span>
+    </a>
     <a href="{% url 'integrations' %}" class="flex flex-col bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-4 transition-all">
       <span class="flex items-start gap-2"><span class="text-xl sm:text-2xl leading-none">📲</span><span class="text-sm font-bold text-white leading-tight">Phone Alerts &amp; Webhooks</span></span>
       <span class="hidden sm:block text-xs text-slate-400 mt-1.5">Send events to your phone, Home Assistant, or your own devices.</span>
@@ -74,6 +79,7 @@
   <!-- Calculators -->
   {% include 'aquarium/partials/salt_calculator.html' %}
   {% include 'aquarium/partials/dose_estimator.html' %}
+  {% include 'aquarium/partials/par_estimate.html' %}
 
   <p class="text-xs text-slate-500">Growth timelines are on each animal's card under <a href="{% url 'livestock' %}" class="text-cyan-400 hover:underline">Livestock</a>. Time-lapse is on each camera under <a href="{% url 'webcams' %}" class="text-cyan-400 hover:underline">Webcams</a>.</p>
   <a href="{% url 'the_damage' %}" class="block w-fit ml-auto text-xs opacity-20 hover:opacity-100 transition-opacity" aria-label="The Damage">🐚</a>

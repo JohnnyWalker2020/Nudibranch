@@ -7,12 +7,13 @@ from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.http import url_has_allowed_host_and_scheme, urlencode
 from django.views.decorators.csrf import csrf_exempt
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from . import retire
@@ -25,7 +26,7 @@ from .calculators import (
     calculate_salt_mix, dose_estimate, estimate_daily_change,
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value
-from .dashboard_widgets import get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
+from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
 from .forms import (
     AnimalForm, AnimalGroupForm, AnimalPhotoUploadForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
     ParameterLogEditForm, ParameterSettingsForm, ParameterTypeForm, QuickParameterLogForm,
@@ -163,8 +164,14 @@ def dashboard_view(request):
         'layout': layout,
         'visible_widgets': [w for w in layout if w['enabled']],
         'all_widgets': layout,
+        **water_change_context(tank),
     }
     context.update(compute_alert_state(request))
+    if 'countdown' in enabled_keys:
+        context['countdown_presets'] = COUNTDOWN_PRESETS
+        # A plain timer already running (not a fill or a routine step) shows on the countdown card.
+        context['countdown_timer'] = (FillTimer.objects.filter(status='running', reservoir__isnull=True, routine__isnull=True)
+                                      .order_by('-started_at').first())
 
     # Only run the queries a visible widget actually needs.
     if 'recent_logs' in enabled_keys:
@@ -247,7 +254,8 @@ def quick_measure_create(request):
 # Parameters
 # ==========================================
 
-LOG_PAGE_SIZE = 50
+LOG_FIRST_PAGE = 10  # readings shown before Load more
+LOG_PAGE_SIZE = 25  # readings each Load more adds
 
 
 def parameters_view(request):
@@ -265,16 +273,16 @@ def parameters_view(request):
             selected_param = selected_param.for_system(tank)
     # No ?param= means the "All Parameters" view: every parameter on one chart.
 
-    recent_logs = list(logs_query[:LOG_PAGE_SIZE + 1])
-    has_more = len(recent_logs) > LOG_PAGE_SIZE
+    recent_logs = list(logs_query[:LOG_FIRST_PAGE + 1])
+    has_more = len(recent_logs) > LOG_FIRST_PAGE
     form = QuickParameterLogForm()
 
     return render(request, 'aquarium/parameters.html', {
         'parameter_types': types,
         'selected_code': param_code,
         'selected_param': selected_param,
-        'recent_logs': recent_logs[:LOG_PAGE_SIZE],
-        'next_offset': LOG_PAGE_SIZE if has_more else None,
+        'recent_logs': recent_logs[:LOG_FIRST_PAGE],
+        'next_offset': LOG_FIRST_PAGE if has_more else None,
         'form': form,
     })
 
@@ -282,7 +290,7 @@ def parameters_view(request):
 def parameter_logs_more(request):
     """The next page of the log history, for the Load more button."""
     code = request.GET.get('param') or ''
-    offset = _to_int(request.GET.get('offset'), LOG_PAGE_SIZE, 0)
+    offset = _to_int(request.GET.get('offset'), LOG_FIRST_PAGE, 0)
     logs_query = _logs_for_list(get_active_tank(request))
     if code:
         logs_query = logs_query.filter(parameter_type__code=code)
@@ -516,7 +524,9 @@ def api_all_chart_data(request):
 def quick_log_create(request):
     """Handles quick-add parameter submissions via HTMX (modal) or standard form POST."""
     if request.method == 'POST':
-        active_tank = get_active_tank(request)
+        # The popup can pick another tank; anything else (like the quick measurement card) uses the selected one.
+        chosen = _to_int(request.POST.get('tank'), None)
+        active_tank = (Tank.objects.filter(pk=chosen).first() if chosen else None) or get_active_tank(request)
         if active_tank is not None and active_tank.is_archived:
             if getattr(request, 'htmx', False):
                 return HttpResponse(f"{active_tank.name} is retired.", status=400)
@@ -525,13 +535,14 @@ def quick_log_create(request):
         form = QuickParameterLogForm(request.POST)
         if form.is_valid():
             log = form.save(commit=False)
-            log.tank = get_active_tank(request)
+            log.tank = active_tank
             log.save()
             if getattr(request, 'htmx', False):
                 response = render(request, 'aquarium/partials/parameter_log_row.html', {'log': log})
                 response['HX-Trigger'] = 'logAdded'
                 return response
-            messages.success(request, f"Logged {log.parameter_type.name} {log.formatted_value} {log.parameter_type.unit}")
+            where = f" on {log.tank.name}" if log.tank and log.tank != get_active_tank(request) else ''
+            messages.success(request, f"Logged {log.parameter_type.name} {log.formatted_value} {log.parameter_type.unit}{where}")
             return redirect(_safe_next(request, 'dashboard'))
         if getattr(request, 'htmx', False):
             problems = "; ".join(f"{k}: {' '.join(v)}" for k, v in form.errors.items())
@@ -1181,6 +1192,22 @@ def tanks_view(request):
     })
 
 
+@require_POST
+def tank_move_view(request, tank_id):
+    """Moves a tank one place up or down the list. Retired tanks keep their places at the end."""
+    tanks = list(Tank.objects.filter(is_archived=False))
+    index = next((i for i, t in enumerate(tanks) if t.pk == tank_id), None)
+    if index is None:
+        raise Http404
+    other = index - 1 if request.POST.get('direction') == 'up' else index + 1
+    if 0 <= other < len(tanks):
+        tanks[index], tanks[other] = tanks[other], tanks[index]
+    for position, tank in enumerate(tanks + list(Tank.objects.filter(is_archived=True))):
+        if tank.position != position:
+            Tank.objects.filter(pk=tank.pk).update(position=position)
+    return redirect(reverse('tanks') + f'#tank-{tank_id}')
+
+
 def tank_detail_view(request, tank_id):
     tank = get_object_or_404(Tank.objects.prefetch_related('sumps__chambers', 'equipment', 'plumbing_runs'), id=tank_id)
 
@@ -1203,8 +1230,6 @@ def tank_detail_view(request, tank_id):
         'tank': tank,
         'flow': tank.flow_summary(),
         'flow_equipment': _tank_equipment_flow(tank),
-        'light': tank.light_summary(),
-        'chamber_types': [{'value': k, 'label': v} for k, v in SumpChamber.CHAMBER_TYPES],
         'display_equipment': display_equipment,
         'sump_rows': sumps,
     })
@@ -1291,7 +1316,8 @@ def sump_edit_view(request, sump_id):
     else:
         form = SumpForm(instance=sump)
     return render(request, 'aquarium/vessel_form.html', {
-        'form': form, 'title': f'Edit {sump.name}', 'kind': 'sump',
+        'form': form, 'title': f'Edit {sump.name}', 'kind': 'sump', 'sump': sump,
+        'chamber_types': [{'value': k, 'label': v} for k, v in SumpChamber.CHAMBER_TYPES],
         'back_url': f'/tanks/{sump.tank_id}/', 'delete_url': f'/sumps/{sump.id}/delete/',
     })
 
@@ -1354,7 +1380,7 @@ def sump_split_view(request, sump_id):
 
     if not 1 <= count <= 12:
         messages.error(request, "Choose between 1 and 12 chambers.")
-        return redirect('tank_detail', tank_id=sump.tank_id)
+        return redirect(reverse('sump_edit', args=[sump.id]) + '#chambers')
 
     valid_types = {value for value, _ in SumpChamber.CHAMBER_TYPES}
     parsed = []
@@ -1390,7 +1416,7 @@ def sump_split_view(request, sump_id):
         messages.warning(request, f"Chambers saved, but their shares add up to {total}% rather than 100%.")
     else:
         messages.success(request, f"{sump.name} split into {count} chamber{'s' if count != 1 else ''}.")
-    return redirect('tank_detail', tank_id=sump.tank_id)
+    return redirect(reverse('sump_edit', args=[sump.id]) + '#chambers')
 
 
 def chamber_edit_view(request, chamber_id):
@@ -1502,6 +1528,31 @@ def equipment_delete_view(request, eq_id):
 # Maintenance Routines & Water Change Checklists
 # ==========================================
 
+def _last_salt_brand():
+    """The salt used last time, if it's one the calculator knows, so the next log starts there."""
+    last = WaterChangeLog.objects.exclude(salt_brand='').order_by('-performed_at').values_list('salt_brand', flat=True).first()
+    return last if last in {r['name'] for r in SALT_MIX_RECIPES.values()} else ''
+
+
+# The popup's fields share the look of its amount and salinity boxes. min-w-0 and the fixed height keep a
+# phone's date picker from spilling out of its box.
+WC_POPUP_FIELD = ('block w-full min-w-0 h-11 px-3 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm '
+                  'appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500')
+
+
+def water_change_context(tank):
+    """The Log Water Change popup: its form, starting on the selected tank, and each tank's total water for %."""
+    form = WaterChangeLogForm(initial={'tank': tank, 'salt_brand': _last_salt_brand()}, auto_id='wc_%s')
+    for name in ('tank', 'salt_brand', 'notes', 'performed_at'):
+        # Menus keep their own arrow; the date box drops the phone's default styling so it fits.
+        form.fields[name].widget.attrs['class'] = WC_POPUP_FIELD.replace(' appearance-none', '') if name in ('tank', 'salt_brand') else WC_POPUP_FIELD
+    return {
+        'wc_form': form,
+        'wc_tank_volumes': {str(t.pk): t.total_system_gallons
+                            for t in Tank.objects.filter(is_archived=False).prefetch_related('sumps', 'plumbing_runs')},
+    }
+
+
 def routines_view(request):
     """Recurring tank checklists, water change preparation calculator, and change logs."""
     tank = get_active_tank(request)
@@ -1523,7 +1574,7 @@ def routines_view(request):
         'manual_routines': manual_routines,
         'automated_routines': automated_routines,
         'water_changes': water_changes,
-        'wc_form': WaterChangeLogForm(initial={'tank': tank}, auto_id='wc_%s'),
+        **water_change_context(tank),
         'routine_form': MaintenanceRoutineForm(initial={'tank': tank}),
     })
 
@@ -1608,10 +1659,10 @@ def water_change_log_create(request):
         form = WaterChangeLogForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Water change logged.")
+            messages.success(request, f"Water change logged: {form.instance.gallons} gal on {form.instance.tank.name}.")
         else:
             _flash_form_errors(request, form)
-    return redirect('routines')
+    return redirect(_safe_next(request, 'routines'))
 
 
 def water_change_edit_view(request, wc_id):

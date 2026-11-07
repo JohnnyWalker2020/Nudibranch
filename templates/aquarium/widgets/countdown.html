@@ -1,0 +1,118 @@
+<!-- Countdown timer: pick a time, press Start. It runs on the server, so it survives a reload and can alert your phone. -->
+<section id="countdown" class="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2"
+         data-start-url="{% url 'timer_start' %}" data-timers-url="{% url 'timers' %}"
+         {% if countdown_timer %}data-id="{{ countdown_timer.id }}" data-ends="{{ countdown_timer.ends_at|date:'c' }}"{% endif %}>
+  {% csrf_token %}
+  <div class="flex items-center gap-2">
+    <a href="{% url 'timers' %}" class="text-lg leading-none shrink-0" title="Countdown timer · see all timers" aria-label="All timers">⏱️</a>
+    <button type="button" data-cd-adjust="-60" class="cd-setup shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 font-bold text-slate-300" aria-label="One minute less">−</button>
+    <div id="cd-display" class="min-w-[4.75rem] text-center text-2xl font-black tabular-nums text-white" aria-live="polite">05:00</div>
+    <button type="button" data-cd-adjust="60" class="cd-setup shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 font-bold text-slate-300" aria-label="One minute more">+</button>
+    <button type="button" id="cd-start" class="cd-setup flex-1 h-9 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-sm rounded-xl active:scale-95 transition-all">▶ Start</button>
+    <div id="cd-running" class="hidden flex-1 grid grid-cols-2 gap-1.5">
+      <button type="button" id="cd-more" class="h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 font-bold text-xs rounded-xl">+1 min</button>
+      <button type="button" id="cd-cancel" class="h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-300 font-bold text-xs rounded-xl">Stop</button>
+    </div>
+    <button type="button" id="cd-reset" class="hidden flex-1 h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs rounded-xl">Done · reset</button>
+  </div>
+  <div class="cd-setup grid grid-cols-7 gap-1">
+    {% for seconds, label in countdown_presets %}
+    <button type="button" data-cd-preset="{{ seconds }}" class="py-1.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-[11px] font-bold text-slate-300">{{ label }}</button>
+    {% endfor %}
+  </div>
+  <p id="cd-error" class="hidden text-xs text-rose-400 text-center"></p>
+</section>
+
+<script>
+(function () {
+  const box = document.getElementById('countdown');
+  if (!box) return;
+  const el = id => document.getElementById(id);
+  const display = el('cd-display'), error = el('cd-error');
+  const csrf = box.querySelector('[name=csrfmiddlewaretoken]').value;
+  const MAX = 24 * 3600;
+  let seconds = 300, timerId = null, endsAt = null, tick = null, alerted = false;
+  try { seconds = parseInt(localStorage.getItem('nudi-countdown-seconds'), 10) || 300; } catch (e) { /* private mode */ }
+
+  const fmt = s => {
+    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = String(s % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${String(m).padStart(2, '0')}:${sec}`;
+  };
+  function show(state) {  // 'setup', 'running' or 'done'
+    box.querySelectorAll('.cd-setup').forEach(n => n.classList.toggle('hidden', state !== 'setup'));
+    el('cd-running').classList.toggle('hidden', state !== 'running');
+    el('cd-reset').classList.toggle('hidden', state !== 'done');
+    display.classList.toggle('text-cyan-400', state === 'running');
+    display.classList.toggle('text-white', state === 'setup');
+    display.classList.toggle('text-emerald-400', state === 'done');
+    display.classList.toggle('animate-pulse', state === 'done');
+  }
+  function setSeconds(s) {
+    seconds = Math.max(10, Math.min(MAX, s));
+    display.textContent = fmt(seconds);
+    try { localStorage.setItem('nudi-countdown-seconds', seconds); } catch (e) { /* private mode */ }
+  }
+  function fail(message) { error.textContent = message; error.classList.remove('hidden'); }
+  async function post(url, data) {
+    const body = new URLSearchParams({ ...data, format: 'json' });
+    const res = await fetch(url, { method: 'POST', body, headers: { 'X-CSRFToken': csrf } });
+    if (!res.ok) throw new Error('Request failed');
+    return res.json();
+  }
+
+  function run() {
+    clearInterval(tick);
+    const update = () => {
+      const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+      display.textContent = left ? fmt(left) : 'Done!';
+      if (!left) {
+        clearInterval(tick);
+        show('done');
+        if (!alerted) {
+          alerted = true;
+          if (typeof nudiBeep === 'function') nudiBeep();
+          if ('Notification' in window && Notification.permission === 'granted') new Notification('Timer finished', { body: 'Countdown' });
+        }
+      }
+    };
+    show('running');
+    update();
+    tick = setInterval(update, 250);
+  }
+
+  box.querySelectorAll('[data-cd-preset]').forEach(b => b.addEventListener('click', () => setSeconds(parseInt(b.dataset.cdPreset, 10))));
+  box.querySelectorAll('[data-cd-adjust]').forEach(b => b.addEventListener('click', () => setSeconds(seconds + parseInt(b.dataset.cdAdjust, 10))));
+
+  el('cd-start').addEventListener('click', async () => {
+    error.classList.add('hidden');
+    // Pressing Start is the moment a phone allows sound and asks about notifications.
+    try { nudiAudio = nudiAudio || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* no sound */ }
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    try {
+      const data = await post(box.dataset.startUrl, { minutes: (seconds / 60).toFixed(4), name: 'Countdown' });
+      timerId = data.id; endsAt = Date.parse(data.ends_at); alerted = false;
+      run();
+    } catch (e) { fail("Couldn't start the timer. Check your connection and try again."); }
+  });
+  el('cd-more').addEventListener('click', async () => {
+    try {
+      const data = await post(`${box.dataset.timersUrl}${timerId}/extend/`, { minutes: 1 });
+      endsAt = Date.parse(data.ends_at);
+    } catch (e) { fail("Couldn't add a minute."); }
+  });
+  el('cd-cancel').addEventListener('click', async () => {
+    try { await post(`${box.dataset.timersUrl}${timerId}/cancel/`, {}); } catch (e) { /* it ends by itself anyway */ }
+    clearInterval(tick); timerId = null; setSeconds(seconds); show('setup');
+  });
+  el('cd-reset').addEventListener('click', () => { timerId = null; setSeconds(seconds); show('setup'); });
+
+  // A timer already running (started here or on another device) picks up where it is.
+  if (box.dataset.id) {
+    timerId = box.dataset.id; endsAt = Date.parse(box.dataset.ends);
+    run();
+  } else {
+    setSeconds(seconds);
+    show('setup');
+  }
+})();
+</script>

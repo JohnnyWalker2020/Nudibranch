@@ -7,6 +7,8 @@ from .models import DashboardWidget
 DASHBOARD_WIDGETS = [
     {'key': 'alerts', 'title': 'Tank alerts', 'icon': '⚠️', 'span': 'full',
      'description': 'Out-of-range tests, low reservoirs, overdue routines and service'},
+    {'key': 'countdown', 'title': 'Countdown timer', 'icon': '⏱️', 'span': 'half',
+     'description': 'Pick a time and press Start. Alerts your phone when it ends'},
     {'key': 'parameters', 'title': 'Parameter cards', 'icon': '🧪', 'span': 'full',
      'description': 'Latest value of every tracked parameter'},
     {'key': 'quick_measure', 'title': 'Quick measurements', 'icon': '⚡', 'span': 'half',
@@ -26,6 +28,9 @@ DASHBOARD_WIDGETS = [
 ]
 
 WIDGET_KEYS = [w['key'] for w in DASHBOARD_WIDGETS]
+
+# The countdown card's one-tap times: (seconds, label).
+COUNTDOWN_PRESETS = [(60, '1m'), (120, '2m'), (180, '3m'), (300, '5m'), (600, '10m'), (1800, '30m'), (3600, '1h')]
 
 
 def get_dashboard_layout():

@@ -50,6 +50,7 @@ urlpatterns = [
     path('tanks/add/', views.tank_create_view, name='tank_create'),
     path('tanks/<int:tank_id>/', views.tank_detail_view, name='tank_detail'),
     path('tanks/<int:tank_id>/edit/', views.tank_edit_view, name='tank_edit'),
+    path('tanks/<int:tank_id>/move/', views.tank_move_view, name='tank_move'),
     path('tanks/<int:tank_id>/delete/', views.tank_delete_view, name='tank_delete'),
     path('tanks/<int:tank_id>/sumps/add/', views.sump_create_view, name='sump_create'),
     path('sumps/<int:sump_id>/edit/', views.sump_edit_view, name='sump_edit'),

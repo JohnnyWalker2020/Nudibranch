@@ -1,0 +1,38 @@
+<script>
+  document.querySelectorAll('.split-form').forEach(form => {
+    const rows = form.querySelector('.split-rows');
+    const proto = form.querySelector('.split-proto');
+    const countInput = form.querySelector('.split-count');
+    const totalLabel = form.querySelector('.split-total');
+
+    function renumber() {
+      rows.querySelectorAll('.split-row').forEach((r, i) => { r.querySelector('.split-num').textContent = i + 1; });
+    }
+    function updateTotal() {
+      const total = [...rows.querySelectorAll('.split-share')].reduce((s, el) => s + (parseFloat(el.value) || 0), 0);
+      const t = Math.round(total * 10) / 10;
+      totalLabel.textContent = 'Shares total: ' + t + '%';
+      totalLabel.className = 'split-total text-[11px] ' + (Math.abs(t - 100) < 0.5 ? 'text-emerald-400' : 'text-amber-400');
+    }
+    function evenShares() {
+      const list = rows.querySelectorAll('.split-share');
+      const n = list.length;
+      if (!n) return;
+      const base = Math.floor(1000 / n) / 10;
+      list.forEach((el, i) => { el.value = i === n - 1 ? (Math.round((100 - base * (n - 1)) * 10) / 10) : base; });
+      updateTotal();
+    }
+    function resize() {
+      const want = Math.max(1, Math.min(12, parseInt(countInput.value) || 1));
+      countInput.value = want;
+      while (rows.children.length > want) rows.lastElementChild.remove();
+      while (rows.children.length < want) rows.appendChild(proto.content.cloneNode(true));
+      renumber();
+      evenShares();
+    }
+    countInput.addEventListener('change', resize);
+    form.querySelector('.split-even').addEventListener('click', evenShares);
+    rows.addEventListener('input', updateTotal);
+    if (!rows.children.length) resize(); else { renumber(); updateTotal(); }
+  });
+</script>

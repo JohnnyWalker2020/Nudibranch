@@ -30,6 +30,7 @@ from .themes import theme_css
 from .schedule import parse_step
 from . import backups, compatibility, events, fill, planner, power, timelapse
 from .models import (
+    WaterChangeLog,
     AlertRecord, Animal, AnimalGroup, AnimalPhoto, AppSettings, CostEntry, ParameterTarget, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
     ParameterLog, ParameterType, Sump, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
     TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint, WishlistItem,
@@ -2623,14 +2624,15 @@ class LogPagingAndPageTests(TestCase):
 
     def test_load_more_walks_through_everything(self):
         page = self.client.get(reverse('parameters'))
-        self.assertEqual(len(page.context['recent_logs']), 50)
+        self.assertEqual(len(page.context['recent_logs']), 10)
         self.assertContains(page, 'Load more')
-        second = self.client.get(reverse('parameter_logs_more'), {'offset': 50})
-        self.assertEqual(len(second.context['recent_logs']), 50)
-        self.assertContains(second, 'offset=100')
-        third = self.client.get(reverse('parameter_logs_more'), {'offset': 100})
-        self.assertEqual(len(third.context['recent_logs']), 20)
-        self.assertNotContains(third, 'Load more')
+        self.assertContains(page, 'offset=10')
+        second = self.client.get(reverse('parameter_logs_more'), {'offset': 10})
+        self.assertEqual(len(second.context['recent_logs']), 25)
+        self.assertContains(second, 'offset=35')
+        last = self.client.get(reverse('parameter_logs_more'), {'offset': 110})
+        self.assertEqual(len(last.context['recent_logs']), 10)
+        self.assertNotContains(last, 'Load more')
 
     def test_load_more_keeps_the_selected_parameter(self):
         other, _ = ParameterType.objects.update_or_create(code='calcium', defaults={
@@ -2642,7 +2644,7 @@ class LogPagingAndPageTests(TestCase):
         self.assertTrue(all(log.parameter_type_id == self.alk.pk for log in logs))
 
     def test_short_list_has_no_button(self):
-        ParameterLog.objects.filter(pk__in=ParameterLog.objects.values('pk')[:100]).delete()
+        ParameterLog.objects.filter(pk__in=ParameterLog.objects.values('pk')[:112]).delete()
         self.assertNotContains(self.client.get(reverse('parameters')), 'Load more')
 
     def test_pinch_zoom_is_allowed_and_nothing_loads_from_the_internet(self):
@@ -2710,7 +2712,8 @@ class LightAndParTests(TestCase):
         self.assertEqual(self.par(), before)
 
     def test_pages_show_the_slider_and_estimate(self):
-        page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), reverse('tools') + f'?tank={self.tank.pk}#light')
+        page = self.client.get(reverse('tools'), {'tank': self.tank.pk})
         self.assertContains(page, 'about ')
         self.assertContains(page, 'PAR')
         self.assertContains(page, 'Rough estimate only')
@@ -2719,9 +2722,9 @@ class LightAndParTests(TestCase):
 
     def test_missing_details_ask_for_them(self):
         Equipment.objects.filter(pk=self.light.pk).update(wattage=None)
-        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), 'Add a wattage')
+        self.assertContains(self.client.get(reverse('tools'), {'tank': self.tank.pk}), 'Add a wattage')
         Tank.objects.filter(pk=self.tank.pk).update(width=None)
-        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), 'dimensions</a> to see a PAR estimate')
+        self.assertContains(self.client.get(reverse('tools'), {'tank': self.tank.pk}), 'dimensions</a> to see a PAR estimate')
 
 
 class ExtraDosingTests(TestCase):
@@ -3606,3 +3609,267 @@ class CoralGroupAndWaterWordingTests(TestCase):
         self.assertIn('>Water</span>', page)
         self.assertNotIn('>Params<', page)
         self.assertContains(self.client.get(reverse('parameters')), 'Water Quality')
+
+
+class TankOrderTopBarAndParTests(TestCase):
+    def setUp(self):
+        self.a = Tank.objects.create(name='Alpha', volume_gallons=40, is_primary=True)
+        self.b = Tank.objects.create(name='Bravo', volume_gallons=20, is_primary=False)
+        self.c = Tank.objects.create(name='Charlie', volume_gallons=10, is_primary=False)
+
+    def names(self):
+        return [t.name for t in Tank.objects.all()]
+
+    def test_new_tanks_go_to_the_end(self):
+        self.assertEqual(self.names(), ['Alpha', 'Bravo', 'Charlie'])
+        Tank.objects.create(name='Aardvark', volume_gallons=5, is_primary=False)
+        self.assertEqual(self.names()[-1], 'Aardvark')
+
+    def test_moving_up_and_down(self):
+        self.client.post(reverse('tank_move', args=[self.c.pk]), {'direction': 'up'})
+        self.assertEqual(self.names(), ['Alpha', 'Charlie', 'Bravo'])
+        self.client.post(reverse('tank_move', args=[self.a.pk]), {'direction': 'down'})
+        self.assertEqual(self.names(), ['Charlie', 'Alpha', 'Bravo'])
+        # The ends stay put.
+        self.client.post(reverse('tank_move', args=[self.c.pk]), {'direction': 'up'})
+        self.assertEqual(self.names(), ['Charlie', 'Alpha', 'Bravo'])
+
+    def test_order_shows_on_the_page_and_in_the_menu(self):
+        self.client.post(reverse('tank_move', args=[self.c.pk]), {'direction': 'up'})
+        page = self.client.get(reverse('tanks')).content.decode()
+        self.assertLess(page.index('id="tank-%d"' % self.c.pk), page.index('id="tank-%d"' % self.b.pk))
+        self.assertIn('Move Charlie up', page)
+        menu = page[page.index('id="system-select"'):]
+        self.assertLess(menu.index('>Charlie<'), menu.index('>Bravo<'))
+
+    def test_move_needs_post(self):
+        self.assertEqual(self.client.get(reverse('tank_move', args=[self.a.pk])).status_code, 405)
+
+    def test_phone_top_bar_has_the_tank_menu(self):
+        page = self.client.get(reverse('dashboard')).content.decode()
+        self.assertIn('id="system-select-top"', page)
+        self.assertIn('id="system-select"', page)
+
+    def test_par_estimate_lives_on_tools(self):
+        page = self.client.get(reverse('tools'), {'tank': self.b.pk})
+        self.assertContains(page, 'id="light"')
+        self.assertEqual(page.context['light_tank'], self.b)
+        self.assertEqual(self.client.get(reverse('tools')).context['light_tank'], self.a)
+        self.assertNotContains(self.client.get(reverse('tank_detail', args=[self.a.pk])), 'id="light"')
+
+    def test_sumps_come_before_flow_on_the_tank_page(self):
+        page = self.client.get(reverse('tank_detail', args=[self.a.pk])).content.decode()
+        self.assertLess(page.index('No sump on this tank'), page.index('Flow &amp; Water Turnover'))
+
+
+class WaterChangeUnitsAndChamberTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=10, capacity_is_manual=True)
+
+    def log(self, **data):
+        base = {'tank': self.tank.pk, 'gallons': '5', 'salt_brand': '', 'target_salinity': '', 'notes': '', 'performed_at': ''}
+        base.update(data)
+        self.client.post(reverse('water_change_log_create'), base)
+        return WaterChangeLog.objects.order_by('-id').first()
+
+    def test_gallons_and_sg_are_stored_as_entered(self):
+        wc = self.log(gallons='5', target_salinity='1.025', volume_unit='gal', salinity_unit='sg')
+        self.assertEqual(wc.gallons, Decimal('5.0'))
+        self.assertEqual(wc.target_salinity, Decimal('1.025'))
+
+    def test_liters_and_ppt_are_converted(self):
+        wc = self.log(gallons='18.9', target_salinity='35', volume_unit='L', salinity_unit='ppt')
+        self.assertEqual(wc.gallons, Decimal('5.0'))
+        self.assertEqual(wc.target_salinity, Decimal('1.026'))
+
+    def test_ppt_typed_as_sg_is_caught(self):
+        self.assertIsNone(self.log(target_salinity='35', salinity_unit='sg'))
+
+    def test_salt_brand_comes_from_the_calculator(self):
+        from .calculators import SALT_MIX_RECIPES
+        page = self.client.get(reverse('routines')).content.decode()
+        for recipe in SALT_MIX_RECIPES.values():
+            self.assertIn('>%s</option>' % recipe['name'].replace("'", '&#x27;'), page)
+        self.assertIn('id="wc-volume-unit"', page)
+        self.assertIn('id="wc-salinity-unit"', page)
+        self.assertIsNone(self.log(salt_brand='Made Up Salt'))
+        wc = self.log(salt_brand='Red Sea Coral Pro')
+        self.assertEqual(wc.salt_brand, 'Red Sea Coral Pro')
+        # The next log starts on the salt used last time.
+        self.assertEqual(self.client.get(reverse('routines')).context['wc_form'].initial['salt_brand'], 'Red Sea Coral Pro')
+
+    def test_chambers_are_edited_only_on_the_sump_page(self):
+        tank_page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        self.assertNotContains(tank_page, 'split-form')
+        self.assertNotContains(tank_page, 'Change chambers')
+        sump_page = self.client.get(reverse('sump_edit', args=[self.sump.pk]))
+        self.assertContains(sump_page, 'split-form')
+        response = self.client.post(reverse('sump_split', args=[self.sump.pk]), {
+            'chamber_type': ['other', 'other'], 'chamber_name': ['A', 'B'], 'chamber_share': ['50', '50']})
+        self.assertRedirects(response, reverse('sump_edit', args=[self.sump.pk]) + '#chambers', fetch_redirect_response=False)
+        self.assertEqual(self.sump.chambers.count(), 2)
+        tank_page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        self.assertNotContains(tank_page, reverse('chamber_edit', args=[self.sump.chambers.first().pk]))
+
+
+class QuickWaterChangeTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=40, capacity_is_manual=True, is_primary=True)
+        Sump.objects.create(tank=self.main, name='Sump', volume_gallons=10, capacity_is_manual=True)
+        self.qt = Tank.objects.create(name='QT', volume_gallons=20, capacity_is_manual=True, is_primary=False)
+
+    def log(self, **data):
+        base = {'tank': self.main.pk, 'gallons': '5', 'salt_brand': '', 'target_salinity': '', 'notes': '', 'performed_at': ''}
+        base.update(data)
+        return self.client.post(reverse('water_change_log_create'), base)
+
+    def test_dashboard_has_the_button_and_popup(self):
+        page = self.client.get(reverse('dashboard'))
+        self.assertContains(page, "openModal('log-wc-modal')")
+        self.assertContains(page, 'id="log-wc-modal"')
+        self.assertContains(page, 'data-units="gal,L,%"')
+        self.assertEqual(page.context['wc_form'].initial['tank'], self.main)
+        self.assertEqual(page.context['wc_tank_volumes'], {str(self.main.pk): 50.0, str(self.qt.pk): 20.0})
+
+    def test_percent_of_total_water(self):
+        self.log(gallons='10', volume_unit='%')
+        self.assertEqual(WaterChangeLog.objects.get().gallons, Decimal('5.0'))  # 10% of 40 + 10
+
+    def test_percent_uses_the_chosen_tank(self):
+        self.log(tank=self.qt.pk, gallons='25', volume_unit='%')
+        wc = WaterChangeLog.objects.get()
+        self.assertEqual((wc.tank, wc.gallons), (self.qt, Decimal('5.0')))
+
+    def test_percent_must_be_sensible(self):
+        self.log(gallons='150', volume_unit='%')
+        self.assertFalse(WaterChangeLog.objects.exists())
+
+    def test_returns_to_the_page_it_came_from(self):
+        response = self.log(next='/')
+        self.assertRedirects(response, '/', fetch_redirect_response=False)
+        self.assertRedirects(self.log(next='https://evil.example/'), reverse('routines'), fetch_redirect_response=False)
+
+    def test_retired_tanks_are_not_offered(self):
+        Tank.objects.filter(pk=self.qt.pk).update(is_archived=True)
+        page = self.client.get(reverse('dashboard'))
+        self.assertNotIn(self.qt, list(page.context['wc_form'].fields['tank'].queryset))
+
+    def test_even_shares_are_allowed_by_the_share_boxes(self):
+        sump = self.main.sumps.get()
+        page = self.client.get(reverse('sump_edit', args=[sump.pk])).content.decode()
+        self.assertIn('step="0.1" class="split-share', page)
+        self.assertNotIn('step="0.5" class="split-share', page)
+        self.client.post(reverse('sump_split', args=[sump.pk]), {
+            'chamber_type': ['other'] * 3, 'chamber_name': ['', '', ''], 'chamber_share': ['33.3', '33.3', '33.4']})
+        self.assertEqual(sum(c.share_percent for c in sump.chambers.all()), Decimal('100.0'))
+
+
+class TotalVolumeShownTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, capacity_is_manual=True, is_primary=True)
+        Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=10, capacity_is_manual=True)
+
+    def test_tank_names_carry_the_total_water(self):
+        self.assertEqual(str(self.tank), 'Main (50.0 gal)')
+        page = self.client.get(reverse('dashboard')).content.decode()
+        self.assertIn('Main (50.0 gal)</option>', page)
+        self.assertNotIn('Main (40.0 gal)', page)
+
+    def test_tank_pages_lead_with_the_total(self):
+        self.assertContains(self.client.get(reverse('tanks')), '50.0 gal total water')
+        detail = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        self.assertContains(detail, '50.0 gal total water')
+        # The tank's own size stays on its page, labelled as the display tank.
+        self.assertContains(detail, 'Display tank')
+
+
+class CountdownTimerTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+
+    def test_card_is_on_the_dashboard(self):
+        page = self.client.get(reverse('dashboard'))
+        self.assertContains(page, 'id="countdown"')
+        self.assertContains(page, 'id="cd-start"')
+        self.assertIsNone(page.context['countdown_timer'])
+
+    def test_start_extend_and_stop(self):
+        data = self.client.post(reverse('timer_start'), {'minutes': '5', 'name': 'Feeding', 'format': 'json'}).json()
+        timer = FillTimer.objects.get(pk=data['id'])
+        self.assertEqual(timer.name, 'Feeding')
+        self.assertAlmostEqual((timer.ends_at - timezone.now()).total_seconds(), 300, delta=5)
+        extended = self.client.post(reverse('timer_extend', args=[timer.pk]), {'minutes': 1, 'format': 'json'}).json()
+        timer.refresh_from_db()
+        self.assertEqual(extended['ends_at'], timer.ends_at.isoformat())
+        self.assertAlmostEqual((timer.ends_at - timezone.now()).total_seconds(), 360, delta=5)
+        self.assertEqual(self.client.post(reverse('timer_cancel', args=[timer.pk]), {'format': 'json'}).json(), {'ok': True})
+        timer.refresh_from_db()
+        self.assertEqual(timer.status, 'cancelled')
+
+    def test_a_running_countdown_shows_after_a_reload(self):
+        data = self.client.post(reverse('timer_start'), {'minutes': '2', 'name': 'Countdown', 'format': 'json'}).json()
+        page = self.client.get(reverse('dashboard'))
+        self.assertEqual(page.context['countdown_timer'].pk, data['id'])
+        self.assertContains(page, f'data-id="{data["id"]}"')
+
+    def test_fills_and_step_timers_are_not_shown_on_it(self):
+        routine = MaintenanceRoutine.objects.create(title='Test', tank=self.tank)
+        self.client.post(reverse('timer_start'), {'minutes': '2', 'name': 'Step', 'routine': routine.pk, 'format': 'json'})
+        self.assertIsNone(self.client.get(reverse('dashboard')).context['countdown_timer'])
+
+    def test_bad_times_are_refused(self):
+        for minutes in ('0', '-3', '2000', 'nan', ''):
+            response = self.client.post(reverse('timer_start'), {'minutes': minutes, 'format': 'json'})
+            self.assertEqual(response.status_code, 400, minutes)
+
+    def test_water_change_popup_fields_match(self):
+        form = self.client.get(reverse('dashboard')).context['wc_form']
+        for name in ('tank', 'salt_brand', 'notes', 'performed_at'):
+            self.assertIn('bg-slate-950', form.fields[name].widget.attrs['class'], name)
+        self.assertIn('appearance-none', form.fields['performed_at'].widget.attrs['class'])
+        self.assertNotIn('appearance-none', form.fields['salt_brand'].widget.attrs['class'])
+
+
+class QuickTestTankAndOfflineTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.qt = Tank.objects.create(name='QT', volume_gallons=20, is_primary=False)
+        self.alk, _ = ParameterType.objects.update_or_create(code='alkalinity', defaults={'name': 'Alkalinity', 'unit': 'dKH', 'min_ideal': 8, 'max_ideal': 9})
+
+    def post(self, **extra):
+        data = {'parameter_type': self.alk.pk, 'value': '8.4', 'notes': '', 'measured_at': '', 'next': '/'}
+        data.update(extra)
+        return self.client.post(reverse('quick_log_create'), data)
+
+    def test_popup_offers_each_tank_with_the_selected_one_first(self):
+        page = self.client.get(reverse('dashboard')).content.decode()
+        menu = page[page.index('id="quick-log-tank"'):]
+        menu = menu[:menu.index('</select>')]
+        self.assertIn(f'value="{self.main.pk}" selected', menu)
+        self.assertIn('>QT</option>', menu)
+
+    def test_test_goes_to_the_chosen_tank(self):
+        self.post(tank=self.qt.pk)
+        self.assertEqual(ParameterLog.objects.get().tank, self.qt)
+
+    def test_without_a_choice_it_uses_the_selected_tank(self):
+        self.post()
+        self.assertEqual(ParameterLog.objects.get().tank, self.main)
+
+    def test_a_retired_tank_takes_no_tests(self):
+        Tank.objects.filter(pk=self.qt.pk).update(is_archived=True)
+        self.post(tank=self.qt.pk)
+        self.assertFalse(ParameterLog.objects.exists())
+
+    def test_countdown_presets(self):
+        page = self.client.get(reverse('dashboard')).content.decode()
+        for seconds, label in ((60, '1m'), (180, '3m'), (1800, '30m'), (3600, '1h')):
+            self.assertIn(f'data-cd-preset="{seconds}"', page)
+        self.assertNotIn('cd-name', page)
+
+    def test_offline_shows_a_message_not_an_old_page(self):
+        sw = self.client.get('/sw.js').content.decode()
+        self.assertIn("Can't reach Nudibranch", sw)
+        self.assertIn("req.mode === 'navigate'", sw)
+        self.assertIn("nudibranch-v6", sw)

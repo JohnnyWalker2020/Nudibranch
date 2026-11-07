@@ -1,0 +1,47 @@
+<!-- Split a sump into chambers. Needs sump and chamber_types, and sump_chambers_js.html. -->
+      <form method="POST" action="{% url 'sump_split' sump.id %}" class="split-form space-y-3" data-sump="{{ sump.id }}">
+        {% csrf_token %}
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <label class="text-[11px] text-slate-400" for="count-{{ sump.id }}">Number of chambers</label>
+            <input type="number" id="count-{{ sump.id }}" class="split-count w-16 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500" min="1" max="12" value="{% if sump.chambers.all %}{{ sump.chambers.all|length }}{% else %}3{% endif %}">
+            <button type="button" class="split-even px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700">Even shares</button>
+          </div>
+        </div>
+
+        <div class="split-rows space-y-2">
+          {% for c in sump.chambers.all %}
+            <div class="split-row grid grid-cols-[2rem_1fr] sm:grid-cols-[2rem_12rem_1fr_6rem] gap-2 items-center">
+              <span class="split-num text-xs text-slate-500 text-center">{{ forloop.counter }}</span>
+              <select name="chamber_type" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs">
+                {% for t in chamber_types %}<option value="{{ t.value }}" {% if t.value == c.chamber_type %}selected{% endif %}>{{ t.label }}</option>{% endfor %}
+              </select>
+              <input type="text" name="chamber_name" value="{{ c.name }}" maxlength="80" placeholder="Name (optional)" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs col-span-2 sm:col-span-1">
+              <div class="flex items-center gap-1 col-span-2 sm:col-span-1">
+                <input type="number" name="chamber_share" value="{{ c.share_percent|floatformat:1 }}" min="0" max="100" step="0.1" class="split-share w-full px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs text-right">
+                <span class="text-[11px] text-slate-400">%</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <template class="split-proto">
+          <div class="split-row grid grid-cols-[2rem_1fr] sm:grid-cols-[2rem_12rem_1fr_6rem] gap-2 items-center">
+            <span class="split-num text-xs text-slate-500 text-center"></span>
+            <select name="chamber_type" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs">
+              {% for t in chamber_types %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}
+            </select>
+            <input type="text" name="chamber_name" maxlength="80" placeholder="Name (optional)" class="px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs col-span-2 sm:col-span-1">
+            <div class="flex items-center gap-1 col-span-2 sm:col-span-1">
+              <input type="number" name="chamber_share" min="0" max="100" step="0.1" class="split-share w-full px-2 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs text-right">
+              <span class="text-[11px] text-slate-400">%</span>
+            </div>
+          </div>
+        </template>
+
+        <div class="flex items-center justify-between gap-2">
+          <span class="split-total text-[11px] text-slate-400"></span>
+          <button type="submit" onclick="return confirm('Save these chambers? If you reduced the number, the extra chambers are removed (their equipment stays in the sump).')" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg active:scale-95 transition-all">Save chambers</button>
+        </div>
+        <p class="text-[11px] text-slate-500">Order = the path the water takes (1 is first). Shares are each chamber's part of the sump's water volume.</p>
+      </form>

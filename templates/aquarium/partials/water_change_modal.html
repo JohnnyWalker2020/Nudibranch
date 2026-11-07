@@ -1,0 +1,79 @@
+<!-- Log Water Change popup. Needs wc_form and wc_tank_volumes (see views.water_change_context). -->
+  <div id="log-wc-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white">Log Water Change</h3>
+        <button type="button" onclick="closeModal('log-wc-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
+      </div>
+      <form method="POST" action="{% url 'water_change_log_create' %}" class="mt-4 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div><label for="wc_tank" class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ wc_form.tank }}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="wc_gallons" class="block text-xs font-bold uppercase text-slate-400 mb-1">Water changed *</label>
+            <div class="unit-field h-11"><input type="number" name="gallons" id="wc_gallons" step="any" min="0" required inputmode="decimal"><button type="button" id="wc-volume-unit" data-units="gal,L,%" data-labels="gal,L,% of tank" data-name="Water unit" value="gal" class="unit-btn">gal</button></div>
+            <p id="wc-amount-hint" class="text-[10px] text-slate-500 mt-1"></p>
+          </div>
+          <div>
+            <label for="wc_target_salinity" class="block text-xs font-bold uppercase text-slate-400 mb-1">Salinity</label>
+            <div class="unit-field h-11"><input type="number" name="target_salinity" id="wc_target_salinity" step="any" min="0" inputmode="decimal" placeholder="1.026"><button type="button" id="wc-salinity-unit" data-units="sg,ppt" data-labels="SG,ppt" data-name="Salinity unit" value="sg" class="unit-btn">SG</button></div>
+          </div>
+        </div>
+        {{ wc_form.volume_unit }}{{ wc_form.salinity_unit }}
+        <div><label for="wc_salt_brand" class="block text-xs font-bold uppercase text-slate-400 mb-1">Salt brand</label>{{ wc_form.salt_brand }}</div>
+        <div><label for="wc_notes" class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ wc_form.notes }}</div>
+        <div><label for="wc_performed_at" class="block text-xs font-bold uppercase text-slate-400 mb-1">Date &amp; time <span class="normal-case text-slate-500">(blank = now)</span></label>{{ wc_form.performed_at }}</div>
+        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="closeModal('log-wc-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {{ wc_tank_volumes|json_script:"wc-tank-volumes" }}
+  <script>
+    // The unit buttons fill hidden fields, switching converts what's typed, and % is of the chosen tank's total water.
+    (function () {
+      const el = id => document.getElementById(id);
+      const volumes = JSON.parse(el('wc-tank-volumes').textContent);
+      const tank = el('wc_tank'), amount = el('wc_gallons'), unitButton = el('wc-volume-unit'), unitField = el('wc_volume_unit');
+      const hint = el('wc-amount-hint'), salinity = el('wc_target_salinity'), salButton = el('wc-salinity-unit'), salField = el('wc_salinity_unit');
+      const total = () => volumes[tank.value] || 0;
+      const toGallons = (v, unit) => unit === 'L' ? v / 3.78541 : unit === '%' ? v / 100 * total() : v;
+      const fromGallons = (g, unit) => unit === 'L' ? g * 3.78541 : unit === '%' ? (total() ? g / total() * 100 : 0) : g;
+
+      function showHint() {
+        const v = parseFloat(amount.value), unit = unitButton.value, t = total();
+        if (unit === '%') {
+          hint.textContent = !t ? 'This tank has no volume set, so % can\'t be worked out.'
+            : (isNaN(v) ? 'Of ' + t.toFixed(1) + ' gal total water' : '≈ ' + toGallons(v, '%').toFixed(1) + ' gal of ' + t.toFixed(1) + ' gal total');
+        } else {
+          hint.textContent = t && !isNaN(v) ? '≈ ' + Math.round(toGallons(v, unit) / t * 100) + '% of ' + t.toFixed(1) + ' gal total' : '';
+        }
+      }
+      unitField.value = unitButton.value;
+      unitButton.addEventListener('change', () => {
+        const v = parseFloat(amount.value);
+        if (!isNaN(v) && unitField.value !== unitButton.value) {
+          const converted = fromGallons(toGallons(v, unitField.value), unitButton.value);
+          amount.value = unitButton.value === '%' ? Math.round(converted) : converted.toFixed(1);
+        }
+        unitField.value = unitButton.value;
+        showHint();
+      });
+      amount.addEventListener('input', showHint);
+      tank.addEventListener('change', showHint);
+
+      salField.value = salButton.value;
+      salButton.addEventListener('change', () => {
+        const v = parseFloat(salinity.value);
+        if (!isNaN(v) && salField.value !== salButton.value) {
+          salinity.value = salButton.value === 'ppt' ? ((v - 1) / 0.026 * 35).toFixed(1) : (1 + v / 35 * 0.026).toFixed(3);
+        }
+        salField.value = salButton.value;
+        salinity.placeholder = salButton.value === 'ppt' ? '35' : '1.026';
+      });
+      showHint();
+    })();
+  </script>

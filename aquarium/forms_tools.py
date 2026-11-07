@@ -348,3 +348,8 @@ class PlannedEquipmentForm(StyledFormMixin, forms.ModelForm):
         fields = ['name', 'category', 'quantity', 'wattage', 'max_flow_gph', 'unit_cost']
         labels = {'wattage': 'Watts each', 'max_flow_gph': 'Rated flow each (gph)', 'unit_cost': 'Price each'}
         widgets = {'name': forms.TextInput(attrs={'placeholder': 'e.g. 36 W LED, 300 W heater'})}
+
+
+# Tank names show total water; load what that needs with the menu.
+for _form in (CostEntryForm, WishlistLivestockForm):
+    _form.base_fields['tank'].queryset = _form.base_fields['tank'].queryset.prefetch_related('sumps', 'plumbing_runs')

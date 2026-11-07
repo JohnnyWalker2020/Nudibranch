@@ -475,12 +475,21 @@ class Tank(DimensionedVessel):
     live_rock_unit = models.CharField(max_length=2, choices=WEIGHT_UNITS, default='lb')
     is_archived = models.BooleanField(default=False, editable=False)
     archived_at = models.DateTimeField(null=True, blank=True, editable=False)
+    position = models.PositiveIntegerField(default=0, editable=False, help_text="Order on the Tanks page and in the Tank menu")
 
     class Meta:
-        ordering = ['-is_primary', 'name']
+        ordering = ['position', 'name']
 
     def __str__(self):
-        return f"{self.name} ({self.volume_gallons} gal)"
+        # Everywhere a tank is picked, its size is the whole system's water: display, sumps and plumbing.
+        return f"{self.name} ({self.total_system_gallons} gal)"
+
+    def save(self, *args, **kwargs):
+        # A new tank goes to the end of the list.
+        if self._state.adding and not self.position:
+            last = Tank.objects.aggregate(models.Max('position'))['position__max']
+            self.position = 0 if last is None else last + 1
+        super().save(*args, **kwargs)
 
     @staticmethod
     def _weight_label(amount, unit):

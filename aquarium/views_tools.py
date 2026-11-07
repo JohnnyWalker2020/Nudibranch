@@ -270,7 +270,7 @@ def the_damage_view(request):
         'has_retired': Tank.objects.filter(is_archived=True).exists(),
         'show_all': show_all,
         'selected_tank': tank,
-        'systems_all': Tank.objects.order_by('is_archived', '-is_primary', 'name'),
+        'systems_all': Tank.objects.order_by('is_archived', 'position', 'name'),
         'multiple_systems': Tank.objects.count() > 1,
         'date_from': date_from,
         'date_to': date_to,
@@ -333,8 +333,12 @@ def cost_delete_view(request, entry_id):
 def tools_view(request):
     settings_obj = AppSettings.load()
     tank = get_active_tank(request)
+    # The PAR estimate can show another tank, when it's opened from that tank's page or a light.
+    light_tank = Tank.objects.filter(pk=_to_int(request.GET.get('tank'), None)).first() or tank
     return render(request, 'aquarium/tools.html', {
         **calculator_context(tank),
+        'light_tank': light_tank,
+        'light': light_tank.light_summary() if light_tank else None,
         'settings_obj': settings_obj,
         'plan_count': PlannedSystem.objects.count(),
         'running_timers': FillTimer.objects.filter(status='running').count(),
@@ -697,9 +701,12 @@ def timers_view(request):
 @require_POST
 def timer_start_view(request):
     minutes = _to_decimal(request.POST.get('minutes'))
-    seconds = int(float(minutes) * 60) if minutes is not None else 0
+    seconds = int(float(minutes) * 60) if minutes is not None and minutes.is_finite() else 0
     from_step = bool(getattr(request, 'htmx', False))
+    as_json = request.POST.get('format') == 'json'  # the dashboard's countdown timer
     if not 0 < seconds <= MAX_TIMER_SECONDS:
+        if as_json:
+            return JsonResponse({'error': 'Enter a time between a few seconds and 24 hours.'}, status=400)
         if from_step:
             return HttpResponse(status=400)
         messages.error(request, "Enter a time between a few seconds and 24 hours.")
@@ -713,6 +720,8 @@ def timer_start_view(request):
     timer.endpoints.set(WebhookEndpoint.objects.filter(pk__in=chosen))
     if request.POST.get('webhook'):  # a routine's step can name the connection it triggers
         timer.endpoints.add(*WebhookEndpoint.objects.filter(name__iexact=request.POST['webhook']))
+    if as_json:
+        return JsonResponse({'id': timer.id, 'name': timer.name, 'ends_at': timer.ends_at.isoformat()})
     if from_step:  # started from a routine's step: the page stays put, so ticked steps stay ticked
         return render(request, 'aquarium/partials/step_timer.html', {'step': {'timer': timer}})
     messages.success(request, f"Timer started: {name}.")
@@ -722,6 +731,8 @@ def timer_start_view(request):
 @require_POST
 def timer_cancel_view(request, timer_id):
     FillTimer.objects.filter(pk=timer_id, status='running').update(status='cancelled')
+    if request.POST.get('format') == 'json':
+        return JsonResponse({'ok': True})
     return redirect('timers')
 
 
@@ -734,6 +745,8 @@ def timer_extend_view(request, timer_id):
     timer.status = 'running'
     timer.notified = False
     timer.save()
+    if request.POST.get('format') == 'json':
+        return JsonResponse({'id': timer.id, 'ends_at': timer.ends_at.isoformat()})
     return redirect('timers')
 
 

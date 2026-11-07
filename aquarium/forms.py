@@ -1,6 +1,8 @@
+from decimal import Decimal
 import re
 
 from django import forms
+from django.db import models
 from django.utils import timezone
 
 from .models import (
@@ -635,8 +637,31 @@ class DosingReservoirForm(forms.ModelForm):
         return cleaned
 
 
+LITERS_PER_GALLON = Decimal('3.78541')
+# A tank's name shows its total water, which reads its sumps and plumbing, so tank menus load those together.
+TANK_TOTAL_PREFETCH = ('sumps', 'plumbing_runs')
+
+
+def salt_brand_choices(current=''):
+    """The salt calculator's brands, plus a saved brand that isn't one of them so editing doesn't lose it."""
+    from .calculators import SALT_MIX_RECIPES
+    names = [recipe['name'] for recipe in SALT_MIX_RECIPES.values()]
+    if current and current not in names:
+        names.append(current)
+    return [('', 'Not recorded')] + [(name, name) for name in names]
+
+
 class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
+    """Stores gallons and SG. The amount can be entered in liters and the salinity in ppt."""
     now_field = 'performed_at'
+    # Any number of decimals is fine on the way in. They're rounded after converting.
+    gallons = forms.DecimalField(min_value=Decimal('0'), widget=forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any'}),
+                                 help_text="Gallons of new water changed")
+    target_salinity = forms.DecimalField(required=False, min_value=Decimal('0'), label='Salinity',
+                                         widget=forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any'}),
+                                         help_text="Mixed water salinity (SG)")
+    volume_unit = forms.ChoiceField(choices=[('gal', 'gal'), ('L', 'L'), ('%', '% of total water')], required=False, widget=forms.HiddenInput)
+    salinity_unit = forms.ChoiceField(choices=[('sg', 'SG'), ('ppt', 'ppt')], required=False, widget=forms.HiddenInput)
 
     class Meta:
         model = WaterChangeLog
@@ -644,8 +669,7 @@ class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
         widgets = {
             'tank': forms.Select(attrs={'class': INPUT}),
             'gallons': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.5'}),
-            'salt_brand': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Tropic Marin Pro'}),
-            'target_salinity': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.001'}),
+            'salt_brand': forms.Select(attrs={'class': INPUT}),
             'notes': forms.TextInput(attrs={'class': TEXTAREA, 'placeholder': 'Temperature matched, cleaned glass'}),
             'performed_at': _datetime_widget(),
         }
@@ -653,12 +677,59 @@ class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._setup_now_field()
+        # Retired tanks aren't offered, except the one an old entry already belongs to.
+        tanks = Tank.objects.filter(is_archived=False)
+        if self.instance.pk and self.instance.tank_id:
+            tanks = Tank.objects.filter(models.Q(is_archived=False) | models.Q(pk=self.instance.tank_id))
+        self.fields['tank'].queryset = tanks.prefetch_related(*TANK_TOTAL_PREFETCH)
+        self.fields['tank'].empty_label = None
+        current = self.data.get('salt_brand') if self.is_bound else (self.initial.get('salt_brand') or self.instance.salt_brand)
+        self.fields['salt_brand'].widget.choices = salt_brand_choices(current or '')
 
-    def clean_gallons(self):
-        gallons = self.cleaned_data['gallons']
-        if gallons <= 0:
-            raise forms.ValidationError("Must be greater than zero.")
-        return gallons
+    def clean_salt_brand(self):
+        brand = (self.cleaned_data.get('salt_brand') or '').strip()
+        allowed = {value for value, _ in salt_brand_choices(self.instance.salt_brand or '')}
+        if brand not in allowed:
+            raise forms.ValidationError("Pick a salt from the list.")
+        return brand
+
+    def clean(self):
+        cleaned = super().clean()
+        gallons = cleaned.get('gallons')
+        if gallons is not None and cleaned.get('volume_unit') == '%':
+            tank = cleaned.get('tank')
+            total = Decimal(str(tank.total_system_gallons)) if tank else Decimal(0)
+            if not 0 < gallons <= 100:
+                self.add_error('gallons', "Enter a percentage between 0 and 100.")
+                gallons = None
+            elif total <= 0:
+                self.add_error('gallons', "This tank has no volume set, so a percentage can't be worked out. Enter gallons or liters.")
+                gallons = None
+            else:
+                gallons = total * gallons / 100
+        if gallons is not None:
+            if cleaned.get('volume_unit') == 'L':
+                gallons = gallons / LITERS_PER_GALLON
+            gallons = gallons.quantize(Decimal('0.1'))
+            if gallons <= 0:
+                self.add_error('gallons', "Must be greater than zero.")
+            elif gallons >= Decimal('100000'):
+                self.add_error('gallons', "That's more water than this can store.")
+            else:
+                cleaned['gallons'] = gallons
+        salinity = cleaned.get('target_salinity')
+        if salinity is not None:
+            if cleaned.get('salinity_unit') == 'ppt':
+                if salinity > 50:
+                    self.add_error('target_salinity', "Salinity in ppt is usually around 35.")
+                    return cleaned
+                # The same conversion as the salt calculator: 35 ppt is 1.026 SG.
+                salinity = 1 + salinity / Decimal('35') * Decimal('0.026')
+            elif salinity > Decimal('1.1'):
+                self.add_error('target_salinity', "That looks like ppt. Enter SG like 1.026, or tap SG to switch to ppt.")
+                return cleaned
+            cleaned['target_salinity'] = salinity.quantize(Decimal('0.001'))
+        return cleaned
 
 
 def _clean_camera_url(url):
@@ -845,3 +916,8 @@ class MaintenanceRoutineForm(forms.ModelForm):
         if automated:
             cleaned_data['due_time'] = None
         return cleaned_data
+
+
+# Every tank menu loads what the tank names need in one go (see TANK_TOTAL_PREFETCH).
+for _form in (ParameterLogEditForm, AnimalForm, DosingReservoirForm, WebcamFeedForm, MaintenanceRoutineForm):
+    _form.base_fields['tank'].queryset = _form.base_fields['tank'].queryset.prefetch_related(*TANK_TOTAL_PREFETCH)

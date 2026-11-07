@@ -74,7 +74,7 @@
                 <span class="text-[11px] text-slate-400">%</span>
                 <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
               </form>
-              <p class="text-[10px] text-slate-500">{% if eq.wattage %}About {% widthratio eq.wattage 100 eq.power_setting_percent %} W of {{ eq.wattage }} W.{% else %}<a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">Add its wattage</a> to estimate power and light levels.{% endif %}{% if eq.tank_id and not eq.sump_id %} <a href="{% url 'tank_detail' eq.tank_id %}#light" class="text-cyan-400 hover:underline">See PAR estimate</a>{% endif %}</p>
+              <p class="text-[10px] text-slate-500">{% if eq.wattage %}About {% widthratio eq.wattage 100 eq.power_setting_percent %} W of {{ eq.wattage }} W.{% else %}<a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">Add its wattage</a> to estimate power and light levels.{% endif %}{% if eq.tank_id and not eq.sump_id %} <a href="{% url 'tools' %}?tank={{ eq.tank_id }}#light" class="text-cyan-400 hover:underline">See PAR estimate</a>{% endif %}</p>
             </div>
           {% endif %}
 

@@ -1,5 +1,25 @@
 # Nudibranch: change summary
 
+## Round 13 (2026-11-07)
+
+Apply with `docker compose up -d --build`; migration 0027 runs on start.
+
+- **Shorter log history**: the Water page shows the last 10 readings, and Load more adds 25 at a time.
+- **PAR estimate on Tools**: lighting and PAR moved from the tank page to Tools, with a link left on each tank. Opening it from a tank or a light shows that tank.
+- **Tank menu in the phone top bar**: on phones, the tank picker sits beside the logo instead of on its own row.
+- **Reorder tanks**: up and down buttons on the Tanks page. The order is also used in the Tank menu. Existing tanks keep the order they had: primary first, then by name.
+- **Sumps near the top**: a tank's sumps now come right after its volume and dimensions.
+- **Chambers edited under Edit sump**: splitting a sump into chambers, and changing them, is on the Edit sump page only. The tank page just shows them.
+- **Log Water Change units**: tap gal/L and SG/ppt beside the amount and salinity. It's still stored as gallons and SG, using the calculator's 35 ppt = 1.026 SG.
+- **Water change from the dashboard**: a Water Change button beside Quick Add Test. The amount can be gal, L or % of the tank's total water, and the tank defaults to the selected one but can be changed in the popup.
+- **Countdown timer on the dashboard**: a compact card. Tap a preset (1, 2, 3, 5, 10, 30 min or 1 hr) or nudge it with − and +, then press Start. It runs on the server, so it survives a reload and sends a phone alert when it ends. +1 min and Stop while it runs.
+- **Quick Add Test picks the tank**: the popup has a tank menu, starting on the selected tank.
+- **No more out-of-date pages**: when a phone can't reach the server, it now says so with a Try again button, instead of quietly showing a saved copy of a page that could be days old.
+- **Water change popup fields match**: the tank, salt brand, notes and date fields now look like the amount and salinity boxes, and the date fits on phones.
+- **Total water everywhere**: tank menus, the Tanks list and the top of each tank's page show the total water (display, sumps and plumbing). The display tank's own size stays in the tank page's breakdown.
+- **Even shares fixed**: the chamber share boxes accept one decimal place, so Even shares (33.3%) no longer trips the browser's check.
+- **Salt brand from the list**: the salt brand is picked from the salt calculator's brands, starting on the one you used last.
+
 ## Round 12 (2026-11-07)
 
 Apply with `docker compose up -d --build`; migration 0026 runs on start.
