@@ -13,7 +13,7 @@
       {% if selected_param %}
         <a href="{% url 'parameter_settings' selected_param.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors" title="Change units, decimals and ideal range">⚙️ {{ selected_param.name }} settings</a>
       {% endif %}
-      <button type="button" onclick="openQuickLogModal({% if selected_param and selected_code %}{{ selected_param.id }}{% endif %})" class="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Log Measurement</button>
+      <button type="button" onclick="openQuickLogModal({% if selected_param and selected_code %}{{ selected_param.id }}{% endif %})" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Log Test</button>
     </div>
   </div>
 
@@ -45,13 +45,16 @@
   <div class="space-y-2">
     <div class="flex items-center justify-between px-1">
       <h3 class="text-base font-bold text-white">Log History</h3>
-      <span class="text-xs text-slate-500">newest first</span>
+      <span class="flex items-center gap-3 text-xs">
+        <span class="text-slate-500">newest first</span>
+        <a href="{% url 'export_tests' %}" class="font-semibold text-slate-400 hover:text-cyan-400" title="Every test for this tank, as a spreadsheet file">Export CSV</a>
+      </span>
     </div>
     <div id="recent-logs-list" class="space-y-1.5">
       {% for log in recent_logs %}
         {% include 'aquarium/partials/parameter_log_row.html' %}
       {% empty %}
-        <div class="p-12 text-center text-slate-500 text-sm bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No records yet. Use “Log Measurement” to add one.</div>
+        <div class="p-12 text-center text-slate-500 text-sm bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No records yet. Use “Log Test” to add one.</div>
       {% endfor %}
       {% if next_offset %}{% include 'aquarium/partials/parameter_log_page.html' with recent_logs=None %}{% endif %}
     </div>

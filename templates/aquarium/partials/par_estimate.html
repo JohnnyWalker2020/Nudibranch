@@ -1,6 +1,6 @@
 <!-- Lighting & PAR estimate for one tank. Needs light_tank and light (Tank.light_summary). -->
 {% if light_tank %}
-  <div id="light" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+  <div id="light" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
     <div>
       <h2 class="text-lg font-bold text-white">💡 Lighting &amp; PAR estimate</h2>
       <p class="text-xs text-slate-400">How much light reaches each depth in <a href="{% url 'tank_detail' light_tank.id %}" class="text-cyan-400 hover:underline">{{ light_tank.name }}</a> at your current power settings</p>

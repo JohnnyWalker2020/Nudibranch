@@ -1,0 +1,44 @@
+<!-- Log a dose popup. Needs dose_form. openDoseLog({...}) can fill it in, like the Dose Estimator does. -->
+<div id="dose-log-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+  <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl my-8">
+    <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+      <h3 class="text-lg font-bold text-white">Log a Dose</h3>
+      <button type="button" onclick="closeModal('dose-log-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
+    </div>
+    <form method="POST" action="{% url 'dose_log_create' %}" class="mt-4 space-y-4">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label for="dose_tank" class="block text-xs font-bold uppercase text-slate-400 mb-1">Tank</label>{{ dose_form.tank }}</div>
+        <div><label for="dose_parameter" class="block text-xs font-bold uppercase text-slate-400 mb-1">For</label>{{ dose_form.parameter }}</div>
+      </div>
+      <div><label for="dose_product" class="block text-xs font-bold uppercase text-slate-400 mb-1">Product</label>{{ dose_form.product }}</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label for="dose_amount" class="block text-xs font-bold uppercase text-slate-400 mb-1">Amount *</label>{{ dose_form.amount }}</div>
+        <div><label for="dose_unit" class="block text-xs font-bold uppercase text-slate-400 mb-1">Unit</label>{{ dose_form.unit }}</div>
+      </div>
+      <div>
+        <label for="dose_reservoir" class="block text-xs font-bold uppercase text-slate-400 mb-1">From container</label>{{ dose_form.reservoir }}
+        <p class="text-[11px] text-slate-500 mt-1">A liquid dose (ml, tsp or fl oz) comes off its level. Deleting the dose puts it back.</p>
+      </div>
+      <div><label for="dose_dosed_at" class="block text-xs font-bold uppercase text-slate-400 mb-1">Date &amp; time <span class="normal-case text-slate-500">(blank = now)</span></label>{{ dose_form.dosed_at }}</div>
+      <div><label for="dose_notes" class="block text-xs font-bold uppercase text-slate-400 mb-1">Notes</label>{{ dose_form.notes }}</div>
+      <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+        <button type="button" onclick="closeModal('dose-log-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
+        <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Save dose</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  // Opens the popup, optionally filled in: openDoseLog({parameter, product, amount, unit}).
+  function openDoseLog(values) {
+    values = values || {};
+    const set = (id, value) => { const el = document.getElementById(id); if (el && value !== undefined && value !== null) el.value = value; };
+    set('dose_parameter', values.parameter);
+    set('dose_product', values.product);
+    set('dose_amount', values.amount);
+    set('dose_unit', values.unit);
+    openModal('dose-log-modal');
+  }
+</script>

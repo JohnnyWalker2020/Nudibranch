@@ -64,7 +64,9 @@
         {% if item.planned_item %}
           <p class="text-xs text-slate-300">In your plan: <a href="{% url 'plan_detail' item.planned_item.plan_id %}" class="font-semibold text-cyan-400 hover:underline">{{ item.planned_item.plan.name }}</a></p>
         {% else %}
-          <details class="group">
+          <!-- The two actions sit side by side; the one opened takes the full width. -->
+          <div class="grid {% if plans %}grid-cols-2{% else %}grid-cols-1{% endif %} gap-2">
+          <details class="group open:col-span-2">
             <summary class="cursor-pointer list-none px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs font-semibold text-emerald-300 text-center">Bought it</summary>
             <form method="POST" action="{% url 'wishlist_bought' item.id %}" class="mt-2 space-y-2">
               {% csrf_token %}
@@ -76,7 +78,7 @@
             </form>
           </details>
           {% if plans %}
-          <details>
+          <details class="open:col-span-2">
             <summary class="cursor-pointer list-none px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-semibold text-cyan-400 text-center">Add to a plan</summary>
             <form method="POST" action="{% url 'wishlist_to_plan' item.id %}" class="mt-2 flex gap-2">
               {% csrf_token %}
@@ -87,6 +89,7 @@
             </form>
           </details>
           {% endif %}
+          </div>
         {% endif %}
         <div class="flex items-center justify-between text-xs">
           <a href="{% url 'wishlist_edit' item.id %}" class="font-semibold text-slate-400 hover:text-cyan-400">Edit</a>

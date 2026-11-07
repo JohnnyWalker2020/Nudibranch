@@ -1,5 +1,24 @@
 # Nudibranch: change summary
 
+## Round 15 (2026-11-07)
+
+Apply with `docker compose up -d --build`; migration 0029 runs on start.
+
+- **Tools in the phone bar**: Tools replaces Cams at the bottom of the screen, and Tools has a Webcams tile.
+- **Trend arrows**: each water test card on the dashboard shows the change since the test before, coloured by whether it moved toward or away from the ideal range.
+- **Dose log**: log a dose from the Dosing page, or from the Dose Estimator's answer. A liquid dose comes off the container it came from, and goes back if you delete it.
+- **Test reminders**: "Remind me to test every N days" on a parameter's settings page, shown as Time to test on the Alerts page and dashboard, and sent to your phone like other alerts.
+- **CSV export**: water tests, water changes and doses, for the selected tank or every tank.
+
+## Round 14 (2026-11-07)
+
+Apply with `docker compose up -d --build`. There's no database change.
+
+- **Faster pages**: the app settings are read once per page instead of up to 10 times, the Dose Estimator reads all its latest tests together, and the Planner reads each plan's items together. Tools went from 44 to 33 database queries and Planner from 39 to 24.
+- **Consistent look**: every back button is the same chevron, page-header buttons all use the blue gradient, form fields share one style (the calculators and water change popup used a darker one), and the three calculators on Tools share one card style.
+- **Wording**: the Water page's button is **Log Test** and the test popup saves with **Save Test**. Edit Water Change labels its fields Gallons changed and Date & time, and drops an old hint under the salt brand.
+- **Wishlist**: Bought it and Add to a plan sit side by side.
+- **Small fixes**: the app icon can't be half-written if two server processes make it at once, and some unused code in the tests was removed.
 ## Round 13 (2026-11-07)
 
 Apply with `docker compose up -d --build`; migrations 0027 and 0028 run on start.

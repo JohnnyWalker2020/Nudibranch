@@ -62,6 +62,16 @@
       </div>
     </div>
 
+    <!-- Test reminder -->
+    <div class="pt-4 border-t border-slate-800 space-y-1.5">
+      <label for="id_test_every_days" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Test reminder</label>
+      <div class="flex items-center gap-2 text-sm text-slate-300">
+        <span>Remind me to test every</span>{{ form.test_every_days }}<span>days</span>
+      </div>
+      <p class="text-[11px] text-slate-500">Leave blank for no reminder. When it's been longer than this since the last {{ parameter.name }} test, it shows on the Alerts page and can notify your phone.{% if parameter.stale_after_hours and not parameter.test_every_days %} This parameter has a probe check of {{ parameter.stale_after_hours }} hours, set under Phone Alerts, which stays unless you set days here.{% endif %}</p>
+      {% if form.test_every_days.errors %}<p class="text-xs text-rose-400">{{ form.test_every_days.errors.0 }}</p>{% endif %}
+    </div>
+
     <!-- Ranges: low alert / optimal / high alert -->
     <div class="pt-4 border-t border-slate-800 space-y-3">
       <div>

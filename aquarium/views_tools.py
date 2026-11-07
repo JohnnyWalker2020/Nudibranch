@@ -347,6 +347,7 @@ def tools_view(request):
         'quarantine_count': not_retired(Animal.objects.filter(status='quarantine')).count(),
         'power': power.power_summary(tank),
         'latest_backup': next(iter(backups.list_backups()), None),
+        'camera_count': WebcamFeed.objects.filter(is_active=True).count(),
     })
 
 
@@ -838,7 +839,7 @@ def fill_calc_api(request):
 # ==========================================
 
 def planner_list_view(request):
-    plans = list(PlannedSystem.objects.select_related('existing_tank', 'tracked_tank', 'project').prefetch_related('items'))
+    plans = list(PlannedSystem.objects.select_related('existing_tank', 'tracked_tank', 'project').prefetch_related(planner.ITEMS_WITH_SPECIES))
     rows = [{'plan': plan, 'analysis': planner.analyze(plan)} for plan in plans]
     projects = []
     for project in PlanProject.objects.all():

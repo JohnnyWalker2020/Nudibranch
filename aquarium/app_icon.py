@@ -3,6 +3,7 @@
 PNG copies at the sizes browsers ask for are made on first use and kept in the data folder.
 """
 import hashlib
+import os
 from pathlib import Path
 
 from django.conf import settings
@@ -69,7 +70,7 @@ def png(size):
             side = min(width, height)
             left, top = (width - side) // 2, (height - side) // 2
             image = image.crop((left, top, left + side, top + side)).resize((size, size), Image.LANCZOS)
-            temporary = target.with_suffix('.tmp')
+            temporary = target.with_suffix(f'.{os.getpid()}.tmp')  # two server processes can't clash
             image.save(temporary, 'PNG', optimize=True)
             temporary.replace(target)
         for old in folder.glob('*.png'):  # icons from before a change

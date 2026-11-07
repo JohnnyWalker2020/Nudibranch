@@ -115,8 +115,18 @@
 
         {% for item in stale_params %}
           <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-5 space-y-2">
+            {% if item.param.test_every_days %}
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-base font-bold text-white">🧪 Time to test {{ item.param.name }}</h3>
+                <p class="text-xs text-slate-400">Last tested {{ item.log.measured_at|timesince }} ago. Your reminder is every {{ item.param.test_every_days }} day{{ item.param.test_every_days|pluralize }}.</p>
+              </div>
+              <button type="button" onclick="openQuickLogModal({{ item.param.id }})" class="shrink-0 px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg">Log test</button>
+            </div>
+            {% else %}
             <h3 class="text-base font-bold text-white">📡 No new {{ item.param.name }} readings</h3>
             <p class="text-xs text-slate-400">Nothing logged for over {{ item.param.stale_after_hours }} hours. Last reading {{ item.log.measured_at|timesince }} ago. Check the probe.</p>
+            {% endif %}
           </div>
         {% endfor %}
 

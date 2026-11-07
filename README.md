@@ -96,7 +96,7 @@ Tailscale may ask you to approve Serve the first time. Add the `https://` addres
 ## ✨ Features
 
 ### Multiple tanks
-Pick a tank from the **Tank** menu at the top of any page (beside the logo on a phone). The dashboard, water tests, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that tank. Your choice is remembered per device, and the menu flags other tanks that have alerts.
+On a phone, the bar at the bottom has Home, Water, Livestock, Tanks and Tools, and webcams are under Tools. Pick a tank from the **Tank** menu at the top of any page (beside the logo on a phone). The dashboard, water tests, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that tank. Your choice is remembered per device, and the menu flags other tanks that have alerts.
 
 - **Sizes shown:** wherever a tank is named, its size is the total water: display, sumps and plumbing. The tank's own page still breaks it down.
 - **Order:** the ↑ and ↓ buttons on the **Tanks** page set the order of the tanks there and in the Tank menu.
@@ -110,6 +110,9 @@ Pick a tank from the **Tank** menu at the top of any page (beside the logo on a 
 ### Water quality
 - Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges. The **Water** page shows your last 10 readings, and **Load more** walks back through the rest.
 - **Quick Add Test** logs a test for the selected tank, or pick another tank in its menu.
+- **Trend arrows:** each dashboard card shows the change since the test before. Green means it moved toward the ideal range, amber away from it, and grey that it held steady or moved within the range.
+- **Test reminders:** on a parameter's settings page, set **Remind me to test every N days**. When a test is overdue, **Time to test** shows on the Alerts page and the dashboard, and can notify your phone. (A probe check in hours, under **Phone Alerts**, works the same way.)
+- **Export CSV** on the Water page downloads every test for the selected tank as a spreadsheet file. Add `?tank=all` to the address for every tank. Water changes and doses have their own Export CSV links.
 - Each tank can have its own target ranges, or use the shared defaults.
 - Change units and decimals, with automatic conversion of past readings.
 - Want to see the charts and alerts in action first? Add 90 days of made-up tests with `docker compose exec web python manage.py seed_demo_readings`, and take them out again by adding `--remove`. Your own readings are left alone. Limit it to one tank with `--tank NAME`.
@@ -133,6 +136,7 @@ The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spr
 - **Tank profile:** dimensions, sumps and plumbing, plus substrate type and amount, its linked product, and live rock, in lb or kg. Split a sump into chambers under **Edit sump**.
 - **Equipment:** service intervals, placement in the display or sump, and pump flow and turnover estimates.
 - **Dosing and top-off:** reservoir levels and run-out forecasts.
+- **Dose log:** record what you add with **Log a dose** on the Dosing page, or **Log this dose** under the Dose Estimator's answer, which fills it in. Pick the container it came from, and a liquid dose (ml, tsp or fl oz) comes off its level. Deleting the dose puts it back.
 - **Calculators:** the Salt Mixing Calculator, Dose Estimator and PAR estimate are together on the **Tools** page. They use the selected tank's volume, or a custom one. Tap a unit (gal, L, SG, ppt, g, oz and so on) to switch it, and each answer appears once, in the unit you pick. The salt calculator can start from water that already has salt in it, and the Dose Estimator starts from your latest test. It works out dry chemicals or a product's label for alkalinity, calcium and magnesium, and uses the product's label for nitrate, phosphate, potassium, iodine and strontium. Results are estimates, so confirm them independently before using them.
 - **Water changes:** log one from the dashboard's **Water Change** button or the Routines page. Enter the amount in gallons, liters or a % of the tank's total water, the salinity in SG or ppt, and pick the salt from the calculator's list.
 - **Routines:** manual checklists and automated schedules with flexible repeats, plus water change history.

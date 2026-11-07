@@ -8,7 +8,7 @@ from django.utils import timezone
 from .models import (
     AppSettings, ParameterLog, Animal, AnimalGroup, ParameterType, Tank, Sump, SumpChamber,
     Equipment, DosingReservoir, MaintenanceRoutine, WaterChangeLog, WebcamFeed,
-    PlumbingRun, QuickTimer, WEEKDAYS, WebhookEndpoint,
+    DoseLog, PlumbingRun, QuickTimer, WEEKDAYS, WebhookEndpoint,
 )
 from .schedule import REPEAT_PRESETS, parse_step, preset_key
 
@@ -84,6 +84,11 @@ class ParameterSettingsForm(forms.ModelForm):
         help_text="Automatically convert all previously entered test logs to match the new unit"
     )
     apply_default = forms.BooleanField(required=False)
+    test_every_days = forms.IntegerField(
+        required=False, min_value=1, max_value=365, label='Remind me to test every',
+        widget=forms.NumberInput(attrs={
+            'class': 'w-24 px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold text-base text-center focus:outline-none focus:ring-2 focus:ring-cyan-500',
+            'placeholder': 'off'}))
 
     class Meta:
         model = ParameterType
@@ -242,7 +247,7 @@ class AnimalForm(CostGatedMixin, forms.ModelForm):
         label="Or Create New Group",
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
-            'placeholder': 'e.g. Anemone, Tangs, Zoanthids...'
+            'placeholder': 'e.g. Tangs, Zoanthids, Frags'
         })
     )
 
@@ -655,8 +660,9 @@ class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
     """Stores gallons and SG. The amount can be entered in liters and the salinity in ppt."""
     now_field = 'performed_at'
     # Any number of decimals is fine on the way in. They're rounded after converting.
-    gallons = forms.DecimalField(min_value=Decimal('0'), widget=forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any'}),
-                                 help_text="Gallons of new water changed")
+    gallons = forms.DecimalField(min_value=Decimal('0'), label='Gallons changed',
+                                 widget=forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any'}),
+                                 help_text="To enter liters or a % of the tank, use Log Water Change on the dashboard")
     target_salinity = forms.DecimalField(required=False, min_value=Decimal('0'), label='Salinity',
                                          widget=forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any'}),
                                          help_text="Mixed water salinity (SG)")
@@ -666,6 +672,8 @@ class WaterChangeLogForm(DefaultNowMixin, forms.ModelForm):
     class Meta:
         model = WaterChangeLog
         fields = ['tank', 'gallons', 'salt_brand', 'target_salinity', 'notes', 'performed_at']
+        labels = {'performed_at': 'Date & time'}
+        help_texts = {'salt_brand': "From the salt calculator's list", 'performed_at': ''}
         widgets = {
             'tank': forms.Select(attrs={'class': INPUT}),
             'gallons': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.5'}),
@@ -945,3 +953,54 @@ class QuickTimerForm(forms.ModelForm):
             last = QuickTimer.objects.aggregate(models.Max('position'))['position__max']
             self.instance.position = 0 if last is None else last + 1
         return super().save(commit)
+
+
+class DoseLogForm(DefaultNowMixin, forms.ModelForm):
+    """A dose you added. Picking a container takes a liquid dose off its level."""
+    now_field = 'dosed_at'
+
+    class Meta:
+        model = DoseLog
+        fields = ['tank', 'parameter', 'product', 'amount', 'unit', 'reservoir', 'dosed_at', 'notes']
+        labels = {'reservoir': 'From container', 'dosed_at': 'Date & time', 'parameter': 'For'}
+        widgets = {
+            'tank': forms.Select(attrs={'class': INPUT}),
+            'parameter': forms.Select(attrs={'class': INPUT}),
+            'product': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Soda ash, All-For-Reef'}),
+            'amount': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any', 'min': '0'}),
+            'unit': forms.Select(attrs={'class': INPUT}),
+            'reservoir': forms.Select(attrs={'class': INPUT}),
+            'dosed_at': _datetime_widget(),
+            'notes': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'Optional'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._setup_now_field()
+        from .calculators import DOSE_PARAMETERS
+        self.fields['parameter'].widget.choices = [('', 'Not set')] + [(code, info['name']) for code, info in DOSE_PARAMETERS.items()]
+        tanks = Tank.objects.filter(is_archived=False)
+        if self.instance.pk and self.instance.tank_id:
+            tanks = Tank.objects.filter(models.Q(is_archived=False) | models.Q(pk=self.instance.tank_id))
+        self.fields['tank'].queryset = tanks.prefetch_related(*TANK_TOTAL_PREFETCH)
+        self.fields['tank'].empty_label = None
+        self.fields['reservoir'].queryset = DosingReservoir.objects.filter(reservoir_type='dosing_additive').select_related('tank')
+        self.fields['reservoir'].empty_label = 'None'
+        self.fields['reservoir'].help_text = "A liquid dose in ml, tsp or fl oz comes off its level. Deleting the dose puts it back."
+
+    def clean_parameter(self):
+        from .calculators import DOSE_PARAMETERS
+        value = self.cleaned_data.get('parameter') or ''
+        if value and value not in DOSE_PARAMETERS:
+            raise forms.ValidationError("Pick one from the list.")
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        amount = cleaned.get('amount')
+        if amount is not None and amount <= 0:
+            self.add_error('amount', "Must be greater than zero.")
+        reservoir, tank = cleaned.get('reservoir'), cleaned.get('tank')
+        if reservoir and tank and reservoir.tank_id != tank.id:
+            self.add_error('reservoir', f"That container belongs to {reservoir.tank.name}.")
+        return cleaned

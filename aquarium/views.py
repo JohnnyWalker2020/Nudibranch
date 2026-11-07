@@ -30,12 +30,12 @@ from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_da
 from .forms import (
     AnimalForm, AnimalGroupForm, AnimalPhotoUploadForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
     ParameterLogEditForm, ParameterSettingsForm, ParameterTypeForm, QuickParameterLogForm,
-    QuickTimerForm, SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
+    DoseLogForm, QuickTimerForm, SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
 )
 from .models import (
-    Animal, AnimalGroup, AppSettings, DosingReservoir, Equipment, FillTimer, MaintenanceRoutine, ParameterLog,
+    Animal, AnimalGroup, AppSettings, DoseLog, DosingReservoir, Equipment, FillTimer, MaintenanceRoutine, ParameterLog,
     ParameterType, QuickTimer, SpeciesCatalog, Sump, SumpChamber, Tank, WaterChangeLog, WebcamFeed,
-    ParameterTarget, PlumbingRun, RANGE_FIELDS, in_system, latest_logs_by_parameter, not_retired, reef2reef_search,
+    ParameterTarget, PlumbingRun, RANGE_FIELDS, in_system, latest_logs_by_parameter, not_retired, reef2reef_search, trend,
 )
 
 
@@ -150,9 +150,11 @@ def dashboard_view(request):
     """Main dashboard. Which widgets show, and in what order, is stored in the database."""
     tank = get_active_tank(request)
     latest = latest_logs_by_parameter(tank)
+    previous = latest_logs_by_parameter(tank, back=1)
     parameter_types = [pt.for_system(tank) for pt in ParameterType.objects.prefetch_related('targets')]
     for pt in parameter_types:
         pt.current_log = latest.get(pt.pk)
+        pt.trend = trend(pt, pt.current_log, previous.get(pt.pk))
         if pt.current_log:
             pt.current_log.parameter_type = pt
     layout = get_dashboard_layout()
@@ -360,6 +362,12 @@ def parameter_settings_view(request, param_id):
                     setattr(ptype, field, value)
                 ptype.unit = new_unit
                 ptype.decimal_places = form.cleaned_data['decimal_places']
+                # A reminder in days. An hours setting for a probe (from Phone Alerts) is kept unless replaced.
+                days = form.cleaned_data.get('test_every_days')
+                if days:
+                    ptype.stale_after_hours = days * 24
+                elif old.test_every_days:
+                    ptype.stale_after_hours = None
                 ptype.save()
 
                 if tank is not None:
@@ -371,7 +379,7 @@ def parameter_settings_view(request, param_id):
             messages.success(request, f"{ptype.name} settings saved.")
             return redirect(f"/parameters/?param={ptype.code}")
     else:
-        form = ParameterSettingsForm(instance=ptype, initial=range_initial)
+        form = ParameterSettingsForm(instance=ptype, initial={**range_initial, 'test_every_days': ptype.test_every_days})
 
     return render(request, 'aquarium/parameter_settings.html', {
         'parameter': old,
@@ -1041,6 +1049,11 @@ def _dose_context(tank):
     since = timezone.now() - timedelta(days=14)
 
     by_code = {pt.code: pt for pt in ParameterType.objects.filter(code__in=DOSE_PARAMETERS).prefetch_related('targets')}
+    # Two queries for every parameter's newest reading, and one for the last 14 days of all of them.
+    newest = latest_logs_by_parameter(tank)
+    recent = {}
+    for log in in_system(ParameterLog.objects.filter(parameter_type__in=by_code.values(), measured_at__gte=since), tank):
+        recent.setdefault(log.parameter_type_id, []).append(log)
     for code, info in DOSE_PARAMETERS.items():
         ptype = by_code.get(code)
         if ptype:
@@ -1061,12 +1074,11 @@ def _dose_context(tank):
             entry['ideal_min'] = round(conv(ptype.min_ideal), 3)
             entry['ideal_max'] = round(conv(ptype.max_ideal), 3)
             entry['target'] = round((entry['ideal_min'] + entry['ideal_max']) / 2, 3)
-            latest = ptype.latest_log(tank)
+            latest = newest.get(ptype.pk)
             if latest:
                 entry['current'] = round(conv(latest.value), 3)
                 entry['measured_at'] = timezone.localtime(latest.measured_at).strftime('%b %d, %H:%M')
-            points = [(log.measured_at, conv(log.value))
-                      for log in in_system(ptype.logs.filter(measured_at__gte=since), tank)]
+            points = [(log.measured_at, conv(log.value)) for log in recent.get(ptype.pk, [])]
             change = estimate_daily_change(points)
             if change is not None:
                 entry['daily_change'] = round(change, 3)
@@ -1091,12 +1103,43 @@ def dosing_view(request):
         'dosing_containers': reservoirs.filter(reservoir_type='dosing_additive'),
         'ato_containers': reservoirs.filter(reservoir_type='ato_freshwater'),
         'form': DosingReservoirForm(initial={'tank': tank}),
+        'doses': in_system(DoseLog.objects.select_related('tank', 'reservoir'), tank)[:15],
+        **dose_log_context(tank),
     })
+
+
+def dose_log_context(tank):
+    """The Log a dose popup, starting on the selected tank."""
+    return {'dose_form': DoseLogForm(initial={'tank': tank}, auto_id='dose_%s')}
+
+
+@require_POST
+def dose_log_create(request):
+    form = DoseLogForm(request.POST)
+    if form.is_valid():
+        dose = form.save()
+        taken = f" {dose.taken.normalize():f} {dose.reservoir.unit} came off {dose.reservoir.name}." if dose.taken else ''
+        messages.success(request, f"Logged {dose.amount_label} {dose.product or dose.parameter_label}.{taken}")
+    else:
+        _flash_form_errors(request, form)
+    return redirect(_safe_next(request, 'dosing'))
+
+
+def dose_log_edit(request, dose_id):
+    return _edit_object(request, DoseLog, DoseLogForm, dose_id, title='Edit Dose', back_url='/dosing/',
+                        delete_url=f'/dosing/doses/{dose_id}/delete/')
+
+
+def dose_log_delete(request, dose_id):
+    dose = get_object_or_404(DoseLog, pk=dose_id)
+    warning = f"{dose.taken.normalize():f} {dose.reservoir.unit} goes back into {dose.reservoir.name}." if dose.taken and dose.reservoir else ''
+    return _delete_object(request, DoseLog, dose_id, label=str(dose), back_url='/dosing/', warning=warning)
 
 
 def calculator_context(tank):
     """What the salt calculator and Dose Estimator need. They live on the Tools page."""
     return {
+        **dose_log_context(tank),
         'dose_data': {
             'parameters': _dose_context(tank),
             'chemicals': [
@@ -1543,9 +1586,9 @@ def _last_salt_brand():
     return last if last in {r['name'] for r in SALT_MIX_RECIPES.values()} else ''
 
 
-# The popup's fields share the look of its amount and salinity boxes. min-w-0 and the fixed height keep a
+# The popup's fields share the app's usual field look, and the height of its amount and salinity boxes. min-w-0 and the fixed height keep a
 # phone's date picker from spilling out of its box.
-WC_POPUP_FIELD = ('block w-full min-w-0 h-11 px-3 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm '
+WC_POPUP_FIELD = ('block w-full min-w-0 h-11 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm '
                   'appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500')
 
 

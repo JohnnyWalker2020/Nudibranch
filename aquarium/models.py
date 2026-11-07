@@ -1,4 +1,5 @@
 import copy
+from decimal import Decimal
 import urllib.parse
 from datetime import timedelta
 
@@ -69,6 +70,12 @@ class ParameterType(models.Model):
 
     class Meta:
         ordering = ['display_order', 'name']
+
+    @property
+    def test_every_days(self):
+        """Whole days for a test reminder, or None when the gap is set in hours for a probe (or not set)."""
+        hours = self.stale_after_hours
+        return hours // 24 if hours and hours % 24 == 0 else None
 
     def __str__(self):
         return f"{self.name} ({self.unit})"
@@ -200,11 +207,32 @@ class ParameterLog(models.Model):
         return "text-rose-400 bg-rose-500/10 border-rose-500/30"
 
 
-def latest_logs_by_parameter(tank):
-    """{parameter id: newest log} for a system, in two queries however many parameters there are."""
-    newest = in_system(ParameterLog.objects.filter(parameter_type=OuterRef('pk')), tank).order_by('-measured_at')
-    ids = ParameterType.objects.annotate(newest=Subquery(newest.values('pk')[:1])).values_list('newest', flat=True)
+def latest_logs_by_parameter(tank, *, back=0):
+    """{parameter id: newest log} for a system, in two queries however many parameters there are.
+    back=1 gives the reading before the newest, for showing which way a value is moving."""
+    newest = in_system(ParameterLog.objects.filter(parameter_type=OuterRef('pk')), tank).order_by('-measured_at', '-pk')
+    ids = ParameterType.objects.annotate(newest=Subquery(newest.values('pk')[back:back + 1])).values_list('newest', flat=True)
     return {log.parameter_type_id: log for log in ParameterLog.objects.filter(pk__in=[pk for pk in ids if pk])}
+
+
+def trend(parameter_type, latest, previous):
+    """Which way a parameter moved since the test before, and whether that's toward its ideal range."""
+    if latest is None or previous is None:
+        return None
+    change = float(latest.value) - float(previous.value)
+    if parameter_type.format_value(abs(change)) == parameter_type.format_value(0):
+        return {'arrow': '→', 'text': 'no change', 'tone': 'steady'}
+    low, high = float(parameter_type.min_ideal), float(parameter_type.max_ideal)
+    before, now = float(previous.value), float(latest.value)
+    distance = lambda v: (low - v) if v < low else (v - high) if v > high else 0
+    if distance(now) < distance(before):
+        tone = 'better'
+    elif distance(now) > distance(before):
+        tone = 'worse'
+    else:
+        tone = 'steady'  # moved, but stayed inside the ideal range
+    return {'arrow': '↑' if change > 0 else '↓', 'text': ('+' if change > 0 else '−') + parameter_type.format_value(abs(change)),
+            'tone': tone}
 
 
 class AnimalGroup(models.Model):
@@ -1148,8 +1176,14 @@ class AppSettings(models.Model):
 
     @classmethod
     def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
+        # Read once per page view; many parts of a page ask for the settings.
+        from . import request_cache
+        return request_cache.get('app_settings', lambda: cls.objects.get_or_create(pk=1)[0])
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        from . import request_cache
+        request_cache.forget('app_settings')
 
     @property
     def alerts_muted(self):
@@ -1387,6 +1421,83 @@ class ROSystem(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.rated_gpd} GPD)"
+
+
+ML_PER_UNIT = {'ml': Decimal('1'), 'l': Decimal('1000'), 'liter': Decimal('1000'), 'liters': Decimal('1000'),
+               'gal': Decimal('3785.41'), 'gallon': Decimal('3785.41'), 'gallons': Decimal('3785.41'),
+               'tsp': Decimal('4.92892'), 'fl oz': Decimal('29.5735')}
+
+
+class DoseLog(models.Model):
+    """Something added to a tank: a dose of an additive, by hand or from the Dose Estimator.
+
+    A liquid dose taken from a container comes off that container's level, and goes back if the dose is deleted.
+    """
+    UNITS = [('ml', 'ml'), ('g', 'g'), ('tsp', 'tsp'), ('fl oz', 'fl oz'), ('drops', 'drops')]
+
+    tank = models.ForeignKey(Tank, on_delete=models.CASCADE, related_name='doses')
+    parameter = models.CharField(max_length=20, blank=True, help_text="What it's for, like alkalinity")
+    product = models.CharField(max_length=100, blank=True, help_text="What you added, like soda ash or All-For-Reef")
+    amount = models.DecimalField(max_digits=8, decimal_places=2)
+    unit = models.CharField(max_length=10, choices=UNITS, default='ml')
+    reservoir = models.ForeignKey('DosingReservoir', on_delete=models.SET_NULL, null=True, blank=True, related_name='doses',
+                                  help_text="Take it off this container's level")
+    taken = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, editable=False,
+                                help_text="How much came off the container, in its own unit")
+    dosed_at = models.DateTimeField(default=timezone.now)
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['-dosed_at', '-id']
+
+    def __str__(self):
+        return f"{self.amount_label} {self.product or self.parameter_label} on {self.dosed_at:%b %d}"
+
+    @property
+    def amount_label(self):
+        return f"{self.amount.normalize():f} {self.unit}"
+
+    @property
+    def parameter_label(self):
+        from .calculators import DOSE_PARAMETERS
+        return DOSE_PARAMETERS.get(self.parameter, {}).get('name', self.parameter.title())
+
+    def amount_in(self, unit):
+        """This dose in a container's unit, or None when they can't be compared (grams, drops, an unknown unit)."""
+        mine, theirs = ML_PER_UNIT.get(self.unit), ML_PER_UNIT.get((unit or '').strip().lower())
+        if mine is None or theirs is None:
+            return None
+        return (self.amount * mine / theirs).quantize(Decimal('0.01'))
+
+    def save(self, *args, **kwargs):
+        from django.db import transaction
+        with transaction.atomic():
+            if self.pk:  # an edit: put back what the old version took, then take the new amount
+                old = DoseLog.objects.filter(pk=self.pk).select_related('reservoir').first()
+                if old:
+                    old._give_back()
+            self.taken = None
+            if self.reservoir_id:
+                reservoir = DosingReservoir.objects.select_for_update().get(pk=self.reservoir_id)
+                take = self.amount_in(reservoir.unit)
+                if take is not None:
+                    taken = min(take, reservoir.current_level)
+                    DosingReservoir.objects.filter(pk=reservoir.pk).update(current_level=reservoir.current_level - taken)
+                    self.taken = taken
+            super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.db import transaction
+        with transaction.atomic():
+            self._give_back()
+            return super().delete(*args, **kwargs)
+
+    def _give_back(self):
+        if self.reservoir_id and self.taken:
+            reservoir = DosingReservoir.objects.select_for_update().filter(pk=self.reservoir_id).first()
+            if reservoir:
+                level = min(reservoir.capacity, reservoir.current_level + self.taken)
+                DosingReservoir.objects.filter(pk=reservoir.pk).update(current_level=level)
 
 
 class QuickTimer(models.Model):

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
   <div class="flex items-center gap-3">
-    <a href="{% url 'quarantine_list' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" aria-label="Back">←</a>
+    <a href="{% url 'quarantine_list' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></a>
     <div>
       <h1 class="text-2xl font-black text-white tracking-tight">{{ animal.name }}</h1>
       <p class="text-xs text-slate-400">{{ animal.get_status_display }}{% if animal.tank %} · {{ animal.tank.name }}{% endif %}</p>

@@ -87,9 +87,10 @@ def collect_conditions(now=None):
         prefix = f"{tank.name}: " if tank and several_systems else ''
         found.append(_condition(
             f"stale:{param.pk}:{tank.pk if tank else 0}:{latest.pk}", 'parameter.stale', 'warning',
-            f"{prefix}No new {param.name} readings",
-            f"Nothing logged for over {param.stale_after_hours} hours. Check the probe.",
-            system_id=tank.pk if tank else None, subject=f"{param.name} probe",
+            f"{prefix}Time to test {param.name}" if param.test_every_days else f"{prefix}No new {param.name} readings",
+            (f"Your reminder is every {param.test_every_days} day{'s' if param.test_every_days != 1 else ''}."
+             if param.test_every_days else f"Nothing logged for over {param.stale_after_hours} hours. Check the probe."),
+            system_id=tank.pk if tank else None, subject=f"{param.name} test" if param.test_every_days else f"{param.name} probe",
             parameter=param.code, last_measured_at=latest.measured_at.isoformat(),
             tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
         ))

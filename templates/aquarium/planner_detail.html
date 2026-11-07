@@ -6,7 +6,7 @@
 <div class="space-y-6">
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div class="flex items-center gap-3">
-      <a href="{% url 'planner' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" aria-label="Back">←</a>
+      <a href="{% url 'planner' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></a>
       <div>
         <h1 class="text-2xl font-black text-white tracking-tight">{{ plan.name }}</h1>
         <p class="text-xs text-slate-400">{% if plan.project %}<a href="{% url 'project_detail' plan.project.id %}" class="text-cyan-400 hover:underline">📁 {{ plan.project.name }}</a> · {% endif %}{{ plan.get_goal_display }}{% if plan.existing_tank %} · Additions to {{ plan.existing_tank.name }}{% endif %}{% if plan.tracked_tank %} · <a href="{% url 'tank_detail' plan.tracked_tank.id %}" class="text-emerald-400 hover:underline">Tracking as {{ plan.tracked_tank.name }}</a>{% endif %}</p>

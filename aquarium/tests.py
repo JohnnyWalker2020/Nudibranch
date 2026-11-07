@@ -30,11 +30,12 @@ from .themes import theme_css
 from .schedule import parse_step
 from . import backups, compatibility, events, fill, planner, power, timelapse
 from .models import (
+    DoseLog,
     QuickTimer,
     WaterChangeLog,
-    AlertRecord, Animal, AnimalGroup, AnimalPhoto, AppSettings, CostEntry, ParameterTarget, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
+    AlertRecord, Animal, AnimalGroup, AppSettings, CostEntry, ParameterTarget, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
     ParameterLog, ParameterType, Sump, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, SpeciesCatalog, Tank,
-    TimelapseFrame, WebcamFeed, WebhookDelivery, WebhookEndpoint, WishlistItem,
+    WebcamFeed, WebhookDelivery, WebhookEndpoint, WishlistItem,
 )
 
 
@@ -3193,7 +3194,7 @@ class CostSwitchTests(TestCase):
 
     def test_putting_it_out_hides_but_keeps_everything(self):
         self.switch(True)
-        item = WishlistItem.objects.create(species=self.fish, name='F', est_price=Decimal('25'))
+        WishlistItem.objects.create(species=self.fish, name='F', est_price=Decimal('25'))
         entry = CostEntry.objects.create(description='Secret', amount=Decimal('9'), tank=self.tank)
         self.assertContains(self.client.get(reverse('wishlist')), '25.00')
         self.assertContains(self.client.get(reverse('the_damage')), 'Secret')
@@ -3829,7 +3830,7 @@ class CountdownTimerTests(TestCase):
     def test_water_change_popup_fields_match(self):
         form = self.client.get(reverse('dashboard')).context['wc_form']
         for name in ('tank', 'salt_brand', 'notes', 'performed_at'):
-            self.assertIn('bg-slate-950', form.fields[name].widget.attrs['class'], name)
+            self.assertIn('bg-slate-800', form.fields[name].widget.attrs['class'], name)
         self.assertIn('appearance-none', form.fields['performed_at'].widget.attrs['class'])
         self.assertNotIn('appearance-none', form.fields['salt_brand'].widget.attrs['class'])
 
@@ -3936,3 +3937,171 @@ class SavedTimerAndAppIconTests(TestCase):
         self.assertRedirects(self.client.get('/app-icon/192.png'), '/static/icons/icon.svg', fetch_redirect_response=False)
         self.assertEqual(self.client.get('/manifest.json').json()['icons'][0]['src'], '/static/icons/icon.svg')
         self.assertEqual(self.client.get('/app-icon/77.png').status_code, 302)
+
+
+class ReviewRoundTwoTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+
+    def test_settings_are_read_once_per_page(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        for name in range(4):
+            PlannedSystem.objects.create(name=f'Plan {name}', volume_gallons=20)
+        with CaptureQueriesContext(connection) as queries:
+            self.client.get(reverse('planner'))
+        reads = [q for q in queries.captured_queries if 'aquarium_appsettings' in q['sql']]
+        self.assertLessEqual(len(reads), 2)
+
+    def test_saved_settings_are_not_stale(self):
+        settings_obj = AppSettings.load()
+        settings_obj.electricity_rate = Decimal('0.2500')
+        settings_obj.save()
+        self.assertEqual(AppSettings.load().electricity_rate, Decimal('0.2500'))
+
+    def test_dose_estimator_does_not_query_per_parameter(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as queries:
+            self.client.get(reverse('tools'))
+        logs = [q for q in queries.captured_queries if 'FROM "aquarium_parameterlog"' in q['sql']]
+        self.assertLess(len(logs), 6)
+
+    def test_back_buttons_match(self):
+        plan = PlannedSystem.objects.create(name='Nano', volume_gallons=20)
+        self.assertNotContains(self.client.get(reverse('plan_detail', args=[plan.pk])), 'aria-label="Back">←')
+
+
+class ToolsBarTrendsDosesRemindersExportTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main Reef', volume_gallons=40, is_primary=True)
+        self.alk, _ = ParameterType.objects.update_or_create(code='alkalinity', defaults={
+            'name': 'Alkalinity', 'unit': 'dKH', 'decimal_places': 1, 'min_ideal': 8, 'max_ideal': 9})
+        self.bottle = DosingReservoir.objects.create(tank=self.tank, name='Alk', capacity=1000, current_level=500, unit='ml',
+                                                     daily_consumption=10)
+
+    def log(self, value, hours_ago):
+        return ParameterLog.objects.create(parameter_type=self.alk, tank=self.tank, value=Decimal(value),
+                                           measured_at=timezone.now() - timedelta(hours=hours_ago))
+
+    def alk_card(self):
+        return next(p for p in self.client.get(reverse('dashboard')).context['parameter_types'] if p.code == 'alkalinity')
+
+    # Phone bar
+    def test_bottom_bar_has_tools_and_tools_has_webcams(self):
+        page = self.client.get(reverse('dashboard')).content.decode()
+        bar = page[page.index('Mobile Bottom Tab Navigation Bar'):]
+        self.assertIn('>Tools</span>', bar)
+        self.assertNotIn('>Cams</span>', bar)
+        self.assertContains(self.client.get(reverse('tools')), '0 cameras')
+
+    # Trend arrows
+    def test_trend_toward_and_away_from_the_ideal_range(self):
+        self.log('7.0', 48)
+        self.log('7.6', 1)
+        self.assertEqual(self.alk_card().trend, {'arrow': '↑', 'text': '+0.6', 'tone': 'better'})
+        self.log('7.2', 0)
+        trend = self.alk_card().trend
+        self.assertEqual((trend['arrow'], trend['tone']), ('↓', 'worse'))
+
+    def test_trend_needs_two_tests_and_shows_no_change(self):
+        self.log('8.5', 2)
+        self.assertIsNone(self.alk_card().trend)
+        self.log('8.5', 1)
+        self.assertEqual(self.alk_card().trend['tone'], 'steady')
+
+    # Dose log
+    def dose(self, **extra):
+        data = {'tank': self.tank.pk, 'parameter': 'alkalinity', 'product': 'Soda ash', 'amount': '25', 'unit': 'ml',
+                'reservoir': self.bottle.pk, 'dosed_at': '', 'notes': '', 'next': '/dosing/'}
+        data.update(extra)
+        return self.client.post(reverse('dose_log_create'), data)
+
+    def test_a_dose_comes_off_the_container_and_goes_back_when_deleted(self):
+        self.dose()
+        self.bottle.refresh_from_db()
+        self.assertEqual(self.bottle.current_level, Decimal('475'))
+        dose = DoseLog.objects.get()
+        self.assertEqual(dose.taken, Decimal('25'))
+        self.client.post(reverse('dose_log_edit', args=[dose.pk]), {
+            'tank': self.tank.pk, 'parameter': 'alkalinity', 'product': 'Soda ash', 'amount': '40', 'unit': 'ml',
+            'reservoir': self.bottle.pk, 'dosed_at': '', 'notes': ''})
+        self.bottle.refresh_from_db()
+        self.assertEqual(self.bottle.current_level, Decimal('460'))
+        self.client.post(reverse('dose_log_delete', args=[dose.pk]))
+        self.bottle.refresh_from_db()
+        self.assertEqual(self.bottle.current_level, Decimal('500'))
+
+    def test_powder_doses_and_other_units(self):
+        self.dose(unit='g', amount='5')
+        self.bottle.refresh_from_db()
+        self.assertEqual(self.bottle.current_level, Decimal('500'))  # grams don't come off a liquid container
+        self.dose(unit='tsp', amount='2')
+        self.bottle.refresh_from_db()
+        self.assertEqual(self.bottle.current_level, Decimal('490.14'))
+        litres = DosingReservoir.objects.create(tank=self.tank, name='Big', capacity=5, current_level=Decimal('0.01'),
+                                                unit='L', daily_consumption=1)
+        self.dose(reservoir=litres.pk, amount='500', unit='ml')
+        litres.refresh_from_db()
+        self.assertEqual(litres.current_level, Decimal('0'))  # never below empty
+
+    def test_dose_needs_a_container_on_the_same_tank(self):
+        other = Tank.objects.create(name='QT', volume_gallons=10, is_primary=False)
+        self.dose(tank=other.pk)
+        self.assertFalse(DoseLog.objects.exists())
+
+    def test_dose_log_shows_on_dosing_and_tools(self):
+        self.dose()
+        self.assertContains(self.client.get(reverse('dosing')), '25 ml Soda ash')
+        tools = self.client.get(reverse('tools'))
+        self.assertContains(tools, 'id="est-log-dose"')
+        self.assertContains(tools, 'id="dose-log-modal"')
+
+    # Test reminders
+    def test_reminder_in_days(self):
+        self.assertContains(self.client.get(reverse('parameter_settings', args=[self.alk.pk])), 'Remind me to test every')
+        data = {'unit': 'dKH', 'decimal_places': 1, 'low_limit': '', 'min_ideal': 8, 'max_ideal': 9, 'high_limit': '',
+                'test_every_days': 3}
+        self.client.post(reverse('parameter_settings', args=[self.alk.pk]), data)
+        self.alk.refresh_from_db()
+        self.assertEqual((self.alk.stale_after_hours, self.alk.test_every_days), (72, 3))
+        self.log('8.5', 24 * 4)
+        self.assertContains(self.client.get(reverse('notifications')), 'Time to test Alkalinity')
+        self.assertContains(self.client.get(reverse('dashboard')), 'Time to test Alkalinity')
+        from . import events
+        self.assertEqual(events.collect_conditions()[0]['title'], 'Time to test Alkalinity')
+        data['test_every_days'] = ''
+        self.client.post(reverse('parameter_settings', args=[self.alk.pk]), data)
+        self.alk.refresh_from_db()
+        self.assertIsNone(self.alk.stale_after_hours)
+
+    def test_probe_hours_are_kept(self):
+        ParameterType.objects.filter(pk=self.alk.pk).update(stale_after_hours=6)
+        data = {'unit': 'dKH', 'decimal_places': 1, 'low_limit': '', 'min_ideal': 8, 'max_ideal': 9, 'high_limit': '',
+                'test_every_days': ''}
+        self.client.post(reverse('parameter_settings', args=[self.alk.pk]), data)
+        self.alk.refresh_from_db()
+        self.assertEqual(self.alk.stale_after_hours, 6)
+        self.log('8.5', 8)
+        self.assertContains(self.client.get(reverse('notifications')), 'No new Alkalinity readings')
+
+    # CSV export
+    def test_exports(self):
+        self.log('8.4', 1)
+        ParameterLog.objects.update(notes='=HYPERLINK("x")')
+        WaterChangeLog.objects.create(tank=self.tank, gallons=10, salt_brand='Fritz Pro RPM', target_salinity=Decimal('1.026'))
+        self.dose()
+        tests = self.client.get(reverse('export_tests'))
+        self.assertEqual(tests['Content-Type'], 'text/csv; charset=utf-8')
+        self.assertIn('nudibranch-water-tests-main-reef-', tests['Content-Disposition'])
+        body = tests.content.decode('utf-8-sig')
+        self.assertIn('Tank,Parameter,Value,Unit,Measured at,Notes', body)
+        self.assertIn('Main Reef,Alkalinity,8.4,dKH', body)
+        self.assertIn("'=HYPERLINK", body)  # a note is never run as a spreadsheet formula
+        self.assertIn('Main Reef,', self.client.get(reverse('export_water_changes')).content.decode('utf-8-sig'))
+        self.assertIn(',10,37.9,Fritz Pro RPM', self.client.get(reverse('export_water_changes')).content.decode('utf-8-sig'))
+        self.assertIn('Soda ash', self.client.get(reverse('export_doses')).content.decode('utf-8-sig'))
+        other = Tank.objects.create(name='QT', volume_gallons=10, is_primary=False)
+        WaterChangeLog.objects.create(tank=other, gallons=2)
+        self.assertNotIn('QT', self.client.get(reverse('export_water_changes')).content.decode('utf-8-sig'))
+        self.assertIn('QT', self.client.get(reverse('export_water_changes'), {'tank': 'all'}).content.decode('utf-8-sig'))

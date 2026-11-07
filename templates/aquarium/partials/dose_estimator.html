@@ -1,7 +1,7 @@
 <!-- Dose Estimator. Needs dose_data and volume_tank, and dose_estimator_js.html after volume_picker_js.html. -->
   <section id="dose-estimator" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
     <div>
-      <h2 class="text-lg font-black text-white">Dose Estimator</h2>
+      <h2 class="text-lg font-bold text-white">🧮 Dose Estimator</h2>
       <p class="text-xs text-slate-400">Fills from your latest logs, targets and tank size. Overwrite anything, and tap a unit to switch it.</p>
       <p id="est-param-note" class="hidden mt-2 text-xs font-semibold text-amber-300"></p>
     </div>
@@ -9,7 +9,7 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <div class="col-span-2">
         <label for="est-parameter" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Parameter</label>
-        <select id="est-parameter" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm"></select>
+        <select id="est-parameter" class="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm"></select>
       </div>
       <div class="col-span-2">
         <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
@@ -50,7 +50,7 @@
       <div id="panel-dry" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label for="est-chemical" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Chemical</label>
-          <select id="est-chemical" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"></select>
+          <select id="est-chemical" class="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm"></select>
         </div>
         <div>
           <label for="est-solution" class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Solution strength <span class="normal-case font-normal text-slate-500">optional</span></label>
@@ -83,6 +83,7 @@
         </span>
       </div>
       <p id="est-detail" class="text-xs text-slate-300"></p>
+      <button type="button" id="est-log-dose" class="hidden px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 font-bold text-xs rounded-lg">📒 Log this dose</button>
       <ul id="est-warnings" class="text-[11px] text-amber-300/90 space-y-1 list-disc pl-4"></ul>
     </div>
 

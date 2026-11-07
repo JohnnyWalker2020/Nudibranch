@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_tools as tools
+from . import exports, views, views_tools as tools
 
 urlpatterns = [
     # Dashboard & Parameters
@@ -40,6 +40,12 @@ urlpatterns = [
     # Dosing & ATO Reservoirs
     path('dosing/', views.dosing_view, name='dosing'),
     path('dosing/add/', views.dosing_create_view, name='dosing_create'),
+    path('dosing/doses/add/', views.dose_log_create, name='dose_log_create'),
+    path('export/water-tests.csv', exports.export_tests, name='export_tests'),
+    path('export/water-changes.csv', exports.export_water_changes, name='export_water_changes'),
+    path('export/doses.csv', exports.export_doses, name='export_doses'),
+    path('dosing/doses/<int:dose_id>/edit/', views.dose_log_edit, name='dose_log_edit'),
+    path('dosing/doses/<int:dose_id>/delete/', views.dose_log_delete, name='dose_log_delete'),
     path('dosing/<int:res_id>/edit/', views.dosing_edit_view, name='dosing_edit'),
     path('dosing/<int:res_id>/delete/', views.dosing_delete_view, name='dosing_delete'),
     path('dosing/<int:res_id>/refill/', views.refill_reservoir_view, name='refill_reservoir'),

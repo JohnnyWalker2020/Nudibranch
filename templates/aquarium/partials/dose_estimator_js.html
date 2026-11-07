@@ -135,6 +135,16 @@
       $('est-detail').textContent = parts.join(' ');
     }
     $('est-warnings').innerHTML = data.warnings.map(w => '<li>' + esc(w) + '</li>').join('');
+    // Logging uses g or ml, so oz and fl oz are logged as their gram or ml amount.
+    const logUnit = { g: 'g', oz: 'g', ml: 'ml', tsp: 'tsp', 'fl oz': 'fl oz' }[btn.value];
+    const logAmount = available.length ? inUnit(pick, logUnit === 'g' ? 'g' : (logUnit === 'ml' ? 'ml' : btn.value)) : null;
+    $('est-log-dose').classList.toggle('hidden', !available.length || logAmount === null);
+    $('est-log-dose').onclick = () => openDoseLog({
+      parameter: $('est-parameter').value,
+      product: mode === 'dry' ? ($('est-chemical').selectedOptions[0] || {}).text : '',
+      amount: logAmount === null ? '' : Number(logAmount.toFixed(logAmount < 10 ? 2 : 1)),
+      unit: logUnit,
+    });
     $('est-result').classList.remove('hidden');
   }
   $('est-amount-unit').addEventListener('change', () => {

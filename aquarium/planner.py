@@ -1,10 +1,11 @@
 """Analyses a planned system and turns it into tracked records."""
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 
 from .calculators import estimate_flow_gph, turnover_summary
 from .compatibility import bioload, check_stock, tank_stock
-from .models import AnimalGroup, Animal, AppSettings, Equipment, PlannedSystem, Sump, Tank
+from .models import AnimalGroup, Animal, AppSettings, Equipment, PlannedItem, PlannedSystem, Sump, Tank
 from .power import DAYS_PER_MONTH, TYPICAL_HOURS, daily_kwh, power_summary
 
 RETURN_HEAD_LOSS_PERCENT = 25  # planning assumption for head height and plumbing losses
@@ -29,9 +30,14 @@ def _system_gallons(plan):
     return float(plan.volume_gallons or 0) + float(plan.sump_gallons or 0)
 
 
+# Load plans with this to analyze several of them without a query per plan.
+ITEMS_WITH_SPECIES = Prefetch('items', queryset=PlannedItem.objects.select_related('species'))
+
+
 def analyze(plan):
     """Everything the planner page shows: stock warnings, flow, heat, power, cost and missing gear."""
-    items = list(plan.items.select_related('species'))
+    prefetched = 'items' in getattr(plan, '_prefetched_objects_cache', {})
+    items = list(plan.items.all() if prefetched else plan.items.select_related('species'))
     livestock = [i for i in items if i.kind == 'livestock']
     gear = [i for i in items if i.kind == 'equipment']
     display = _display_gallons(plan)
@@ -154,7 +160,7 @@ def create_tracked_record(tank, *, kind, name, species=None, quantity=1, categor
 
 def summarize_project(project):
     """Each plan's analysis plus combined totals. Reads only: nothing here creates tracked records."""
-    plans = list(project.plans.select_related('existing_tank', 'tracked_tank').prefetch_related('items').order_by('name'))
+    plans = list(project.plans.select_related('existing_tank', 'tracked_tank').prefetch_related(ITEMS_WITH_SPECIES).order_by('name'))
     rows = [{'plan': plan, 'a': analyze(plan)} for plan in plans]
     cost = sum(row['a']['total_cost'] for row in rows)
     budget = float(project.budget) if project.budget is not None else None
