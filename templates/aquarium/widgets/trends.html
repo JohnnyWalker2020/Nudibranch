@@ -9,12 +9,18 @@
               class="chart-param-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
         All
       </button>
-      {% for pt in parameter_types %}
+      {% for pt in chip_types %}
         <button type="button" onclick="loadChartData('{{ pt.code }}')" id="tab-{{ pt.code }}" data-code="{{ pt.code }}"
                 class="chart-param-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
           {{ pt.name }}
         </button>
       {% endfor %}
+      {% if trace_types %}
+      <select aria-label="Chart an ICP element" onchange="if (this.value) loadChartData(this.value)" class="shrink-0 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold text-slate-300">
+        <option value="">ICP ▾</option>
+        {% for pt in trace_types %}<option value="{{ pt.code }}">{{ pt.name }}</option>{% endfor %}
+      </select>
+      {% endif %}
     </div>
   </div>
   <div class="relative h-64 sm:h-80 w-full mt-4"><canvas id="parameterChart"></canvas></div>

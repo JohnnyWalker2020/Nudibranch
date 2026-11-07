@@ -143,7 +143,10 @@ def _groups_with_counts(tank):
 
 def _logs_for_list(tank):
     """Logs ready to show their status, without a query per row to look up that system's targets."""
-    return in_system(ParameterLog.objects.select_related('parameter_type').prefetch_related('parameter_type__targets'), tank)
+    logs = in_system(ParameterLog.objects.select_related('parameter_type').prefetch_related('parameter_type__targets'), tank)
+    if not AppSettings.load().icp_enabled:  # ICP readings stay out of sight while ICP is switched off
+        logs = logs.filter(parameter_type__is_trace=False)
+    return logs
 
 
 def dashboard_view(request):
@@ -151,7 +154,7 @@ def dashboard_view(request):
     tank = get_active_tank(request)
     latest = latest_logs_by_parameter(tank)
     previous = latest_logs_by_parameter(tank, back=1)
-    parameter_types = [pt.for_system(tank) for pt in ParameterType.objects.prefetch_related('targets')]
+    parameter_types = [pt.for_system(tank) for pt in ParameterType.objects.in_use().prefetch_related('targets')]
     for pt in parameter_types:
         pt.current_log = latest.get(pt.pk)
         pt.trend = trend(pt, pt.current_log, previous.get(pt.pk))
@@ -162,6 +165,9 @@ def dashboard_view(request):
 
     context = {
         'parameter_types': parameter_types,
+        'card_types': [pt for pt in parameter_types if pt.show_on_dashboard],
+        'chip_types': [pt for pt in parameter_types if not pt.is_trace],
+        'trace_types': [pt for pt in parameter_types if pt.is_trace],
         'form': QuickParameterLogForm(),
         'layout': layout,
         'visible_widgets': [w for w in layout if w['enabled']],
@@ -208,10 +214,17 @@ def dashboard_customize_view(request):
     """Save which dashboard widgets are shown and their order (or reset to defaults)."""
     if request.POST.get('reset'):
         reset_dashboard_layout()
+        ParameterType.objects.filter(is_trace=False).update(show_on_dashboard=True)
+        ParameterType.objects.filter(is_trace=True).update(show_on_dashboard=False)
         messages.success(request, "Dashboard reset to the default layout.")
     else:
         order = [k for k in request.POST.get('order', '').split(',') if k]
         save_dashboard_layout(order, request.POST.getlist('enabled'))
+        if request.POST.get('cards_shown'):  # the water test card choices were on the form
+            shown = {_to_int(raw, None) for raw in request.POST.getlist('card')}
+            listed = ParameterType.objects.in_use()
+            listed.filter(pk__in=shown).update(show_on_dashboard=True)
+            listed.exclude(pk__in=shown).update(show_on_dashboard=False)
         messages.success(request, "Dashboard layout saved.")
     return redirect('dashboard')
 
@@ -224,7 +237,7 @@ def quick_measure_create(request):
     """
     values = request.POST.getlist('value')
     param_ids = request.POST.getlist('parameter')
-    types = {str(pt.id): pt for pt in ParameterType.objects.all()}
+    types = {str(pt.id): pt for pt in ParameterType.objects.in_use()}
     now = timezone.now()
     tank = get_active_tank(request)
     if tank is not None and tank.is_archived:
@@ -272,14 +285,14 @@ LOG_PAGE_SIZE = 25  # readings each Load more adds
 def parameters_view(request):
     """Full parameter management, historical logs, and interactive charts."""
     param_code = request.GET.get('param')
-    types = ParameterType.objects.all()
+    types = ParameterType.objects.in_use()
     tank = get_active_tank(request)
 
     logs_query = _logs_for_list(tank)
     selected_param = None
     if param_code:
         logs_query = logs_query.filter(parameter_type__code=param_code)
-        selected_param = ParameterType.objects.filter(code=param_code).first()
+        selected_param = ParameterType.objects.in_use().filter(code=param_code).first()
         if selected_param:
             selected_param = selected_param.for_system(tank)
     # No ?param= means the "All Parameters" view: every parameter on one chart.
@@ -290,6 +303,8 @@ def parameters_view(request):
 
     return render(request, 'aquarium/parameters.html', {
         'parameter_types': types,
+        'chip_types': [pt for pt in types if not pt.is_trace],
+        'trace_types': [pt for pt in types if pt.is_trace],
         'selected_code': param_code,
         'selected_param': selected_param,
         'recent_logs': recent_logs[:LOG_FIRST_PAGE],
@@ -362,6 +377,7 @@ def parameter_settings_view(request, param_id):
                     setattr(ptype, field, value)
                 ptype.unit = new_unit
                 ptype.decimal_places = form.cleaned_data['decimal_places']
+                ptype.show_on_dashboard = form.cleaned_data.get('show_on_dashboard', ptype.show_on_dashboard)
                 # A reminder in days. An hours setting for a probe (from Phone Alerts) is kept unless replaced.
                 days = form.cleaned_data.get('test_every_days')
                 if days:
@@ -379,7 +395,8 @@ def parameter_settings_view(request, param_id):
             messages.success(request, f"{ptype.name} settings saved.")
             return redirect(f"/parameters/?param={ptype.code}")
     else:
-        form = ParameterSettingsForm(instance=ptype, initial={**range_initial, 'test_every_days': ptype.test_every_days})
+        form = ParameterSettingsForm(instance=ptype, initial={**range_initial, 'test_every_days': ptype.test_every_days,
+                                                              'show_on_dashboard': ptype.show_on_dashboard})
 
     return render(request, 'aquarium/parameter_settings.html', {
         'parameter': old,
@@ -511,7 +528,7 @@ def api_all_chart_data(request):
     tank = _chart_tank(request)
 
     datasets = []
-    for base in ParameterType.objects.prefetch_related('targets'):
+    for base in ParameterType.objects.filter(is_trace=False).prefetch_related('targets'):
         ptype = base.for_system(tank)
         logs = list(in_system(ParameterLog.objects.filter(
             parameter_type=ptype, measured_at__gte=start_date), tank).order_by('measured_at'))
@@ -592,7 +609,7 @@ def api_parameter_types(request):
         tank = _api_tank(request.GET['tank'])
         if tank is None:
             return JsonResponse({'error': f"Unknown tank '{request.GET['tank']}'."}, status=404)
-    types = [pt.for_system(tank) for pt in ParameterType.objects.prefetch_related('targets')]
+    types = [pt.for_system(tank) for pt in ParameterType.objects.in_use().prefetch_related('targets')]
     data = [
         {
             'id': pt.id,
@@ -1048,7 +1065,7 @@ def _dose_context(tank):
     context = {}
     since = timezone.now() - timedelta(days=14)
 
-    by_code = {pt.code: pt for pt in ParameterType.objects.filter(code__in=DOSE_PARAMETERS).prefetch_related('targets')}
+    by_code = {pt.code: pt for pt in ParameterType.objects.in_use().filter(code__in=DOSE_PARAMETERS).prefetch_related('targets')}
     # Two queries for every parameter's newest reading, and one for the last 14 days of all of them.
     newest = latest_logs_by_parameter(tank)
     recent = {}

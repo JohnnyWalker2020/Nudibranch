@@ -67,7 +67,7 @@ def demo_logs(tank):
 
 def build_readings(tank, days, now):
     readings = []
-    for base in ParameterType.objects.all():
+    for base in ParameterType.objects.filter(is_trace=False):  # no made-up lab results
         readings += _readings_for(base.for_system(tank), tank, days, now, random.Random(f'{tank.pk}:{base.code}'))
     return readings
 

@@ -188,7 +188,8 @@ class AppSettingsForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = AppSettings
         fields = ['electricity_rate', 'currency_symbol', 'auto_backup_days', 'auto_backup_keep',
-                  'disable_icon_aging', 'enable_old_version_icons', 'enable_random_icons', 'resolved_alert_days']
+                  'disable_icon_aging', 'enable_old_version_icons', 'enable_random_icons', 'resolved_alert_days',
+                  'icp_enabled']
 
 
 class WebhookEndpointForm(StyledFormMixin, forms.ModelForm):

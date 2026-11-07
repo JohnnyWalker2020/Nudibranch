@@ -541,7 +541,7 @@ def timelapse_clear_view(request, cam_id):
 def integrations_view(request):
     if request.method == 'POST':
         changed = 0
-        for param in ParameterType.objects.all():
+        for param in ParameterType.objects.in_use():
             raw = request.POST.get(f'stale_{param.pk}', '').strip()
             value = _to_int(raw, None, 1, 8760) if raw else None
             if param.stale_after_hours != value:
@@ -555,7 +555,7 @@ def integrations_view(request):
         'endpoints': WebhookEndpoint.objects.annotate(delivery_count=Count('deliveries'))
                      .prefetch_related('routines', 'timer_reservoirs'),
         'deliveries': WebhookDelivery.objects.select_related('endpoint')[:30],
-        'parameters': ParameterType.objects.all(),
+        'parameters': ParameterType.objects.in_use(),
         'settings_obj': settings_obj,
         'api_key_set': bool(getattr(settings, 'API_SECRET_KEY', '')),
         'event_types': events.EVENT_TYPES,

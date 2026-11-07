@@ -62,6 +62,15 @@
       </div>
     </div>
 
+    <!-- Dashboard card -->
+    <label class="pt-4 border-t border-slate-800 flex items-start gap-3 cursor-pointer">
+      <span class="mt-0.5">{{ form.show_on_dashboard }}</span>
+      <span>
+        <span class="block text-sm font-semibold text-white">Show a card on the dashboard</span>
+        <span class="block text-[11px] text-slate-500">{% if parameter.is_trace %}An ICP element: off the All chart and listed after your regular tests. Its card is off unless you turn it on here.{% else %}Turn off to hide its card. Its tests, chart and alerts still work.{% endif %}</span>
+      </span>
+    </label>
+
     <!-- Test reminder -->
     <div class="pt-4 border-t border-slate-800 space-y-1.5">
       <label for="id_test_every_days" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Test reminder</label>

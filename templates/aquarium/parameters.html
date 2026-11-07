@@ -19,11 +19,17 @@
 
   <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
     <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors">All tests</a>
-    {% for pt in parameter_types %}
+    {% for pt in chip_types %}
       <a href="{% url 'parameters' %}?param={{ pt.code }}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_code == pt.code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors flex items-center gap-2">
         <span class="w-2 h-2 rounded-full" style="background-color: {{ pt.color }}"></span>{{ pt.name }}
       </a>
     {% endfor %}
+    {% if trace_types %}
+      <select aria-label="Chart an ICP element" onchange="if (this.value) location.href = '{% url 'parameters' %}?param=' + this.value" class="shrink-0 px-2.5 py-1.5 {% if selected_param.is_trace %}bg-cyan-500 text-slate-950 border-cyan-500{% else %}bg-slate-900 border border-slate-800{% endif %} rounded-xl text-xs font-semibold text-slate-300">
+        <option value="">ICP ▾</option>
+        {% for pt in trace_types %}<option value="{{ pt.code }}" {% if selected_code == pt.code %}selected{% endif %}>{{ pt.name }}</option>{% endfor %}
+      </select>
+      {% endif %}
   </div>
 
   <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">

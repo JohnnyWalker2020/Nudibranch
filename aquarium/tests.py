@@ -1896,6 +1896,7 @@ class DemoReadingsTests(TestCase):
         self.assertTrue(all(10 <= log.value <= 11 for log in normal))
 
     def test_parameter_with_no_limits_or_special_timing(self):
+        ParameterType.objects.filter(code='iodine').delete()  # the built-in ICP iodine; this test makes its own
         ParameterType.objects.create(name='Iodine', code='iodine', unit='ppb', min_ideal=50, max_ideal=70, decimal_places=0)
         self.run_it()
         self.assertTrue(ParameterLog.objects.filter(tank=self.tank, parameter_type__code='iodine').exists())
@@ -2806,7 +2807,8 @@ class ExtraDosingTests(TestCase):
         self.assertTrue(data['iodine']['note'])
 
     def test_tracked_in_ppb_is_converted(self):
-        iodine, _ = ParameterType.objects.update_or_create(code='iodine', defaults={'name': 'Iodine', 'unit': 'ppb', 'min_ideal': 40, 'max_ideal': 80})
+        iodine, _ = ParameterType.objects.update_or_create(code='iodine', defaults={'name': 'Iodine', 'unit': 'ppb', 'min_ideal': 40, 'max_ideal': 80,
+                                                                                   'is_trace': False})  # one you track yourself
         ParameterLog.objects.create(parameter_type=iodine, tank=self.tank, value=30)
         entry = self.client.get(reverse('tools')).context['dose_data']['parameters']['iodine']
         self.assertEqual(entry['current'], 0.03)
@@ -4105,3 +4107,82 @@ class ToolsBarTrendsDosesRemindersExportTests(TestCase):
         WaterChangeLog.objects.create(tank=other, gallons=2)
         self.assertNotIn('QT', self.client.get(reverse('export_water_changes')).content.decode('utf-8-sig'))
         self.assertIn('QT', self.client.get(reverse('export_water_changes'), {'tank': 'all'}).content.decode('utf-8-sig'))
+
+
+class IcpElementTests(TestCase):
+    def setUp(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'icp_enabled': True})
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.alk, _ = ParameterType.objects.update_or_create(code='alkalinity', defaults={
+            'name': 'Alkalinity', 'unit': 'dKH', 'min_ideal': 8, 'max_ideal': 9, 'display_order': 2})
+        self.copper = ParameterType.objects.get(code='copper')
+
+    def test_elements_are_added_as_trace_parameters(self):
+        icp = ParameterType.objects.filter(is_trace=True)
+        self.assertGreaterEqual(icp.count(), 25)
+        self.assertTrue({'sodium', 'boron', 'iodine', 'strontium', 'potassium', 'copper', 'tin', 'mercury'} <= set(icp.values_list('code', flat=True)))
+        self.assertFalse(icp.filter(show_on_dashboard=True).exists())
+        self.assertEqual((self.copper.unit, float(self.copper.max_ideal), float(self.copper.high_limit)), ('µg/L', 2.0, 5.0))
+
+    def test_they_come_last_in_lists(self):
+        names = [pt.name for pt in ParameterType.objects.all()]
+        regular = [pt.name for pt in ParameterType.objects.filter(is_trace=False)]
+        self.assertEqual(names[:len(regular)], regular)
+        from .forms import QuickParameterLogForm
+        modal = QuickParameterLogForm().fields['parameter_type'].queryset
+        self.assertFalse(list(modal)[0].is_trace)
+        self.assertTrue(list(modal)[-1].is_trace)
+
+    def test_no_cards_or_chips_but_a_menu(self):
+        page = self.client.get(reverse('dashboard'))
+        self.assertNotIn(self.copper, page.context['card_types'])
+        self.assertNotContains(page, 'id="tab-copper"')
+        self.assertContains(page, '<option value="copper"')
+        water = self.client.get(reverse('parameters'))
+        self.assertContains(water, 'ICP ▾')
+        self.assertNotContains(water, '?param=copper"')
+
+    def test_left_off_the_all_chart_but_chartable_alone(self):
+        ParameterLog.objects.create(parameter_type=self.copper, tank=self.tank, value=Decimal('1.2'))
+        ParameterLog.objects.create(parameter_type=self.alk, tank=self.tank, value=Decimal('8.5'))
+        codes = [d['code'] for d in self.client.get(reverse('api_all_chart_data')).json()['datasets']]
+        self.assertEqual(codes, ['alkalinity'])
+        single = self.client.get(reverse('api_chart_data'), {'param': 'copper'}).json()
+        self.assertEqual(len(single['values'] if 'values' in single else single['datasets'][0]['data']), 1)
+
+    def test_turning_a_card_on_from_customize_and_settings(self):
+        alk_and_copper = [str(self.alk.pk), str(self.copper.pk)]
+        self.client.post(reverse('dashboard_customize'), {'order': '', 'enabled': ['parameters'], 'cards_shown': '1', 'card': alk_and_copper})
+        self.copper.refresh_from_db()
+        self.assertTrue(self.copper.show_on_dashboard)
+        self.assertIn(self.copper, self.client.get(reverse('dashboard')).context['card_types'])
+        self.client.post(reverse('dashboard_customize'), {'reset': '1'})
+        self.copper.refresh_from_db()
+        self.assertFalse(self.copper.show_on_dashboard)
+        data = {'unit': 'µg/L', 'decimal_places': 2, 'low_limit': '', 'min_ideal': 0, 'max_ideal': 2, 'high_limit': 5,
+                'test_every_days': '', 'show_on_dashboard': 'on'}
+        self.client.post(reverse('parameter_settings', args=[self.copper.pk]), data)
+        self.copper.refresh_from_db()
+        self.assertTrue(self.copper.show_on_dashboard)
+
+    def test_fresh_install_still_gets_the_regular_parameters(self):
+        from django.core.management import call_command
+        ParameterType.objects.filter(is_trace=False).delete()
+        call_command('seed_reef_data', stdout=__import__('io').StringIO())
+        self.assertTrue(ParameterType.objects.filter(code='salinity').exists())
+
+    def test_switched_off_they_appear_nowhere(self):
+        AppSettings.objects.filter(pk=1).update(icp_enabled=False)
+        ParameterLog.objects.create(parameter_type=self.copper, tank=self.tank, value=Decimal('9'))  # out of range
+        from .forms import QuickParameterLogForm
+        self.assertNotIn(self.copper, list(QuickParameterLogForm().fields['parameter_type'].queryset))
+        page = self.client.get(reverse('dashboard'))
+        self.assertNotContains(page, 'ICP ▾')
+        self.assertNotContains(page, '>Copper')
+        self.assertNotContains(page, 'Copper is')
+        water = self.client.get(reverse('parameters'))
+        self.assertNotContains(water, 'ICP ▾')
+        self.assertNotContains(self.client.get(reverse('integrations')), 'Copper')
+        self.assertEqual(self.client.get(reverse('notifications')).context['total_alerts'], 0)
+        self.assertNotIn('copper', [p['code'] for p in self.client.get(reverse('api_parameter_types')).json().get('parameters', [])])
+        self.assertContains(self.client.get(reverse('app_settings')), 'Enable ICP elements')

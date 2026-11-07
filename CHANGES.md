@@ -1,5 +1,12 @@
 # Nudibranch: change summary
 
+## Round 16 (2026-11-07)
+
+Apply with `docker compose up -d --build`; migration 0030 runs on start.
+
+- **ICP elements, off until you want them**: 29 elements from lab (ICP) water tests are added, but don't appear anywhere until you turn on **Enable ICP elements** under Tools > Settings. Then they're listed after your regular tests, chart from an ICP menu instead of the All chart, and have no dashboard cards until you choose them. Parameters you already had with the same name are left as they are.
+- **Choose which water test cards show**: Customize on the dashboard has a Water test cards list, and each parameter's settings page has a Show a card on the dashboard switch.
+
 ## Round 15 (2026-11-07)
 
 Apply with `docker compose up -d --build`; migration 0029 runs on start.

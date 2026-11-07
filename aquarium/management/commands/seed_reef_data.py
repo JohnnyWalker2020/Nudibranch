@@ -72,7 +72,7 @@ class Command(BaseCommand):
 
         # Only for a brand new install: this runs on every start, and must not undo your changes
         # to a parameter's decimals or bring back one you deleted.
-        if ParameterType.objects.exists():
+        if ParameterType.objects.filter(is_trace=False).exists():
             self.stdout.write("  - Parameters already set up, left as they are.")
         else:
             for p in default_parameters:

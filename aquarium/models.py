@@ -50,8 +50,15 @@ def all_weekdays():
 RANGE_FIELDS = ('low_limit', 'min_ideal', 'max_ideal', 'high_limit')
 
 
+class ParameterTypeQuerySet(models.QuerySet):
+    def in_use(self):
+        """Every parameter, or only the regular ones while ICP elements are switched off in Settings."""
+        return self if AppSettings.load().icp_enabled else self.filter(is_trace=False)
+
+
 class ParameterType(models.Model):
     """Represents a measured water metric (e.g. Salinity, Alkalinity, Calcium)."""
+    objects = ParameterTypeQuerySet.as_manager()
     name = models.CharField(max_length=60, unique=True)
     code = models.SlugField(max_length=30, unique=True, help_text="Short identifier e.g. alk, sal, ca")
     unit = models.CharField(max_length=20, help_text="e.g. dKH, SG, ppm, °F, pH")
@@ -67,6 +74,8 @@ class ParameterType(models.Model):
     stale_after_hours = models.PositiveIntegerField(
         null=True, blank=True,
         help_text="Alert if no reading arrives for this many hours (for probes; blank = never)")
+    is_trace = models.BooleanField(default=False, help_text='An ICP or trace element: left off the All chart and listed after the others')
+    show_on_dashboard = models.BooleanField(default=True, help_text='Show a card for it on the dashboard')
 
     class Meta:
         ordering = ['display_order', 'name']
@@ -1156,6 +1165,9 @@ class AppSettings(models.Model):
         default=False, help_text="Lets you pick the old version of a character for any tank")
     enable_random_icons = models.BooleanField(
         default=False, help_text="Tanks with no chosen icon show a different character on every page")
+    icp_enabled = models.BooleanField(
+        default=False, verbose_name='Enable ICP elements',
+        help_text="Adds about 30 elements from lab (ICP) water tests, like boron, iodine and copper. They're listed after your regular tests and stay off the All chart and the dashboard until you choose them.")
     alerts_muted_until = models.DateTimeField(null=True, blank=True, editable=False)
     alerts_muted_forever = models.BooleanField(default=False, editable=False)
     resolved_alert_days = models.PositiveSmallIntegerField(

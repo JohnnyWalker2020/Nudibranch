@@ -56,7 +56,7 @@ def compute_alert_state(request=None, tank=ANY):
         return not_retired(queryset) if tank is ANY else in_system(queryset, tank)
 
     now = timezone.now()
-    param_types = list(ParameterType.objects.prefetch_related('targets'))
+    param_types = list(ParameterType.objects.in_use().prefetch_related('targets'))
     out_of_range, stale_params = [], []
     for bucket in (log_buckets() if tank is ANY else [tank]):
         bad, stale = _parameter_problems(bucket, param_types, now)

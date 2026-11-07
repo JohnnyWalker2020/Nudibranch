@@ -73,6 +73,7 @@ class QuickParameterLogForm(DefaultNowMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._setup_now_field()
+        self.fields['parameter_type'].queryset = ParameterType.objects.in_use()
 
 
 class ParameterSettingsForm(forms.ModelForm):
@@ -84,6 +85,7 @@ class ParameterSettingsForm(forms.ModelForm):
         help_text="Automatically convert all previously entered test logs to match the new unit"
     )
     apply_default = forms.BooleanField(required=False)
+    show_on_dashboard = forms.BooleanField(required=False, label='Show a card on the dashboard')
     test_every_days = forms.IntegerField(
         required=False, min_value=1, max_value=365, label='Remind me to test every',
         widget=forms.NumberInput(attrs={
@@ -194,6 +196,10 @@ class ParameterLogEditForm(DefaultNowMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._setup_now_field()
+        in_use = ParameterType.objects.in_use()
+        if self.instance.pk:
+            in_use = ParameterType.objects.filter(models.Q(pk__in=in_use) | models.Q(pk=self.instance.parameter_type_id))
+        self.fields['parameter_type'].queryset = in_use
 
 
 class AnimalGroupForm(forms.ModelForm):
