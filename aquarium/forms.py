@@ -168,9 +168,22 @@ class ParameterTypeForm(forms.ModelForm):
             'color': forms.TextInput(attrs={'class': INPUT, 'type': 'color'}),
             'display_order': forms.NumberInput(attrs={'class': INPUT, 'min': '0'}),
         }
+        help_texts = {'display_order': 'Where it sits in lists. ICP elements start at 100.'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.instance.pk:  # a new parameter goes after your regular ones, before any ICP elements
+            last = ParameterType.objects.filter(is_trace=False).aggregate(models.Max('display_order'))['display_order__max']
+            self.initial.setdefault('display_order', 0 if last is None else last + 1)
 
     def clean(self):
         cleaned = super().clean()
+        # An ICP element can be hidden (switched off in Settings), so say why its name is taken.
+        name, code = cleaned.get('name') or '', cleaned.get('code') or ''
+        hidden = ParameterType.objects.filter(is_trace=True).filter(models.Q(name__iexact=name) | models.Q(code=code)).exclude(pk=self.instance.pk).first()
+        if hidden and not AppSettings.load().icp_enabled:
+            self.add_error('name', f"{hidden.name} is one of the ICP elements. Turn on Enable ICP elements under "
+                                   "Tools > Settings to use it.")
         validate_parameter_ranges(self, cleaned)
         if cleaned.get('decimal_places') is not None and cleaned['decimal_places'] > 4:
             self.add_error('decimal_places', "Use between 0 and 4 decimal places.")

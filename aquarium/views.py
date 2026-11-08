@@ -452,7 +452,7 @@ def parameter_type_create_view(request):
         form = ParameterTypeForm(initial={'unit': 'ppm', 'decimal_places': 2})
     return render(request, 'aquarium/generic_form.html', {
         'form': form, 'title': 'Add Custom Parameter',
-        'subtitle': 'Track anything else you test: nitrite, ammonia, potassium, iodine...',
+        'subtitle': 'Track anything else you test: nitrite, ammonia, ORP...',
         'back_url': '/parameters/',
     })
 

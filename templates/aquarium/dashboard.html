@@ -141,6 +141,8 @@
       btn.classList.remove('bg-cyan-500', 'text-slate-950');
       btn.classList.add('bg-slate-800', 'text-slate-300');
     });
+    const icpMenu = document.querySelector('select[aria-label="Chart an ICP element"]');
+    if (icpMenu) icpMenu.value = [...icpMenu.options].some(o => o.value === paramCode) ? paramCode : '';
     const activeBtn = document.getElementById(`tab-${paramCode}`);
     if (activeBtn) {
       activeBtn.classList.remove('bg-slate-800', 'text-slate-300');

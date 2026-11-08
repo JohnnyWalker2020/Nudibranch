@@ -4186,3 +4186,32 @@ class IcpElementTests(TestCase):
         self.assertEqual(self.client.get(reverse('notifications')).context['total_alerts'], 0)
         self.assertNotIn('copper', [p['code'] for p in self.client.get(reverse('api_parameter_types')).json().get('parameters', [])])
         self.assertContains(self.client.get(reverse('app_settings')), 'Enable ICP elements')
+
+
+class FinalReviewTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+
+    def test_new_parameter_goes_after_regular_ones(self):
+        from .forms import ParameterTypeForm
+        regular_last = ParameterType.objects.filter(is_trace=False).order_by('-display_order').first()
+        expected = (regular_last.display_order + 1) if regular_last else 0
+        self.assertEqual(ParameterTypeForm().initial['display_order'], expected)
+        self.assertLess(expected, 100)
+
+    def test_hidden_icp_name_explains_itself(self):
+        from .forms import ParameterTypeForm
+        form = ParameterTypeForm(data={'name': 'Iodine', 'code': 'my-iodine', 'unit': 'ppm', 'decimal_places': 3,
+                                       'min_ideal': 0.05, 'max_ideal': 0.07, 'color': '#000000', 'display_order': 9})
+        self.assertFalse(form.is_valid())
+        self.assertIn('Enable ICP elements', form.errors['name'][0])
+
+    def test_csv_leaves_out_icp_while_off(self):
+        copper = ParameterType.objects.get(code='copper')
+        ParameterLog.objects.create(parameter_type=copper, tank=self.tank, value=Decimal('1'))
+        self.assertNotIn('Copper', self.client.get(reverse('export_tests')).content.decode('utf-8-sig'))
+        AppSettings.objects.update_or_create(pk=1, defaults={'icp_enabled': True})
+        self.assertIn('Copper', self.client.get(reverse('export_tests')).content.decode('utf-8-sig'))
+
+    def test_service_worker_does_not_preload_the_old_manifest(self):
+        self.assertNotIn('/static/manifest.json', self.client.get('/sw.js').content.decode())
