@@ -2,7 +2,6 @@
 // Served from /sw.js (see config/urls.py) so its scope covers the whole site.
 const CACHE_NAME = 'nudibranch-v6';
 const PRECACHE = [
-  '/static/manifest.json',
   '/static/icons/icon.svg',
   '/static/js/app.js',
   '/static/js/charts.js',

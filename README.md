@@ -12,7 +12,7 @@ Built with **Python**, **Django 5**, **SQLite**, **Tailwind CSS**, **HTMX** and 
 
 ## 📸 Screenshots
 
-| Water chemistry | Compare planned tanks |
+| Water quality | Compare planned tanks |
 |---|---|
 | ![Parameter chart with target ranges](docs/screenshots/parameters.png) | ![A project comparing three planned tanks side by side](docs/screenshots/planner-project.png) |
 
@@ -95,12 +95,17 @@ Tailscale may ask you to approve Serve the first time. Add the `https://` addres
 
 ## ✨ Features
 
+### Dashboard and getting around
+- **On a phone,** the bar at the bottom has Home, Water, Livestock, Tanks and Tools. Calculators, timers, webcams, phone alerts and backups are under Tools.
+- **The dashboard** shows your alerts, timers, a card for each water test, charts, reservoir levels and more. **Quick Add Test** and **Water Change** at the top log either in a couple of taps.
+- **Trend arrows:** each water test card shows the change since the test before. Green means it moved toward the ideal range, amber away from it, and grey that it held steady or moved within the range.
+- **Customize** picks which sections show and their order, and under **Water test cards**, which parameters get a card.
+
 ### Multiple tanks
-On a phone, the bar at the bottom has Home, Water, Livestock, Tanks and Tools, and webcams are under Tools. Pick a tank from the **Tank** menu at the top of any page (beside the logo on a phone). The dashboard, water tests, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that tank. Your choice is remembered per device, and the menu flags other tanks that have alerts.
+Pick a tank from the **Tank** menu at the top of any page (beside the logo on a phone). The dashboard, water tests, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that tank. Your choice is remembered per device, and the menu flags other tanks that have alerts.
 
 - **Sizes shown:** wherever a tank is named, its size is the total water: display, sumps and plumbing. The tank's own page still breaks it down.
 - **Order:** the ↑ and ↓ buttons on the **Tanks** page set the order of the tanks there and in the Tank menu.
-
 - **Shared across tanks:** the wishlist, plans, species catalog, parameter names and units, webhooks, backups and the quarantine list.
 - **All tanks views:** Equipment and Power can show every tank at once.
 - **Tank look:** use **Icon & colours** on a tank's page to give each tank its own colour scheme and icon, from 26 nudibranch characters or your own image. **Match my icon** builds the colour scheme from the icon itself.
@@ -110,7 +115,6 @@ On a phone, the bar at the bottom has Home, Water, Livestock, Tanks and Tools, a
 ### Water quality
 - Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges. The **Water** page shows your last 10 readings, and **Load more** walks back through the rest.
 - **Quick Add Test** logs a test for the selected tank, or pick another tank in its menu.
-- **Trend arrows:** each dashboard card shows the change since the test before. Green means it moved toward the ideal range, amber away from it, and grey that it held steady or moved within the range.
 - **Test reminders:** on a parameter's settings page, set **Remind me to test every N days**. When a test is overdue, **Time to test** shows on the Alerts page and the dashboard, and can notify your phone. (A probe check in hours, under **Phone Alerts**, works the same way.)
 - **ICP elements:** an ICP test is a lab test of a mailed-in water sample that reports 30 or more elements at once. Turn on **Enable ICP elements** under **Tools > Settings** to add 29 of them, such as boron, iodine, strontium, copper and tin. Until then they don't appear anywhere. Once on, they're listed after your regular tests, chart from the **ICP** menu beside the parameter buttons rather than on the All chart, and get a dashboard card only if you tick it under **Customize > Water test cards** or on the element's settings page. Their ranges are rough, mostly natural seawater levels, and labs set their own, so adjust them to match your lab's report.
 - **Export CSV** on the Water page downloads every test for the selected tank as a spreadsheet file. Add `?tank=all` to the address for every tank. Water changes and doses have their own Export CSV links.
@@ -146,7 +150,7 @@ The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spr
 - **Power cost:** estimated electricity use and cost from equipment wattage. Set your price under **Tools > Settings**.
 
 ### Alerts
-- The **Alerts** page lists active problems, including probes that have stopped reporting, plus a **Resolved** section and metrics such as average time to resolve. Filter by severity and status.
+- The **Alerts** page lists active problems, including overdue test reminders and probes that have stopped reporting, plus a **Resolved** section and metrics such as average time to resolve. Filter by severity and status.
 - **Mute notifications** for a set time, or until you turn them back on. Phone alerts and alert webhooks pause, while alerts still show on the site, and feeder schedules and timers keep working. Anything still wrong when the mute ends is sent then.
 - Resolved alerts are kept for 7 days. Change that, up to 30, under **Tools > Settings**. The history starts when you install this version.
 
@@ -166,7 +170,7 @@ Under **Tools > Backups**, make a zip of your database and photos, download it, 
 Backups are stored in `data/backups` on the same drive as your data, so copy one somewhere else now and then. They don't include your `.env` file.
 
 ### Webcams
-Add MJPEG, snapshot or embedded camera feeds, and assign each to a tank or show it on all of them. **Time-lapse** captures frames on a schedule and plays them back in the browser. RTSP cameras need a converter such as [go2rtc](https://github.com/AlexxIT/go2rtc), and an example is commented out in `docker-compose.yml`.
+Add MJPEG, snapshot or embedded camera feeds (under **Tools** on a phone), and assign each to a tank or show it on all of them. **Time-lapse** captures frames on a schedule and plays them back in the browser. RTSP cameras need a converter such as [go2rtc](https://github.com/AlexxIT/go2rtc), and an example is commented out in `docker-compose.yml`.
 
 > ⚠️ **Handle with care.** Some nudibranchs steal stinging cells from the prey they eat and use them for defence. This one is no different: touch it three times and it stings. Mostly your wallet.
 
@@ -196,7 +200,7 @@ A connection receives events as they happen, from a background worker that start
 |---|---|
 | `parameter.critical` | A reading reaches a critical limit |
 | `parameter.out_of_range` | A reading leaves the optimal range |
-| `parameter.stale` | A probe stops reporting (set the hours per parameter) |
+| `parameter.stale` | A test reminder is overdue, or a probe stops reporting (set per parameter) |
 | `reservoir.low` | A reservoir is running low |
 | `routine.due` | A manual routine comes due |
 | `routine.scheduled` | An automated schedule event's time arrives, such as a feeder |
@@ -270,7 +274,7 @@ You can log parameter readings programmatically via HTTP POST requests from auto
 GET /api/parameters/types/
 X-API-Key: YOUR-API-KEY
 ```
-Add `?tank=<ID or name>` to get that tank's target ranges.
+Add `?tank=<ID or name>` to get that tank's target ranges. ICP elements are listed only while they're switched on in Settings, but a device can log them either way.
 
 **Example Response:**
 ```json
@@ -406,7 +410,7 @@ Run the tests against a temporary data folder, so your real data isn't touched:
 docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python web manage.py test aquarium
 ```
 
-- `aquarium/`: the Django app. Views for the newer tools are in `views_tools.py`, sign-in is in `middleware.py`, alert history is in `alert_history.py`, and background jobs are in `management/commands/run_worker.py`.
+- `aquarium/`: the Django app. Views for the newer tools are in `views_tools.py`, sign-in is in `middleware.py`, alert history is in `alert_history.py`, CSV downloads are in `exports.py`, the main-tank app icon is in `app_icon.py`, and background jobs are in `management/commands/run_worker.py`. `request_cache.py` lets a page read the app settings once instead of many times.
 - `aquarium/species_catalog.csv`: the built-in species list.
 - `static/icons/nudibranch/`: character icons, as `NN-name-young.png` and `NN-name-old.png` pairs. Add a pair and restart to add a character. Small copies are generated at startup in `thumbs/`.
 - `.env.example`: the settings to copy into your private `.env`.

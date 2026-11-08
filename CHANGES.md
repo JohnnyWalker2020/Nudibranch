@@ -1,5 +1,15 @@
 # Nudibranch: change summary
 
+## Round 17 (2026-11-07)
+
+Apply with `docker compose up -d --build`. There's no database change.
+
+- **New parameters land after your regular ones**: a parameter you add defaults to just after pH, rather than above Salinity, and before any ICP elements.
+- **Clearer error for ICP names**: adding a parameter called Iodine (or another ICP element) while ICP is switched off now says to turn it on, instead of a confusing "already exists".
+- **CSV and ICP**: the water test export leaves ICP readings out while ICP is switched off, like everywhere else.
+- **Dashboard chart**: picking a regular parameter after an ICP element clears the ICP menu.
+- **Tidy-up**: the old fixed app manifest is removed; the app uses the one that follows your main tank's icon.
+- **README**: a Dashboard section, test reminders under Alerts and webhooks, ICP in the API notes, and the newer code files.
 ## Round 16 (2026-11-07)
 
 Apply with `docker compose up -d --build`; migration 0030 runs on start.
