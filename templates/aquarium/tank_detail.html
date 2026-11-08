@@ -36,6 +36,7 @@
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Display tank</span>
       <span class="text-lg font-black text-white">{{ tank.volume_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
       {% if tank.capacity_is_manual %}<span class="block text-[10px] text-slate-500">entered manually</span>{% elif tank.has_dimensions %}<span class="block text-[10px] text-slate-500">from dimensions</span>{% endif %}
+      <a href="{% url 'equipment_create' %}?location=tank:{{ tank.id }}&next={{ request.path|urlencode }}" class="mt-1 inline-block px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-[10px] rounded-md border border-slate-700 transition-colors">+ Equipment</a>
     </div>
     <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Sump</span>
