@@ -263,6 +263,7 @@
             <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="min-w-0 flex-1">
               <span class="block text-xs font-bold text-white truncate">{{ eq.name }}</span>
               <span class="block text-[10px] text-slate-500">{{ eq.location_label }}{% if eq.is_service_due %} · <span class="font-bold text-amber-400">change due</span>{% elif eq.days_until_service is not None %} · change in {{ eq.days_until_service }} day{{ eq.days_until_service|pluralize }}{% endif %}</span>
+              {% if eq.schedule_text %}<span class="block text-[10px] text-violet-300 truncate">🕒 {{ eq.schedule_text }}</span>{% endif %}
             </a>
             <form method="POST" action="{% url 'service_equipment' eq.id %}" class="shrink-0">
               {% csrf_token %}
@@ -319,6 +320,7 @@
             <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="min-w-0 flex-1">
               <span class="block text-xs font-bold text-white truncate">{{ eq.name }}</span>
               <span class="block text-[10px] text-slate-500">{{ eq.get_category_display }}{% if eq.is_service_due %} · <span class="font-bold text-amber-400">service due</span>{% endif %}</span>
+              {% if eq.schedule_text %}<span class="block text-[10px] text-violet-300 truncate">🕒 {{ eq.schedule_text }}</span>{% endif %}
             </a>
             {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
           </div>

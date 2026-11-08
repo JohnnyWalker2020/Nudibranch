@@ -263,3 +263,40 @@ function initOutletPicker(root) {
   draw();
 }
 document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.outlet-picker').forEach(initOutletPicker));
+
+// ---- Daily schedule editor: rows of time + what happens, kept as JSON in a hidden field ----
+function initScheduleEditor(root) {
+  const hidden = document.getElementById(root.dataset.input);
+  const rows = root.querySelector('[data-rows]');
+  if (!hidden || !rows) return;
+  const listId = root.dataset.input + '-actions';
+  const save = () => {
+    const events = [...rows.querySelectorAll('[data-row]')].map(r => ({
+      time: r.querySelector('input[type=time]').value,
+      action: r.querySelector('input[type=text]').value.trim(),
+    })).filter(e => e.time);
+    hidden.value = JSON.stringify(events);
+  };
+  const addRow = (time = '', action = '') => {
+    const row = document.createElement('div');
+    row.dataset.row = '';
+    row.className = 'flex items-center gap-2';
+    row.innerHTML = `<input type="time" class="w-28 px-2 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+      <input type="text" list="${listId}" placeholder="What happens, e.g. Lights on" maxlength="60"
+             class="flex-1 min-w-0 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm">
+      <button type="button" aria-label="Remove this time" class="px-1.5 text-slate-500 hover:text-rose-400">✕</button>`;
+    row.querySelector('input[type=time]').value = time;
+    row.querySelector('input[type=text]').value = action;
+    row.querySelector('button').addEventListener('click', () => { row.remove(); save(); });
+    row.addEventListener('input', save);
+    rows.appendChild(row);
+    return row;
+  };
+  let events = [];
+  try { events = JSON.parse(hidden.value || '[]'); } catch (e) { events = []; }
+  events.forEach(e => addRow(e.time, e.action));
+  if (!events.length) addRow();
+  root.querySelector('[data-add]').addEventListener('click', () => addRow().querySelector('input').focus());
+  save();
+}
+document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.schedule-editor').forEach(initScheduleEditor));

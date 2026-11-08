@@ -52,6 +52,9 @@
 }
 /* Square corners everywhere */
 .style-8bit [class*="rounded"],
+.style-8bit .unit-field,
+.style-8bit .outlet-picker svg,
+.style-8bit .flow-sketch svg,
 .style-8bit input,
 .style-8bit select,
 .style-8bit textarea,
@@ -60,6 +63,7 @@
    Other browsers keep the square corners above. */
 @supports (corner-shape: notch) {
   .style-8bit [class*="rounded"],
+  .style-8bit .unit-field,
   .style-8bit input,
   .style-8bit select,
   .style-8bit textarea,
@@ -68,6 +72,11 @@
   .style-8bit .rounded-2xl,
   .style-8bit .rounded-3xl { border-radius: 8px !important; }
 }
+/* Boxes with a unit inside: the outer box gets the chunky border and the step, the parts inside stay plain */
+.style-8bit .unit-field { border-width: 2px !important; }
+.style-8bit .unit-field > input,
+.style-8bit .unit-field > .unit-btn,
+.style-8bit .unit-field > .unit-suffix { border-radius: 0 !important; corner-shape: round; }
 /* No soft glows... */
 .style-8bit [class*="shadow"] { box-shadow: none !important; }
 /* ...but cards and panels get chunky borders and a hard drop shadow */

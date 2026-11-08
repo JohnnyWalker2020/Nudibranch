@@ -38,11 +38,18 @@
       </div>
     </div>
 
-    <div class="space-y-1.5">
-      <label for="{{ form.pipe_size.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Pipe size</label>
-      {{ form.pipe_size }}
-      <p class="text-[11px] text-slate-500">Nominal sizes use Schedule 40 PVC inside diameters. Pick "Custom" for flexible tubing, Sch 80, metric pipe, etc.</p>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="space-y-1.5">
+        <label for="{{ form.pipe_type.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Pipe type</label>
+        {{ form.pipe_type }}
+      </div>
+      <div class="space-y-1.5">
+        <label for="{{ form.pipe_size.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Size</label>
+        {{ form.pipe_size }}
+      </div>
     </div>
+    <p class="-mt-2 text-[11px] text-slate-500">Each type uses its own inside diameter for that size. Pick "Custom" for metric pipe or anything else, and enter its inside diameter.</p>
+    {{ pipe_inside|json_script:"pipe-inside" }}
 
     <div id="custom-diameter" class="grid grid-cols-3 gap-3 p-4 bg-slate-950/60 border border-slate-800 rounded-2xl">
       <div class="col-span-3 space-y-1.5">
@@ -85,8 +92,8 @@
 <script>
   (function () {
     const $ = id => document.getElementById(id);
-    const SCH40_ID = { '0.5': 0.622, '0.75': 0.824, '1': 1.049, '1.25': 1.380, '1.5': 1.610, '2': 2.067 };
-    const len = $('id_length'), lenUnit = $('id_length_unit'), size = $('id_pipe_size');
+    const INSIDE = JSON.parse(document.getElementById('pipe-inside').textContent);  // inside diameter by type and size
+    const len = $('id_length'), lenUnit = $('id_length_unit'), size = $('id_pipe_size'), type = $('id_pipe_type');
     const cd = $('id_custom_diameter'), cdUnit = $('id_custom_diameter_unit');
     const count = $('id_count'), fill = $('id_fill_percent'), out = $('run-estimate');
 
@@ -96,7 +103,7 @@
         if (!(d > 0)) return null;
         return cdUnit.value === 'mm' ? d / 25.4 : d;
       }
-      return SCH40_ID[size.value] || null;
+      return (INSIDE[type.value] || INSIDE.pvc40)[size.value] || null;
     }
     function refresh() {
       $('custom-diameter').classList.toggle('hidden', size.value !== 'custom');
@@ -109,7 +116,7 @@
       const gal = Math.PI * (id / 2) ** 2 * feet * 12 / 231 * n * pct / 100;
       out.textContent = gal.toFixed(2) + ' gal (' + (gal * 3.78541).toFixed(1) + ' L)';
     }
-    [len, lenUnit, size, cd, cdUnit, count, fill].forEach(el => { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
+    [len, lenUnit, size, type, cd, cdUnit, count, fill].forEach(el => { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
     refresh();
   })();
 </script>

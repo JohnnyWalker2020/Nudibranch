@@ -76,6 +76,28 @@ class PercentSliderInput(forms.NumberInput):
             '<span class="text-xs text-slate-400">%</span></div>', start, number)
 
 
+class ScheduleInput(forms.HiddenInput):
+    """A daily schedule as rows of time + what happens ('10:00', 'Lights on'), kept as JSON in a hidden field
+    (see initScheduleEditor in app.js)."""
+    ACTIONS = ('On', 'Off', 'Lights on', 'Lights off', 'Ramp up', 'Ramp down', 'Moonlight', 'Feed mode', 'Night mode',
+               'Dose', 'Feed', 'Clean')
+
+    @property
+    def is_hidden(self):
+        return False
+
+    def render(self, name, value, attrs=None, renderer=None):
+        from django.utils.html import format_html, format_html_join
+        hidden = super().render(name, value, attrs, renderer)
+        input_id = (attrs or {}).get('id', f'id_{name}')
+        options = format_html_join('', '<option value="{}">', ((a,) for a in self.ACTIONS))
+        return format_html(
+            '<div class="schedule-editor space-y-2" data-input="{}">{}<datalist id="{}-actions">{}</datalist>'
+            '<div data-rows class="space-y-1.5"></div>'
+            '<button type="button" data-add class="text-xs font-semibold text-cyan-400 hover:underline">+ Add a time</button>'
+            '</div>', input_id, hidden, input_id, options)
+
+
 class OutletPickerInput(forms.HiddenInput):
     """Two little pictures of the display for placing a pump outlet: from above (tap to place, slider for which way
     it points) and from the front (tap to set the height, slider to tilt it up or down). Renders outlet_x itself;
@@ -668,6 +690,10 @@ class PlumbingRunForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         unit_pair(self, 'length', 'length_unit')
         unit_pair(self, 'custom_diameter', 'custom_diameter_unit')
+        self.fields['pipe_type'].required = False
+
+    def clean_pipe_type(self):
+        return self.cleaned_data.get('pipe_type') or 'pvc40'  # PVC unless you say otherwise
 
     def clean_length_unit(self):
         return _clean_unit(self, 'length_unit', ('ft', 'm'))
@@ -677,11 +703,12 @@ class PlumbingRunForm(forms.ModelForm):
 
     class Meta:
         model = PlumbingRun
-        fields = ['name', 'length', 'length_unit', 'pipe_size', 'custom_diameter', 'custom_diameter_unit',
+        fields = ['name', 'length', 'length_unit', 'pipe_type', 'pipe_size', 'custom_diameter', 'custom_diameter_unit',
                   'count', 'fill_percent']
         widgets = {
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Return line, Main drain'}),
             'length': UnitNumberInput('length_unit', ('ft', 'm'), attrs={'step': '0.1', 'min': '0.1', 'inputmode': 'decimal'}),
+            'pipe_type': forms.Select(attrs={'class': INPUT}),
             'pipe_size': forms.Select(attrs={'class': INPUT}),
             'custom_diameter': UnitNumberInput('custom_diameter_unit', ('in', 'mm'),
                                                attrs={'step': 'any', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'Inside diameter'}),
@@ -795,12 +822,14 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
         widget=forms.Select(attrs={'class': INPUT}),
         help_text="Display tank, a sump, or a specific sump chamber",
     )
+    schedule = forms.CharField(required=False, widget=ScheduleInput(), label='Daily schedule',
+                               help_text='Times it switches or changes each day, like 10:00 Lights on and 20:00 Lights off')
 
     class Meta:
         model = Equipment
         fields = ['location', 'name', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
                   'flow_derate_percent', 'max_head', 'max_head_unit', 'outlet_x', 'outlet_y', 'outlet_z',
-                  'outlet_heading', 'outlet_tilt', 'installed_date', 'maintenance_interval_days', 'last_serviced_date',
+                  'outlet_heading', 'outlet_tilt', 'schedule', 'installed_date', 'maintenance_interval_days', 'last_serviced_date',
                   'status', 'paid', 'notes']
         labels = {'paid': 'What you paid'}
         widgets = {
@@ -847,6 +876,11 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
         for name in ('max_flow_gph', 'outlet_x'):
             self.fields[name].widget.attrs['data-for-categories'] = 'return_pump,wavemaker'
         self.fields['power_setting_percent'].widget.attrs['data-for-categories'] = 'return_pump,wavemaker,lighting'
+        self.fields['schedule'].widget.attrs['data-for-categories'] = ','.join(Equipment.SCHEDULE_CATEGORIES)
+        if self.instance.pk and not self.is_bound:
+            import json
+            own = MaintenanceRoutine.objects.filter(owner_equipment=self.instance).first()
+            self.initial['schedule'] = json.dumps(own.sorted_events if own else [])
         self.fields['power_setting_percent'].label = 'Running at'
 
     def clean(self):
@@ -892,7 +926,52 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
             self.instance.tank = placement['tank']
             self.instance.sump = placement['sump']
             self.instance.chamber = placement['chamber']
-        return super().save(commit=commit)
+        eq = super().save(commit=commit)
+        if commit:
+            self._save_schedule(eq)
+        return eq
+
+    SCHEDULE_ROUTINE_CATEGORY = {'lighting': 'lighting', 'skimmer': 'skimmer', 'return_pump': 'flow', 'wavemaker': 'flow',
+                                 'feeder': 'feeding', 'dosing': 'dosing', 'ato': 'ato'}
+
+    def clean_schedule(self):
+        """The rows as [{'time': 'HH:MM', 'action': '...'}], blank rows dropped."""
+        import json
+        raw = self.cleaned_data.get('schedule') or '[]'
+        try:
+            rows = json.loads(raw)
+        except ValueError:
+            raise forms.ValidationError("Couldn't read the schedule. Please set it again.")
+        events = []
+        for row in rows if isinstance(rows, list) else []:
+            time = str((row or {}).get('time', '')).strip()
+            action = str((row or {}).get('action', '')).strip()[:60]
+            if not time:
+                continue
+            if not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', time):
+                raise forms.ValidationError(f"{time} isn't a time of day (use 24-hour, like 20:30).")
+            events.append({'time': time, 'action': action or 'On'})
+        return sorted(events, key=lambda e: e['time'])
+
+    def _save_schedule(self, eq):
+        """The schedule lives in an automated routine of the equipment's own, so it also shows on Routines."""
+        events = self.cleaned_data.get('schedule') or []
+        if eq.category not in Equipment.SCHEDULE_CATEGORIES:
+            events = []
+        routine = MaintenanceRoutine.objects.filter(owner_equipment=eq).first()
+        if not events:
+            if routine:
+                routine.delete()
+            return
+        if routine is None:
+            routine = MaintenanceRoutine(owner_equipment=eq, routine_type='automated', repeat_every=1, repeat_unit='day',
+                                         checklist_items=[])
+        routine.title = f"{eq.name} schedule"[:120]
+        routine.tank = eq.tank
+        routine.category = self.SCHEDULE_ROUTINE_CATEGORY.get(eq.category, 'equipment')
+        routine.schedule_events = events
+        routine.save()
+        routine.equipment.add(eq)
 
     def clean_paid(self):
         return _clean_paid(self.cleaned_data.get('paid'))

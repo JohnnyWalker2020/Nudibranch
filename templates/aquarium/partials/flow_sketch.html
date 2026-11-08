@@ -1,49 +1,82 @@
-{% comment %}Top-down sketch of the display: back at the top, front at the bottom. Needs `flow_sketch`.{% endcomment %}
+{% comment %}Two small pictures of the display: from above and from the front, with a button to flip between them.
+Needs `flow_sketch` (views._flow_sketch).{% endcomment %}
 {% with s=flow_sketch %}
 {% if s.show %}
-<div class="space-y-2">
-  <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">From above</h3>
-  <p class="text-center text-[9px] uppercase tracking-wider text-slate-500 -mb-1">Back wall</p>
-  <div class="relative w-full rounded-xl border-2 border-cyan-500/30 bg-gradient-to-b from-cyan-950/40 to-slate-950/60 overflow-hidden min-h-[8rem]"
-       style="padding-bottom: {{ s.shape }}%" role="img" aria-label="Top-down sketch of the display tank showing where the overflow and pump outlets are">
-
-    {% for o in s.overflows %}
-      {% if o.spot.wide %}
-        <span class="absolute left-[4%] right-[4%] h-2.5 -translate-y-1/2 rounded bg-amber-500/70 border border-amber-300/70"
-              style="top: {{ o.spot.top }}%" title="{{ o.sump.name }}: {{ o.sump.overflow_label }}"></span>
-      {% else %}
-        <span class="absolute w-7 h-5 -translate-x-1/2 -translate-y-1/2 rounded bg-amber-500/70 border border-amber-300/70 flex items-center justify-center text-[9px] font-bold text-slate-950"
-              style="left: {{ o.spot.left }}%; top: {{ o.spot.top }}%" title="{{ o.sump.name }}: {{ o.sump.overflow_label }}">OF</span>
-      {% endif %}
-    {% endfor %}
-
-    {% for o in s.outlets %}
-      <span class="absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5" style="left: {{ o.spot.left }}%; top: {{ o.spot.top }}%"
-            title="{{ o.eq.name }}{% if o.eq.outlet_label %}: {{ o.eq.outlet_label }}{% endif %}">
-        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-950 {% if o.eq.category == 'return_pump' %}bg-cyan-400{% else %}bg-violet-400{% endif %} {% if o.eq.status == 'offline' %}opacity-40{% endif %}">{{ o.number }}</span>
-        {% if o.arrow %}<span class="text-sm font-bold leading-none {% if o.eq.category == 'return_pump' %}text-cyan-300{% else %}text-violet-300{% endif %} inline-block" style="transform: rotate({{ o.turn }}deg)">{{ o.arrow }}</span>{% endif %}
-      </span>
-    {% endfor %}
+<div class="flow-sketch space-y-2 max-w-sm mx-auto" data-view="top">
+  <div class="flex items-center justify-between gap-2">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400" data-title>From above</h3>
+    <button type="button" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-cyan-400"
+            onclick="const box = this.closest('.flow-sketch'); const front = box.dataset.view === 'top';
+                     box.dataset.view = front ? 'front' : 'top';
+                     box.querySelector('[data-sketch=top]').classList.toggle('hidden', front);
+                     box.querySelector('[data-sketch=front]').classList.toggle('hidden', !front);
+                     box.querySelector('[data-title]').textContent = front ? 'From the front' : 'From above';
+                     this.textContent = front ? '⇅ Flip to top view' : '⇅ Flip to front view';">⇅ Flip to front view</button>
   </div>
 
-  <p class="text-center text-[9px] uppercase tracking-wider text-slate-500 -mt-1">Front glass (where you stand)</p>
+
+  <!-- From above: back wall at the top, front glass at the bottom -->
+  <svg data-sketch="top" viewBox="0 0 {{ s.width }} {{ s.top_h }}" class="w-full" role="img"
+       aria-label="The display from above, with the overflow and pump outlets">
+    <defs><marker id="tip-return-top" viewBox="0 0 10 10" refX="4" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M0 0L10 5L0 10z" fill="#67e8f9"/></marker>
+      <marker id="tip-wave-top" viewBox="0 0 10 10" refX="4" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c4b5fd"/></marker></defs>
+    <rect x="1" y="1" width="{{ s.width|add:'-2' }}" height="{{ s.top_h|add:'-2' }}" rx="6" class="fill-cyan-950/40 stroke-cyan-500/40" stroke-width="2"/>
+    <text x="150" y="11" text-anchor="middle" class="fill-slate-500" font-size="8">BACK</text>
+    <text x="150" y="{{ s.top_h|add:'-4' }}" text-anchor="middle" class="fill-slate-500" font-size="8">FRONT (YOU)</text>
+    {% for o in s.overflows %}
+      {% if o.wide %}
+        <rect x="{{ s.pad }}" y="{{ o.top_y|add:'-3' }}" width="{{ s.inner_w }}" height="6" rx="2" class="fill-amber-500/70"><title>{{ o.sump.name }}: {{ o.sump.overflow_label }}</title></rect>
+      {% else %}
+        <rect x="{{ o.x|add:'-10' }}" y="{{ o.top_y|add:'-6' }}" width="20" height="12" rx="2" class="fill-amber-500/70 stroke-amber-300/70"><title>{{ o.sump.name }}: {{ o.sump.overflow_label }}</title></rect>
+      {% endif %}
+    {% endfor %}
+    {% for o in s.outlets %}
+      <g transform="translate({{ o.x }} {{ o.top_y }})" {% if o.eq.status == 'offline' %}opacity="0.4"{% endif %}>
+        <title>{{ o.eq.name }}: {{ o.eq.outlet_label }}</title>
+        <line x1="0" y1="0" x2="{{ o.top_dx }}" y2="{{ o.top_dy }}" stroke-width="3" stroke-linecap="round"
+              class="{% if o.return %}stroke-cyan-300{% else %}stroke-violet-300{% endif %}" marker-end="url(#tip-{% if o.return %}return{% else %}wave{% endif %}-top)"/>
+        <circle r="7.5" class="{% if o.return %}fill-cyan-400{% else %}fill-violet-400{% endif %}"/>
+        <text y="3" text-anchor="middle" font-size="9" font-weight="700" class="fill-slate-950">{{ o.number }}</text>
+      </g>
+    {% endfor %}
+  </svg>
+
+  <!-- From the front: the surface at the top, sand at the bottom -->
+  <svg data-sketch="front" viewBox="0 0 {{ s.width }} {{ s.front_h }}" class="w-full hidden" role="img"
+       aria-label="The display from the front, with how high each pump outlet sits and its tilt">
+    <defs><marker id="tip-return-front" viewBox="0 0 10 10" refX="4" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M0 0L10 5L0 10z" fill="#67e8f9"/></marker>
+      <marker id="tip-wave-front" viewBox="0 0 10 10" refX="4" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c4b5fd"/></marker></defs>
+    <rect x="1" y="1" width="{{ s.width|add:'-2' }}" height="{{ s.front_h|add:'-2' }}" rx="6" class="fill-cyan-950/40 stroke-cyan-500/40" stroke-width="2"/>
+    <line x1="2" y1="{{ s.pad|add:'-6' }}" x2="{{ s.width|add:'-2' }}" y2="{{ s.pad|add:'-6' }}" stroke-dasharray="4 3" class="stroke-cyan-400/60"/>
+    <rect x="2" y="{{ s.front_h|add:'-10' }}" width="{{ s.width|add:'-4' }}" height="8" rx="3" class="fill-amber-200/20"/>
+    {% for o in s.outlets %}
+      <g transform="translate({{ o.x }} {{ o.front_y }})" {% if o.eq.status == 'offline' %}opacity="0.4"{% endif %}>
+        <title>{{ o.eq.name }}: {{ o.eq.outlet_label }}</title>
+        <line x1="0" y1="0" x2="{{ o.front_dx }}" y2="{{ o.front_dy }}" stroke-width="3" stroke-linecap="round"
+              class="{% if o.return %}stroke-cyan-300{% else %}stroke-violet-300{% endif %}" marker-end="url(#tip-{% if o.return %}return{% else %}wave{% endif %}-front)"/>
+        <circle r="7.5" class="{% if o.return %}fill-cyan-400{% else %}fill-violet-400{% endif %}"/>
+        <text y="3" text-anchor="middle" font-size="9" font-weight="700" class="fill-slate-950">{{ o.number }}</text>
+      </g>
+    {% endfor %}
+  </svg>
+
   <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400">
     {% for o in s.outlets %}
-      <span><span class="inline-flex w-4 h-4 rounded-full items-center justify-center text-[9px] font-bold text-slate-950 {% if o.eq.category == 'return_pump' %}bg-cyan-400{% else %}bg-violet-400{% endif %}">{{ o.number }}</span>
-        <span class="text-slate-200">{{ o.eq.name }}</span>{% if o.eq.estimated_flow_gph_display is not None %} · {{ o.eq.estimated_flow_gph_display }} gph{% endif %}{% if o.eq.outlet_label %} · {{ o.eq.outlet_label }}{% endif %}</span>
+      <span><span class="inline-flex w-4 h-4 rounded-full items-center justify-center text-[9px] font-bold text-slate-950 {% if o.return %}bg-cyan-400{% else %}bg-violet-400{% endif %}">{{ o.number }}</span>
+        <span class="text-slate-200">{{ o.eq.name }}</span>{% if o.eq.estimated_flow_gph_display is not None %} · {{ o.eq.estimated_flow_gph_display }} gph{% endif %} · {{ o.eq.outlet_label }}</span>
     {% endfor %}
     {% for o in s.overflows %}
       <span><span class="inline-block w-4 h-3 rounded-sm bg-amber-500/70 align-middle"></span> <span class="text-slate-200">{{ o.sump.name }}</span> · {{ o.sump.overflow_label }}</span>
     {% endfor %}
   </div>
   <p class="text-[10px] text-slate-500">
-    <span class="text-cyan-300">●</span> return &nbsp;<span class="text-violet-300">●</span> wavemaker &nbsp;· arrows show which way it points (⊙ up at the surface, ⊗ down at the rocks).
+    <span class="text-cyan-300">●</span> return &nbsp;<span class="text-violet-300">●</span> wavemaker &nbsp;· longer arrows mean more flow, compared with your strongest outlet.
     {% if s.unplaced %}Not drawn yet: {% for eq in s.unplaced %}<a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-cyan-400 hover:underline">{{ eq.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
   </p>
 </div>
 {% else %}
 <p class="text-[11px] text-slate-500 px-3 py-2 rounded-xl border border-dashed border-slate-800">
-  Set where each pump's outlet is (edit the pump) and where the overflow is (Edit sump) to see a top-down sketch of your flow here.
+  Set where each pump's outlet is (edit the pump) and where the overflow is (Edit sump) to see your flow drawn from above and from the front.
 </p>
 {% endif %}
 {% endwith %}

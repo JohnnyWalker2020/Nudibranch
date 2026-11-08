@@ -13,7 +13,7 @@ from django.utils.functional import cached_property
 
 from .calculators import (
     estimate_capacity_gallons, estimate_flow_at_head, estimate_flow_gph, gph_to_lph, par_estimate, turnover_summary,
-    pipe_volume_gallons, FT_PER_M, LITERS_PER_GAL, PIPE_SIZES,
+    pipe_volume_gallons, FT_PER_M, LITERS_PER_GAL, PIPE_INSIDE, PIPE_SIZES, PIPE_TYPE_SHORT, PIPE_TYPES,
 )
 from . import icons
 from . import schedule as sched
@@ -21,7 +21,7 @@ from .images import compressed_jpeg
 from .themes import DEFAULT_THEME, THEME_CHOICES, palette_from_colors
 
 WEEKDAYS = [(0, 'Mon'), (1, 'Tue'), (2, 'Wed'), (3, 'Thu'), (4, 'Fri'), (5, 'Sat'), (6, 'Sun')]
-PIPE_SIZE_CHOICES = [(key, f"{label} PVC") for key, (label, _id) in PIPE_SIZES.items()]
+PIPE_SIZE_CHOICES = [(key, label) for key, (label, _id) in PIPE_SIZES.items()]
 
 
 # "Every system", as opposed to tank=None, which means "records that aren't assigned to a system".
@@ -668,8 +668,9 @@ class PlumbingRun(models.Model):
     name = models.CharField(max_length=80, blank=True, help_text="e.g. Return line, Main drain, Emergency drain")
     length = models.DecimalField(max_digits=7, decimal_places=1, help_text="Length of one pipe")
     length_unit = models.CharField(max_length=2, choices=LENGTH_UNITS, default='ft')
+    pipe_type = models.CharField(max_length=6, choices=PIPE_TYPES, default='pvc40', help_text="What the pipe is made of")
     pipe_size = models.CharField(max_length=6, choices=SIZE_CHOICES, default='1',
-                                 help_text="Nominal Schedule 40 PVC size, or enter a custom inside diameter")
+                                 help_text="Nominal size, or enter a custom inside diameter")
     custom_diameter = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True,
                                           help_text="Inside diameter, when the size is Custom")
     custom_diameter_unit = models.CharField(max_length=2, choices=DIAMETER_UNITS, default='in')
@@ -694,8 +695,7 @@ class PlumbingRun(models.Model):
                 return None
             d = float(self.custom_diameter)
             return d / 25.4 if self.custom_diameter_unit == 'mm' else d
-        size = PIPE_SIZES.get(self.pipe_size)
-        return size[1] if size else None
+        return PIPE_INSIDE.get(self.pipe_type or 'pvc40', PIPE_INSIDE['pvc40']).get(self.pipe_size)
 
     @property
     def size_label(self):
@@ -704,7 +704,8 @@ class PlumbingRun(models.Model):
                 return "custom (no diameter)"
             return f"{self.custom_diameter.normalize():f} {self.custom_diameter_unit} ID"
         size = PIPE_SIZES.get(self.pipe_size)
-        return f'{size[0]} PVC' if size else self.pipe_size
+        material = PIPE_TYPE_SHORT.get(self.pipe_type or 'pvc40', 'PVC')
+        return f'{size[0]} {material}' if size else self.pipe_size
 
     @property
     def total_length_ft(self):
@@ -968,6 +969,23 @@ class Equipment(models.Model):
             return None
         return self.sump.head_height_ft
 
+    SCHEDULE_CATEGORIES = ('lighting', 'skimmer', 'return_pump', 'wavemaker', 'feeder', 'dosing', 'ato', 'filter',
+                           'filtration', 'heater', 'other')
+
+    @property
+    def schedule_events(self):
+        """Every time of day this runs something, from its active automated routines, earliest first."""
+        events = []
+        for routine in self.routines.all():
+            if routine.is_automated and routine.is_active:
+                events.extend(routine.sorted_events)
+        return sorted(events, key=lambda e: e['time'])
+
+    @property
+    def schedule_text(self):
+        """'10:00 Lights on · 20:00 Lights off', or ''."""
+        return ' · '.join(f"{e['time']} {e.get('action', '')}".strip() for e in self.schedule_events)
+
     @property
     def has_outlet(self):
         return self.outlet_x is not None and self.outlet_y is not None
@@ -1126,6 +1144,9 @@ class MaintenanceRoutine(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='general')
     equipment = models.ManyToManyField(Equipment, blank=True, related_name='routines',
                                        help_text="Equipment this routine runs on or services")
+    # Set for the daily schedule made from a piece of equipment's own edit form; it goes when the schedule is cleared.
+    owner_equipment = models.OneToOneField(Equipment, on_delete=models.CASCADE, null=True, blank=True,
+                                           related_name='own_schedule', editable=False)
     # Repeat schedule (both types): every N days / weeks / months / years from the start date.
     repeat_every = models.PositiveIntegerField(default=1, help_text="Repeat every N units")
     repeat_unit = models.CharField(max_length=5, choices=sched.UNITS, default='week')

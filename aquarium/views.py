@@ -1,5 +1,6 @@
 import hmac
 import json
+import math
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -22,7 +23,7 @@ from .alert_history import alert_summary
 from .alerts import compute_alert_state
 from .compatibility import warnings_for_addition
 from .calculators import (
-    DOSE_CHEMICALS, DOSE_PARAMETERS, MAX_DAILY_RAISE, SALT_MIX_RECIPES,
+    DOSE_CHEMICALS, DOSE_PARAMETERS, MAX_DAILY_RAISE, PIPE_INSIDE, SALT_MIX_RECIPES,
     calculate_salt_mix, dose_estimate, estimate_daily_change,
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, unit_choices
@@ -1356,7 +1357,7 @@ def tank_move_view(request, tank_id):
 
 def tank_detail_view(request, tank_id):
     tank = get_object_or_404(Tank.objects.prefetch_related('sumps__chambers', 'equipment__sump', 'plumbing_runs'), id=tank_id)
-    everything = list(Equipment.objects.select_related('tank', 'sump', 'chamber__sump').order_by('name'))
+    everything = list(Equipment.objects.select_related('tank', 'sump', 'chamber__sump').prefetch_related('routines').order_by('name'))
 
     # Group this tank's equipment by where it sits.
     all_equipment = [eq for eq in everything if eq.tank_id == tank.id]
@@ -1420,30 +1421,64 @@ FILTER_CATEGORIES = ('filter', 'filtration')
 
 
 
+SKETCH_WIDTH = 300
+SKETCH_PAD = 14          # room inside the glass, so markers at the edge stay visible
+ARROW_SHORTEST, ARROW_LONGEST = 16, 64   # sketch units; the strongest outlet gets the longest arrow
+
+
+def _sketch_height(span, width, fallback):
+    """The picture's height for one view, shaped like the tank (clamped so it stays readable)."""
+    if span and width:
+        return round(max(70.0, min(170.0, SKETCH_WIDTH * float(span) / float(width))))
+    return fallback
+
+
 def _flow_sketch(tank, pumps):
-    """A top-down sketch of the display (back at the top): overflows and pump outlets that have a position.
-    Shaped like the tank when its width and depth are known."""
+    """Two small pictures of the display, from above (back at the top) and from the front (surface at the top),
+    with the overflows and every pump outlet that has a position. Each arrow starts in the middle of its
+    numbered dot, points the way the outlet points, and is longer the more flow it has, compared with the
+    strongest outlet on the tank."""
+    placed = [p for p in pumps if p.has_outlet]
+    top_h = _sketch_height(tank.depth, tank.width, 100)
+    front_h = _sketch_height(tank.height, tank.width, 110)
+    inner_w = SKETCH_WIDTH - 2 * SKETCH_PAD
+    flows = [p.estimated_flow_gph or 0 for p in placed]
+    strongest = max(flows) if flows and max(flows) > 0 else None
+
     outlets = []
-    for number, eq in enumerate([p for p in pumps if p.outlet_spot], start=1):
-        tilt = eq.outlet_tilt or 0
-        if tilt >= 60:
-            arrow, turn = '⊙', 0  # straight up at the surface
-        elif tilt <= -60:
-            arrow, turn = '⊗', 0  # straight down at the rocks
-        elif eq.outlet_heading is not None:
-            arrow, turn = '↓', -eq.outlet_heading  # 0 points at the front glass, the bottom of the sketch
-        else:
-            arrow, turn = '', 0
-        outlets.append({'eq': eq, 'number': number, 'spot': eq.outlet_spot, 'arrow': arrow, 'turn': turn})
-    overflows = [{'sump': s, 'spot': s.overflow_spot} for s in tank.sumps.all() if s.overflow_spot]
-    shape = 33.0
-    if tank.width and tank.depth:
-        shape = max(20.0, min(60.0, float(tank.depth) / float(tank.width) * 100))
+    for number, eq in enumerate(placed, start=1):
+        flow = eq.estimated_flow_gph or 0
+        share = (flow / strongest) if strongest else 0
+        length = ARROW_SHORTEST + (ARROW_LONGEST - ARROW_SHORTEST) * share
+        heading = math.radians(eq.outlet_heading or 0)
+        tilt = math.radians(eq.outlet_tilt or 0)
+        level = math.cos(tilt) if eq.outlet_heading is not None else 0  # no heading set: only up or down shows
+        x = SKETCH_PAD + inner_w * eq.outlet_x / 100
+        top_y = SKETCH_PAD + (top_h - 2 * SKETCH_PAD) * eq.outlet_y / 100
+        front_y = SKETCH_PAD + (front_h - 2 * SKETCH_PAD) * (eq.outlet_z if eq.outlet_z is not None else 50) / 100
+        outlets.append({
+            'eq': eq, 'number': number, 'x': round(x, 1),
+            'top_y': round(top_y, 1),
+            'top_dx': round(math.sin(heading) * level * length, 1), 'top_dy': round(math.cos(heading) * level * length, 1),
+            'front_y': round(front_y, 1),
+            'front_dx': round(math.sin(heading) * level * length, 1), 'front_dy': round(-math.sin(tilt) * length, 1),
+            'return': eq.category == 'return_pump',
+        })
+
+    overflows = []
+    for sump in tank.sumps.all():
+        spot = sump.overflow_spot
+        if not spot:
+            continue
+        x = SKETCH_PAD + inner_w * spot['left'] / 100 if not spot.get('wide') else SKETCH_WIDTH / 2
+        overflows.append({'sump': sump, 'wide': bool(spot.get('wide')), 'x': round(x, 1),
+                          'top_y': round(SKETCH_PAD + (top_h - 2 * SKETCH_PAD) * spot['top'] / 100, 1)})
     return {
         'outlets': outlets,
         'overflows': overflows,
-        'unplaced': [p for p in pumps if not p.outlet_spot],
-        'shape': round(shape, 1),
+        'unplaced': [p for p in pumps if not p.has_outlet],
+        'width': SKETCH_WIDTH, 'pad': SKETCH_PAD, 'inner_w': inner_w,
+        'top_h': top_h, 'front_h': front_h,
         'show': bool(outlets or overflows),
     }
 
@@ -1600,7 +1635,7 @@ def sump_delete_view(request, sump_id):
 def _plumbing_form_page(request, form, tank, title, delete_url=None):
     return render(request, 'aquarium/plumbing_form.html', {
         'form': form, 'tank': tank, 'title': title,
-        'back_url': f'/tanks/{tank.id}/', 'delete_url': delete_url,
+        'back_url': f'/tanks/{tank.id}/', 'delete_url': delete_url, 'pipe_inside': PIPE_INSIDE,
     })
 
 

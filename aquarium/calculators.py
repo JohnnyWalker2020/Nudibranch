@@ -211,6 +211,20 @@ PIPE_SIZES = {
 }
 
 
+# What the pipe is made of, and the inside diameter (inches) of each nominal size in it.
+# Schedule 80 has thicker walls than 40, so less water. Flexible PVC is made to fit Schedule 40 fittings, so its
+# inside is about the same. Vinyl tubing is sold by its inside diameter.
+PIPE_TYPES = [('pvc40', 'PVC, Schedule 40'), ('pvc80', 'PVC, Schedule 80'), ('flex', 'Flexible PVC'),
+              ('vinyl', 'Vinyl tubing')]
+PIPE_TYPE_SHORT = {'pvc40': 'PVC', 'pvc80': 'Sch 80 PVC', 'flex': 'flex PVC', 'vinyl': 'vinyl tubing'}
+PIPE_INSIDE = {
+    'pvc40': {key: inside for key, (_label, inside) in PIPE_SIZES.items()},
+    'pvc80': {'0.5': 0.546, '0.75': 0.742, '1': 0.957, '1.25': 1.278, '1.5': 1.500, '2': 1.939},
+    'flex': {key: inside for key, (_label, inside) in PIPE_SIZES.items()},
+    'vinyl': {'0.5': 0.5, '0.75': 0.75, '1': 1.0, '1.25': 1.25, '1.5': 1.5, '2': 2.0},
+}
+
+
 def pipe_volume_gallons(length_ft, inside_diameter_in, fill_percent=100):
     """
     Water held in a pipe: cross-section area x length x how full it runs.

@@ -5,6 +5,7 @@
         {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
       </div>
       <p class="text-[11px] text-slate-500">{{ eq.get_category_display }}{% if eq.sump_id %} · {{ eq.location_label }}{% endif %}{% if eq.max_flow_gph %} · rated {{ eq.max_flow_gph }} gph{% if eq.uses_head_curve %} · lifting {{ eq.sump.head_height|floatformat:"-1" }} {{ eq.sump.head_height_unit }} of {{ eq.max_head|floatformat:"-1" }} {{ eq.max_head_unit }} max head{% elif eq.head_lift_ft is not None %} · <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-cyan-400 underline">add its max head</a> to use the sump head height{% if eq.flow_derate_percent %} (−{{ eq.flow_derate_percent }}% for now){% endif %}{% elif eq.flow_derate_percent %} · −{{ eq.flow_derate_percent }}% head loss{% endif %}{% else %} · <a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">set rated max flow</a> to include it{% endif %}</p>
+      {% if eq.schedule_text %}<p class="text-[11px] text-violet-300">🕒 {{ eq.schedule_text }}</p>{% endif %}
     </div>
     <div class="sm:w-64">{% include 'aquarium/partials/power_slider_form.html' %}</div>
     <div class="text-right sm:w-28">

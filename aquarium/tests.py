@@ -4497,7 +4497,7 @@ class OutletOverflowSketchTests(TestCase):
     def test_nothing_set_shows_a_hint(self):
         page = self.client.get(self.url)
         self.assertFalse(page.context['flow_sketch']['show'])
-        self.assertContains(page, 'to see a top-down sketch')
+        self.assertContains(page, 'to see your flow drawn from above and from the front')
 
     def test_sketch_places_outlets_and_overflow(self):
         self.pump.outlet_x, self.pump.outlet_y, self.pump.outlet_z, self.pump.outlet_heading = 50, 10, 5, 0
@@ -4507,11 +4507,11 @@ class OutletOverflowSketchTests(TestCase):
         page = self.client.get(self.url)
         sketch = page.context['flow_sketch']
         self.assertTrue(sketch['show'])
-        self.assertEqual(sketch['outlets'][0]['spot'], {'left': 50.0, 'top': 18.0})
-        self.assertEqual(sketch['outlets'][0]['turn'], 0)
-        self.assertEqual(sketch['outlets'][0]['arrow'], '↓')
-        self.assertEqual(sketch['overflows'][0]['spot'], {'left': 90, 'top': 18})
-        self.assertEqual(sketch['shape'], 37.5)  # 18 deep / 48 wide
+        self.assertEqual((sketch['outlets'][0]['x'], sketch['outlets'][0]['top_y']), (150.0, 22.4))
+        # The strongest outlet gets the longest arrow, pointing at the front glass.
+        self.assertEqual((sketch['outlets'][0]['top_dx'], sketch['outlets'][0]['top_dy']), (0.0, 64.0))
+        self.assertEqual(sketch['overflows'][0]['x'], 258.8)
+        self.assertEqual(sketch['top_h'], 112)  # shaped like the 48 x 18 tank
         self.assertEqual([e.name for e in sketch['unplaced']], ['MP40'])
         self.assertContains(page, 'Corner overflow, back right')
         self.assertContains(page, 'Back, centre, near the surface, toward the front')
@@ -4519,7 +4519,7 @@ class OutletOverflowSketchTests(TestCase):
     def test_coast_to_coast_runs_the_width(self):
         self.sump.overflow_type = 'coast'
         self.sump.save()
-        self.assertTrue(self.client.get(self.url).context['flow_sketch']['overflows'][0]['spot']['wide'])
+        self.assertTrue(self.client.get(self.url).context['flow_sketch']['overflows'][0]['wide'])
 
     def test_forms_save_positions(self):
         self.client.post(reverse('sump_edit', args=[self.sump.pk]), {
@@ -4783,7 +4783,8 @@ class OutletPickerAndFlowGroupTests(TestCase):
         self.wave.save()
         self.assertTrue(self.wave.outlet_label.endswith('pointing up'))
         sketch = self.client.get(reverse('tank_detail', args=[self.tank.pk])).context['flow_sketch']
-        self.assertEqual(sketch['outlets'][0]['arrow'], '⊙')
+        self.assertLess(sketch['outlets'][0]['front_dy'], 0)  # drawn pointing up in the front view
+        self.assertLess(abs(sketch['outlets'][0]['top_dy']), 15)  # and barely sideways from above
 
     def test_flow_section_groups(self):
         page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
@@ -4897,3 +4898,44 @@ class PlannerGearAndSliderTests(TestCase):
         form = self.client.get(reverse('equipment_edit', args=[wave.pk])).content.decode()
         self.assertIn('data-for-categories="return_pump,wavemaker,lighting"', form)
         self.assertIn('type="range" min="1" max="100" step="1" value="30"', form)
+
+
+class EquipmentScheduleTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.light = Equipment.objects.create(tank=self.tank, name='Radion', category='lighting', wattage=100)
+
+    def _post(self, schedule, category='lighting'):
+        import json
+        return self.client.post(reverse('equipment_edit', args=[self.light.pk]), {
+            'location': f'tank:{self.tank.pk}', 'name': 'Radion', 'category': category, 'power_setting_percent': 80,
+            'flow_derate_percent': 0, 'max_head_unit': 'ft', 'maintenance_interval_days': 90, 'status': 'operational',
+            'outlet_tilt': 0, 'schedule': json.dumps(schedule)})
+
+    def test_schedule_saves_as_its_own_routine_and_shows(self):
+        self._post([{'time': '20:00', 'action': 'Lights off'}, {'time': '10:00', 'action': 'Lights on'}, {'time': '', 'action': 'x'}])
+        routine = MaintenanceRoutine.objects.get(owner_equipment=self.light)
+        self.assertEqual((routine.routine_type, routine.repeat_unit, routine.category), ('automated', 'day', 'lighting'))
+        self.assertEqual([e['time'] for e in routine.schedule_events], ['10:00', '20:00'])
+        light = Equipment.objects.prefetch_related('routines').get(pk=self.light.pk)
+        self.assertEqual(light.schedule_text, '10:00 Lights on · 20:00 Lights off')
+        self.assertContains(self.client.get(reverse('equipment')), '10:00 Lights on')
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), '10:00 Lights on')
+        self.assertContains(self.client.get(reverse('equipment_edit', args=[self.light.pk])), 'Lights off')
+
+    def test_editing_updates_and_clearing_removes(self):
+        self._post([{'time': '10:00', 'action': 'Lights on'}])
+        self._post([{'time': '09:30', 'action': 'Ramp up'}])
+        self.assertEqual(MaintenanceRoutine.objects.filter(owner_equipment=self.light).count(), 1)
+        self.assertEqual(MaintenanceRoutine.objects.get(owner_equipment=self.light).schedule_events[0]['time'], '09:30')
+        self._post([])
+        self.assertFalse(MaintenanceRoutine.objects.filter(owner_equipment=self.light).exists())
+
+    def test_bad_time_is_refused(self):
+        response = self._post([{'time': '25:00', 'action': 'On'}])
+        self.assertContains(response, "isn&#x27;t a time of day")
+        self.assertFalse(MaintenanceRoutine.objects.filter(owner_equipment=self.light).exists())
+
+    def test_category_without_schedules_drops_it(self):
+        self._post([{'time': '10:00', 'action': 'On'}], category='substrate')
+        self.assertFalse(MaintenanceRoutine.objects.filter(owner_equipment=self.light).exists())
