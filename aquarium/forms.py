@@ -98,6 +98,24 @@ class ScheduleInput(forms.HiddenInput):
             '</div>', input_id, hidden, input_id, options)
 
 
+class CatalogPickerInput(forms.Select):
+    """'Start from a known model': picking one fills the form's name, brand, type, watts, flow and max head
+    (see the equipment catalog). It's never saved itself."""
+
+    def __init__(self, attrs=None):
+        from .equipment_catalog import as_options
+        groups, self.specs = as_options()
+        super().__init__(attrs, choices=[('', 'Choose a model, or fill it in yourself…')] + groups)
+
+    def render(self, name, value, attrs=None, renderer=None):
+        import json
+        from django.utils.html import format_html
+        attrs = {**(attrs or {}), 'class': INPUT, 'data-specs': json.dumps(self.specs),
+                 'onchange': 'fillFromCatalog(this)'}
+        return format_html('{}<p class="mt-1 text-[11px] text-slate-500">Makers\' ratings, so check them against yours. '
+                           'Watts are the most it draws.</p>', super().render(name, value, attrs, renderer))
+
+
 class OutletPickerInput(forms.HiddenInput):
     """Two little pictures of the display for placing a pump outlet: from above (tap to place, slider for which way
     it points) and from the front (tap to set the height, slider to tilt it up or down). Renders outlet_x itself;
@@ -822,12 +840,13 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
         widget=forms.Select(attrs={'class': INPUT}),
         help_text="Display tank, a sump, or a specific sump chamber",
     )
+    catalog = forms.CharField(required=False, widget=CatalogPickerInput(), label='Start from a known model')
     schedule = forms.CharField(required=False, widget=ScheduleInput(), label='Daily schedule',
                                help_text='Times it switches or changes each day, like 10:00 Lights on and 20:00 Lights off')
 
     class Meta:
         model = Equipment
-        fields = ['location', 'name', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
+        fields = ['catalog', 'location', 'name', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
                   'flow_derate_percent', 'max_head', 'max_head_unit', 'outlet_x', 'outlet_y', 'outlet_z',
                   'outlet_heading', 'outlet_tilt', 'schedule', 'installed_date', 'maintenance_interval_days', 'last_serviced_date',
                   'status', 'paid', 'notes']

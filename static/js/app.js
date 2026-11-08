@@ -300,3 +300,25 @@ function initScheduleEditor(root) {
   save();
 }
 document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.schedule-editor').forEach(initScheduleEditor));
+
+// ---- Equipment catalog: picking a known model fills in the form ----
+function fillFromCatalog(select) {
+  const spec = JSON.parse(select.dataset.specs || '{}')[select.value];
+  if (!spec || !select.form) return;
+  const set = (name, value) => {
+    const el = select.form.querySelector(`[name="${name}"]`);
+    if (!el || value === null || value === undefined) return;
+    el.value = value;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  set('name', spec.name);
+  set('brand', spec.brand);
+  set('category', spec.category);
+  set('wattage', spec.wattage);
+  set('max_flow_gph', spec.max_flow_gph);
+  if (spec.max_head !== null) {
+    set('max_head', spec.max_head);
+    const unitBtn = select.form.querySelector('[name="max_head"]')?.closest('.unit-field')?.querySelector('button[data-units]');
+    if (unitBtn) { setUnitButton(unitBtn, 'ft'); unitBtn.dispatchEvent(new Event('change', { bubbles: true })); }
+  }
+}

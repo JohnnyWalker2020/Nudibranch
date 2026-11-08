@@ -230,7 +230,7 @@
               </div>
               {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
             </div>
-            {% include 'aquarium/partials/power_slider_form.html' %}
+            <div class="max-w-sm">{% include 'aquarium/partials/power_slider_form.html' %}</div>
             {% for r in eq.schedules %}
               {% include 'aquarium/partials/light_schedule.html' %}
             {% empty %}

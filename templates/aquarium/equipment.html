@@ -164,6 +164,7 @@
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Location</label>{{ equipment_form.location }}</div>
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Category</label>{{ equipment_form.category }}</div>
         </div>
+        <div><label for="{{ equipment_form.catalog.id_for_label }}" class="block text-xs font-bold uppercase text-slate-400 mb-1">Start from a known model</label>{{ equipment_form.catalog }}</div>
         <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Hardware Name *</label>{{ equipment_form.name }}</div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Brand / Model</label>{{ equipment_form.brand }}</div>

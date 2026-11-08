@@ -4939,3 +4939,36 @@ class EquipmentScheduleTests(TestCase):
     def test_category_without_schedules_drops_it(self):
         self._post([{'time': '10:00', 'action': 'On'}], category='substrate')
         self.assertFalse(MaintenanceRoutine.objects.filter(owner_equipment=self.light).exists())
+
+
+class EquipmentCatalogAndNavTests(TestCase):
+    def test_catalog_is_complete_and_offered(self):
+        from .equipment_catalog import CATALOG, as_options
+        categories = dict(Equipment.CATEGORY_CHOICES)
+        for group, name, brand, category, watts, gph, head in CATALOG:
+            self.assertIn(category, categories, name)
+            self.assertTrue(watts and watts > 0, name)
+            if category in ('return_pump', 'wavemaker'):
+                self.assertTrue(gph, name)
+            if category == 'return_pump':
+                self.assertTrue(head, name)
+        groups, specs = as_options()
+        self.assertEqual(len(specs), len(CATALOG))
+        page = self.client.get(reverse('equipment_create'))
+        self.assertContains(page, 'Start from a known model')
+        self.assertContains(page, 'Sicce Syncra Silent 2.0')
+        self.assertContains(self.client.get(reverse('equipment')), 'fillFromCatalog(this)')
+
+    def test_catalog_choice_is_not_saved(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.client.post(reverse('equipment_create'), {
+            'catalog': '1', 'location': f'tank:{tank.pk}', 'name': 'EcoTech Marine Vectra M2', 'category': 'return_pump',
+            'max_flow_gph': 2000, 'power_setting_percent': 100, 'flow_derate_percent': 25, 'max_head': '21.5',
+            'max_head_unit': 'ft', 'maintenance_interval_days': 90, 'status': 'operational', 'outlet_tilt': 0,
+            'full_page': '1'})
+        self.assertEqual(Equipment.objects.get().name, 'EcoTech Marine Vectra M2')
+
+    def test_tank_tabs_are_phone_only(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        page = self.client.get(reverse('tank_detail', args=[tank.pk])).content.decode()
+        self.assertIn('<div class="md:hidden flex flex-wrap items-center gap-1.5', page)

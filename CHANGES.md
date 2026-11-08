@@ -2,7 +2,7 @@
 
 ## Round 20 (2026-11-08)
 
-Apply with `docker compose up -d --build`; migrations 0032 to 0036 run on start.
+Apply with `docker compose up -d --build`; migrations 0032 to 0038 run on start.
 
 - **8-bit charts**: back to smooth lines and round points. Cards keep their stepped corners.
 - **Tank page sections**: sumps, chambers, Flow & Water Turnover, Lighting, Filters and the display each have an add menu: new equipment, something not in a tank, or something to move from elsewhere. ✕ takes an item off the tank (it stays in the equipment list) and 🗑 deletes it after a confirmation.
@@ -16,6 +16,11 @@ Apply with `docker compose up -d --build`; migrations 0032 to 0036 run on start.
 - **Planner equipment**: the add form shows what fits the type: lights get hours on a day and a **Running at** slider, pumps and wavemakers get rated flow and the slider. Flow, power use and a rough PAR estimate (new, under Checks) all use those settings, and they carry over when you start tracking the tank (migration 0036).
 - **Output sliders**: everywhere a pump or light's output is set (tank page rows, the equipment forms, the planner) it's a slider with the exact % beside it.
 - **Plumbing**: the "% full" box accepts any whole percent up to 100.
+- **Equipment catalog**: **Start from a known model** on the equipment forms fills in the name, type, watts, rated flow and max head for 20 popular pumps, wavemakers, lights and heaters (makers' ratings, so check them against yours).
+- **Daily schedules**: lights, skimmers, pumps, feeders, dosers, ATOs, filters and heaters get a **Daily schedule** (times plus what happens) on their edit form. It's kept as an automated routine, so it shows on Routines, and the times show on the equipment cards (migration 0037).
+- **Flow sketch**: smaller, with each arrow starting from its outlet's number and sized by its flow compared with your strongest outlet. **Flip** switches between the view from above and from the front.
+- **Pipes**: **Pipe type** (PVC Schedule 40, the default, Schedule 80, flexible PVC or vinyl tubing) is separate from **Size**, and each type uses its own inside diameter (migration 0038).
+- **Tidier pages**: the extra row of tank tabs is phone-only now (the desktop top bar has the same links), livestock categories wrap onto more rows on desktop, and boxes with a unit inside match the 8-bit look.
 - **Outlet pickers**: pump and wavemaker outlets are placed on a top-down and a front picture, with sliders for direction and tilt. Your earlier choices were converted (migration 0035). The flow sketch draws the real angle.
 - **Flow groups**: return pumps and wavemakers are listed separately on the tank page, with the same rows. Head loss % and max head only appear (and only count) for return pumps.
 - **Water quality rating**: a 0-100 score with a grade, on the dashboard (as a card you can hide in Customize) and the Water page.
