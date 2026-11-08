@@ -7,6 +7,8 @@ from .models import DashboardWidget
 DASHBOARD_WIDGETS = [
     {'key': 'alerts', 'title': 'Tank alerts', 'icon': '⚠️', 'span': 'full',
      'description': 'Out-of-range tests, low reservoirs, overdue routines and service'},
+    {'key': 'water_quality', 'title': 'Water quality rating', 'icon': '💎', 'span': 'full',
+     'description': 'A 0-100 score from your latest tests against your target ranges'},
     {'key': 'countdown', 'title': 'Timers', 'icon': '⏱️', 'span': 'full',
      'description': 'A countdown plus your saved timers, each ready to start. Alerts your phone when one ends'},
     {'key': 'parameters', 'title': 'Parameter cards', 'icon': '🧪', 'span': 'full',

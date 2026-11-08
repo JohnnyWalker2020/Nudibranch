@@ -1,0 +1,25 @@
+  <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-3 bg-slate-950/60 border border-slate-800 rounded-xl {% if eq.status == 'offline' %}opacity-50{% endif %}">
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-1">
+        <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-sm font-bold text-white hover:text-cyan-400">{{ eq.name }}</a>
+        {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
+      </div>
+      <p class="text-[11px] text-slate-500">{{ eq.get_category_display }}{% if eq.sump_id %} · {{ eq.location_label }}{% endif %}{% if eq.max_flow_gph %} · rated {{ eq.max_flow_gph }} gph{% if eq.uses_head_curve %} · lifting {{ eq.sump.head_height|floatformat:"-1" }} {{ eq.sump.head_height_unit }} of {{ eq.max_head|floatformat:"-1" }} {{ eq.max_head_unit }} max head{% elif eq.head_lift_ft is not None %} · <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-cyan-400 underline">add its max head</a> to use the sump head height{% if eq.flow_derate_percent %} (−{{ eq.flow_derate_percent }}% for now){% endif %}{% elif eq.flow_derate_percent %} · −{{ eq.flow_derate_percent }}% head loss{% endif %}{% else %} · <a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">set rated max flow</a> to include it{% endif %}</p>
+    </div>
+    <form method="POST" action="{% url 'equipment_power' eq.id %}" class="flex items-center gap-2">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <label class="text-[11px] text-slate-400">Power</label>
+      <input type="number" name="power" min="1" max="100" value="{{ eq.power_setting_percent }}" class="w-16 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-cyan-500">
+      <span class="text-[11px] text-slate-400">%</span>
+      <button type="submit" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
+    </form>
+    <div class="text-right sm:w-28">
+      {% if eq.estimated_flow_gph_display is not None %}
+        <span class="text-sm font-bold text-cyan-400">{{ eq.estimated_flow_gph_display }} gph</span>
+        <span class="block text-[10px] text-slate-500">{{ eq.estimated_flow_lph_display }} L/h</span>
+      {% else %}
+        <span class="text-xs text-slate-500">no flow data</span>
+      {% endif %}
+    </div>
+  </div>

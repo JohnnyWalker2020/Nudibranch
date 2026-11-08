@@ -11,7 +11,10 @@
       <h1 class="text-2xl font-black text-white tracking-tight">Tanks &amp; Sumps</h1>
       <p class="text-xs text-slate-400 mt-0.5">Display tanks, their sumps and refugium chambers, and estimated water turnover</p>
     </div>
+    <div class="flex items-center gap-2">
+    <a href="{% url 'tank_import' %}" class="inline-flex items-center justify-center px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⬆ Import a tank</a>
     <a href="{% url 'tank_create' %}" class="inline-flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Tank</a>
+    </div>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

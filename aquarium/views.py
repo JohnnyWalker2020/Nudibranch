@@ -16,7 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from . import retire
+from . import retire, tank_files, water_quality
 from .active import default_tank, get_active_tank
 from .alert_history import alert_summary
 from .alerts import compute_alert_state
@@ -25,12 +25,13 @@ from .calculators import (
     DOSE_CHEMICALS, DOSE_PARAMETERS, MAX_DAILY_RAISE, SALT_MIX_RECIPES,
     calculate_salt_mix, dose_estimate, estimate_daily_change,
 )
-from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value
+from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, unit_choices
 from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
+from .tank_presets import TANK_PRESETS
 from .forms import (
     AnimalForm, AnimalGroupForm, AnimalPhotoUploadForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
     ParameterLogEditForm, ParameterSettingsForm, ParameterTypeForm, QuickParameterLogForm,
-    DoseLogForm, QuickTimerForm, SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm,
+    DoseLogForm, QuickTimerForm, SumpChamberForm, SumpForm, TankForm, WaterChangeLogForm, WebcamFeedForm, PlumbingRunForm, resolve_location,
 )
 from .models import (
     Animal, AnimalGroup, AppSettings, DoseLog, DosingReservoir, Equipment, FillTimer, MaintenanceRoutine, ParameterLog,
@@ -158,6 +159,9 @@ def dashboard_view(request):
     for pt in parameter_types:
         pt.current_log = latest.get(pt.pk)
         pt.trend = trend(pt, pt.current_log, previous.get(pt.pk))
+        choices = unit_choices(pt.code, pt.unit)
+        pt.unit_options = ",".join(u for u, _ in choices)
+        pt.unit_examples = "|".join(e for _, e in choices)
         if pt.current_log:
             pt.current_log.parameter_type = pt
     layout = get_dashboard_layout()
@@ -166,6 +170,7 @@ def dashboard_view(request):
     context = {
         'parameter_types': parameter_types,
         'card_types': [pt for pt in parameter_types if pt.show_on_dashboard],
+        'water_quality': water_quality.rate(parameter_types, latest),
         'chip_types': [pt for pt in parameter_types if not pt.is_trace],
         'trace_types': [pt for pt in parameter_types if pt.is_trace],
         'form': QuickParameterLogForm(),
@@ -203,7 +208,7 @@ def dashboard_view(request):
     if 'reservoirs' in enabled_keys:
         context['reservoirs'] = in_system(DosingReservoir.objects.select_related('tank'), tank)
     if 'tank_summary' in enabled_keys:
-        tanks = Tank.objects.prefetch_related('sumps', 'equipment', 'plumbing_runs').filter(pk=tank.pk) if tank else []
+        tanks = Tank.objects.prefetch_related('sumps', 'equipment__sump', 'plumbing_runs').filter(pk=tank.pk) if tank else []
         context['tank_summaries'] = [{'tank': t, 'flow': t.flow_summary()} for t in tanks]
 
     return render(request, 'aquarium/dashboard.html', context)
@@ -237,6 +242,8 @@ def quick_measure_create(request):
     """
     values = request.POST.getlist('value')
     param_ids = request.POST.getlist('parameter')
+    units = request.POST.getlist('unit')
+    units += [''] * (len(values) - len(units))
     types = {str(pt.id): pt for pt in ParameterType.objects.in_use()}
     now = timezone.now()
     tank = get_active_tank(request)
@@ -245,11 +252,20 @@ def quick_measure_create(request):
         return redirect('dashboard')
 
     saved, problems = [], []
-    for raw_value, param_id in zip(values, param_ids):
+    for raw_value, param_id, unit in zip(values, param_ids, units):
         if not str(raw_value).strip():
             continue  # untouched row
         pt = types.get(str(param_id))
         value = _to_decimal(raw_value)
+        typed = ''
+        if pt is not None and value is not None and unit and unit.lower() != (pt.unit or '').lower():
+            # Typed in another unit: store it in the parameter's own unit, if it's one we can convert.
+            if unit.lower() in [u.lower() for u, _ in unit_choices(pt.code, pt.unit)]:
+                typed = f" (from {raw_value.strip()} {unit})"
+                value = Decimal(f"{convert_value(float(value), unit, pt.unit, pt.code):.4f}")
+            else:
+                problems.append(f"can't convert {unit} to {pt.unit} ({pt.name})")
+                continue
         if pt is None:
             problems.append("pick what you measured")
         elif value is None:
@@ -257,8 +273,10 @@ def quick_measure_create(request):
         elif abs(value) >= Decimal('999999'):
             problems.append(f"'{raw_value}' is too large ({pt.name})")
         else:
+            if typed:
+                value = round(value, pt.decimal_places)  # a converted reading is no more precise than its parameter shows
             ParameterLog.objects.create(parameter_type=pt, tank=tank, value=value, measured_at=now)
-            saved.append(f"{pt.name} {pt.format_value(value)} {pt.unit}")
+            saved.append(f"{pt.name} {pt.format_value(value)} {pt.unit}{typed}")
 
     if saved:
         messages.success(request, "Logged " + ", ".join(saved))
@@ -280,6 +298,12 @@ def quick_measure_create(request):
 
 LOG_FIRST_PAGE = 10  # readings shown before Load more
 LOG_PAGE_SIZE = 25  # readings each Load more adds
+
+
+def _water_quality(tank):
+    """The rating for a tank, from the newest reading of each parameter it tracks."""
+    types = [pt.for_system(tank) for pt in ParameterType.objects.in_use().prefetch_related('targets')]
+    return water_quality.rate(types, latest_logs_by_parameter(tank))
 
 
 def parameters_view(request):
@@ -310,6 +334,7 @@ def parameters_view(request):
         'recent_logs': recent_logs[:LOG_FIRST_PAGE],
         'next_offset': LOG_FIRST_PAGE if has_more else None,
         'form': form,
+        'water_quality': _water_quality(tank),
     })
 
 
@@ -576,7 +601,8 @@ def quick_log_create(request):
                 response['HX-Trigger'] = 'logAdded'
                 return response
             where = f" on {log.tank.name}" if log.tank and log.tank != get_active_tank(request) else ''
-            messages.success(request, f"Logged {log.parameter_type.name} {log.formatted_value} {log.parameter_type.unit}{where}")
+            messages.success(request, f"Logged {log.parameter_type.name} {log.formatted_value} {log.parameter_type.unit}{where}"
+                             + (f" (from {form.converted_from})" if getattr(form, "converted_from", "") else ""))
             return redirect(_safe_next(request, 'dashboard'))
         if getattr(request, 'htmx', False):
             problems = "; ".join(f"{k}: {' '.join(v)}" for k, v in form.errors.items())
@@ -816,7 +842,6 @@ def livestock_view(request):
 
     groups = _groups_with_counts(tank)
     form = AnimalForm()
-    group_form = AnimalGroupForm()
 
     return render(request, 'aquarium/livestock.html', {
         'animals': animals,
@@ -824,31 +849,83 @@ def livestock_view(request):
         'selected_group': group_id,
         'selected_status': status_filter,
         'form': form,
-        'group_form': group_form,
     })
 
 
 def group_create_view(request):
-    """Quick-add a custom animal group in GUI."""
+    """Adds a livestock category, from the Edit categories page."""
     if request.method == 'POST':
-        form = AnimalGroupForm(request.POST)
+        form = AnimalGroupForm(request.POST, prefix='new')
         if form.is_valid():
             group = form.save()
-            return redirect(f"/livestock/?group={group.id}")
+            messages.success(request, f"Added {group.icon} {group.name}.")
+            return redirect(reverse('groups_manage') + f'#group-{group.id}')
         _flash_form_errors(request, form)
-    return redirect('livestock')
+    return redirect('groups_manage')
 
 
+def groups_manage_view(request):
+    """Edit categories: rename, recolour, reorder, merge and delete them in one place."""
+    groups = list(AnimalGroup.objects.annotate(
+        animal_count=Count('animals', distinct=True),
+        living_count=Count('animals', filter=~Q(animals__status__in=Animal.GONE_STATUSES), distinct=True),
+    ))
+    return render(request, 'aquarium/groups_manage.html', {
+        'groups': [{'group': g, 'form': AnimalGroupForm(instance=g, prefix=f'g{g.id}')} for g in groups],
+        'new_form': AnimalGroupForm(prefix='new'),
+    })
+
+
+@require_POST
 def group_edit_view(request, group_id):
-    return _edit_object(request, AnimalGroup, AnimalGroupForm, group_id,
-                        title='Edit Group', back_url='/livestock/')
+    group = get_object_or_404(AnimalGroup, id=group_id)
+    form = AnimalGroupForm(request.POST, instance=group, prefix=f'g{group.id}')
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Saved {group.icon} {group.name}.")
+    else:
+        _flash_form_errors(request, form)
+    return redirect(reverse('groups_manage') + f'#group-{group.id}')
+
+
+@require_POST
+def group_move_view(request, group_id):
+    """Moves a category one place up or down."""
+    groups = list(AnimalGroup.objects.all())
+    index = next((i for i, g in enumerate(groups) if g.pk == group_id), None)
+    if index is None:
+        raise Http404
+    other = index - 1 if request.POST.get('direction') == 'up' else index + 1
+    if 0 <= other < len(groups):
+        groups[index], groups[other] = groups[other], groups[index]
+    for position, g in enumerate(groups):
+        if g.position != position:
+            AnimalGroup.objects.filter(pk=g.pk).update(position=position)
+    return redirect(reverse('groups_manage') + f'#group-{group_id}')
+
+
+@require_POST
+def group_merge_view(request, group_id):
+    """Moves every animal in this category into another, then removes this one."""
+    group = get_object_or_404(AnimalGroup, id=group_id)
+    target = AnimalGroup.objects.filter(id=_to_int(request.POST.get('into'), 0)).exclude(id=group.id).first()
+    if target is None:
+        messages.error(request, "Pick the category to merge into.")
+        return redirect(reverse('groups_manage') + f'#group-{group.id}')
+    with transaction.atomic():
+        animals = list(group.animals.all())
+        target.animals.add(*animals)
+        name = f"{group.icon} {group.name}"
+        group.delete()
+    messages.success(request, f"Merged {name} into {target.icon} {target.name} ({len(animals)} animal{'s' if len(animals) != 1 else ''}).")
+    return redirect(reverse('groups_manage') + f'#group-{target.id}')
 
 
 def group_delete_view(request, group_id):
     g = get_object_or_404(AnimalGroup, id=group_id)
     return _delete_object(
-        request, AnimalGroup, group_id, label=f"group '{g.name}'", back_url='/livestock/',
-        warning="Animals in this group are kept; they just lose this tag.")
+        request, AnimalGroup, group_id, label=f"category '{g.name}'", back_url=reverse('groups_manage'),
+        warning="Animals in this category are kept; they just lose this category.")
 
 
 def animal_create_view(request):
@@ -1254,7 +1331,7 @@ def _tank_equipment_flow(tank):
 
 
 def tanks_view(request):
-    tanks = Tank.objects.prefetch_related('sumps', 'equipment', 'animals', 'plumbing_runs')
+    tanks = Tank.objects.prefetch_related('sumps', 'equipment__sump', 'animals', 'plumbing_runs')
     return render(request, 'aquarium/tanks.html', {
         'tank_cards': [{'tank': t, 'flow': t.flow_summary()} for t in tanks if not t.is_archived],
         'retired_tanks': [t for t in tanks if t.is_archived],
@@ -1278,10 +1355,11 @@ def tank_move_view(request, tank_id):
 
 
 def tank_detail_view(request, tank_id):
-    tank = get_object_or_404(Tank.objects.prefetch_related('sumps__chambers', 'equipment', 'plumbing_runs'), id=tank_id)
+    tank = get_object_or_404(Tank.objects.prefetch_related('sumps__chambers', 'equipment__sump', 'plumbing_runs'), id=tank_id)
+    everything = list(Equipment.objects.select_related('tank', 'sump', 'chamber__sump').order_by('name'))
 
     # Group this tank's equipment by where it sits.
-    all_equipment = list(tank.equipment.all())
+    all_equipment = [eq for eq in everything if eq.tank_id == tank.id]
     by_sump, by_chamber, display_equipment = {}, {}, []
     for eq in all_equipment:
         if eq.chamber_id:
@@ -1293,15 +1371,96 @@ def tank_detail_view(request, tank_id):
     sumps = []
     for sump in tank.sumps.all():
         chambers = [{'chamber': c, 'equipment': by_chamber.get(c.id, [])} for c in sump.chambers.all()]
-        sumps.append({'sump': sump, 'equipment': by_sump.get(sump.id, []), 'chambers': chambers})
+        sumps.append({'sump': sump, 'equipment': by_sump.get(sump.id, []), 'chambers': chambers,
+                      'picker': _equipment_picker(everything, f'sump:{sump.id}')})
+        for cr in chambers:
+            cr['picker'] = _equipment_picker(everything, f"chamber:{cr['chamber'].id}")
 
+    # Lights get their own section, with the automated schedules that run them.
+    lights = [eq for eq in all_equipment if eq.category == 'lighting']
+    schedules = list(MaintenanceRoutine.objects.filter(
+        Q(tank=tank, category='lighting') | Q(equipment__in=lights), routine_type='automated',
+    ).distinct().prefetch_related('equipment'))
+    for light in lights:
+        light.schedules = [r for r in schedules if light in r.equipment.all()]
+    linked = {r.id for light in lights for r in light.schedules}
+
+    here = f'tank:{tank.id}'
+    first_sump = next(iter(tank.sumps.all()), None)
+    filter_home = f'sump:{first_sump.id}' if first_sump else here  # filters usually live in the sump
     return render(request, 'aquarium/tank_detail.html', {
         'tank': tank,
         'flow': tank.flow_summary(),
         'flow_equipment': _tank_equipment_flow(tank),
-        'display_equipment': display_equipment,
+        'display_equipment': [eq for eq in display_equipment if eq.category not in ('lighting',) + FILTER_CATEGORIES],
         'sump_rows': sumps,
+        'lights': lights,
+        'light_summary': tank.light_summary(),
+        'tank_light_schedules': [r for r in schedules if r.id not in linked],
+        'display_picker': _equipment_picker(everything, here),
+        'flow_groups': [
+            {'title': 'Return pumps', 'add_label': '+ Add a return pump',
+             'items': [eq for eq in _tank_equipment_flow(tank) if eq.category == 'return_pump'],
+             'picker': _equipment_picker(everything, first_sump and f'sump:{first_sump.id}' or here,
+                                         categories=('return_pump',), tank=tank),
+             'empty': "No return pump yet, so nothing's coming back up from the sump."},
+            {'title': 'Wavemakers & powerheads', 'add_label': '+ Add some flow',
+             'items': [eq for eq in _tank_equipment_flow(tank) if eq.category == 'wavemaker'],
+             'picker': _equipment_picker(everything, here, categories=('wavemaker',), tank=tank),
+             'empty': "The water's standing still: no wavemakers yet. Tap + Add some flow."},
+        ],
+        'light_picker': _equipment_picker(everything, here, categories=('lighting',), tank=tank),
+        'filters': [eq for eq in all_equipment if eq.category in FILTER_CATEGORIES],
+        'flow_sketch': _flow_sketch(tank, _tank_equipment_flow(tank)),
+        'filter_picker': _equipment_picker(everything, filter_home, categories=FILTER_CATEGORIES, tank=tank),
     })
+
+
+FILTER_CATEGORIES = ('filter', 'filtration')
+
+
+
+def _flow_sketch(tank, pumps):
+    """A top-down sketch of the display (back at the top): overflows and pump outlets that have a position.
+    Shaped like the tank when its width and depth are known."""
+    outlets = []
+    for number, eq in enumerate([p for p in pumps if p.outlet_spot], start=1):
+        tilt = eq.outlet_tilt or 0
+        if tilt >= 60:
+            arrow, turn = '⊙', 0  # straight up at the surface
+        elif tilt <= -60:
+            arrow, turn = '⊗', 0  # straight down at the rocks
+        elif eq.outlet_heading is not None:
+            arrow, turn = '↓', -eq.outlet_heading  # 0 points at the front glass, the bottom of the sketch
+        else:
+            arrow, turn = '', 0
+        outlets.append({'eq': eq, 'number': number, 'spot': eq.outlet_spot, 'arrow': arrow, 'turn': turn})
+    overflows = [{'sump': s, 'spot': s.overflow_spot} for s in tank.sumps.all() if s.overflow_spot]
+    shape = 33.0
+    if tank.width and tank.depth:
+        shape = max(20.0, min(60.0, float(tank.depth) / float(tank.width) * 100))
+    return {
+        'outlets': outlets,
+        'overflows': overflows,
+        'unplaced': [p for p in pumps if not p.outlet_spot],
+        'shape': round(shape, 1),
+        'show': bool(outlets or overflows),
+    }
+
+
+def _equipment_picker(everything, location, categories=None, tank=None):
+    """What the '+ Equipment' menu for one spot offers: things not placed anywhere, then things to move from elsewhere.
+    With a tank, anything already on that tank (anywhere in it) is left out, for the Flow and Lights sections."""
+    options = [eq for eq in everything
+               if eq.location_key != location
+               and (categories is None or eq.category in categories)
+               and (tank is None or eq.tank_id != tank.id)]
+    return {
+        'location': location,
+        'category': categories[0] if categories else '',
+        'unplaced': [eq for eq in options if not eq.tank_id],
+        'elsewhere': [eq for eq in options if eq.tank_id],
+    }
 
 
 def _settle_primary(tank):
@@ -1323,7 +1482,7 @@ def tank_create_view(request):
     else:
         form = TankForm(initial={'is_primary': not Tank.objects.filter(is_archived=False).exists()})
     return render(request, 'aquarium/vessel_form.html', {
-        'form': form, 'title': 'Add Tank', 'kind': 'tank', 'back_url': '/tanks/',
+        'form': form, 'title': 'Add Tank', 'kind': 'tank', 'back_url': '/tanks/', 'tank_presets': TANK_PRESETS,
     })
 
 
@@ -1339,8 +1498,49 @@ def tank_edit_view(request, tank_id):
     else:
         form = TankForm(instance=tank)
     return render(request, 'aquarium/vessel_form.html', {
-        'form': form, 'title': f'Edit {tank.name}', 'kind': 'tank',
+        'form': form, 'title': f'Edit {tank.name}', 'kind': 'tank', 'tank_presets': TANK_PRESETS,
         'back_url': f'/tanks/{tank.id}/', 'delete_url': f'/tanks/{tank.id}/delete/',
+    })
+
+
+def tank_export_view(request, tank_id):
+    """Downloads the tank's setup as a YAML tank file. ?prices=1 includes what you paid."""
+    from django.utils.text import slugify
+    tank = get_object_or_404(Tank, id=tank_id)
+    text = tank_files.export_yaml(tank, prices=request.GET.get('prices') == '1')
+    response = HttpResponse(text, content_type='application/yaml; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{slugify(tank.name) or "tank"}.nudibranch.yaml"'
+    return response
+
+
+def tank_import_view(request):
+    """Upload a tank file, see what it would add, then confirm. Always makes a new tank."""
+    if request.method != 'POST':
+        return render(request, 'aquarium/tank_import.html', {})
+    upload = request.FILES.get('file')
+    if upload is not None:
+        if upload.size > tank_files.MAX_FILE_BYTES:
+            return render(request, 'aquarium/tank_import.html', {'error': "That file is over 1 MB, which is far bigger than any tank file."})
+        try:
+            text = upload.read().decode('utf-8-sig')
+        except UnicodeDecodeError:
+            return render(request, 'aquarium/tank_import.html', {'error': "That file isn't text. Tank files are .yaml text files."})
+    else:
+        text = request.POST.get('text', '')
+    try:
+        data = tank_files.parse(text)
+        if request.POST.get('confirm') == '1':
+            tank, counts, notes = tank_files.import_tank(data)
+            messages.success(request, f"Imported {tank.name}. Welcome to your new tank!")
+            for note in notes:
+                messages.info(request, note)
+            return redirect('tank_detail', tank_id=tank.id)
+        _, counts, notes = tank_files.import_tank(data, dry_run=True)
+    except tank_files.TankFileError as exc:
+        return render(request, 'aquarium/tank_import.html', {'error': str(exc)})
+    return render(request, 'aquarium/tank_import.html', {
+        'preview': True, 'text': text, 'counts': counts, 'notes': notes,
+        'tank_name': data['tank'].get('name'), 'exported': data.get('exported'),
     })
 
 
@@ -1557,6 +1757,32 @@ def equipment_power_view(request, eq_id):
     return redirect(_safe_next(request, 'equipment'))
 
 
+@require_POST
+def equipment_place_view(request):
+    """Puts a piece of equipment you already have into a tank, sump or chamber (from the tank page)."""
+    eq = get_object_or_404(Equipment, id=_to_int(request.POST.get("equipment"), 0, 0, 10**9))
+    placement = resolve_location(request.POST.get('location'))
+    if placement is None:
+        messages.error(request, "That spot no longer exists.")
+    else:
+        eq.tank, eq.sump, eq.chamber = placement['tank'], placement['sump'], placement['chamber']
+        eq.save()
+        messages.success(request, f"Moved {eq.name} to {eq.tank.name} · {eq.location_label}.")
+    return redirect(_safe_next(request, 'equipment'))
+
+
+@require_POST
+def equipment_unplace_view(request, eq_id):
+    """Takes equipment off its tank. It stays in your equipment list, not placed anywhere."""
+    eq = get_object_or_404(Equipment, id=eq_id)
+    where = eq.tank.name if eq.tank else ''
+    eq.tank = eq.sump = eq.chamber = None
+    eq.save()
+    messages.success(request, f"Took {eq.name} off {where}. It's still in your equipment list." if where
+                     else f"{eq.name} isn't placed in a tank.")
+    return redirect(_safe_next(request, 'equipment'))
+
+
 def _default_location(tank):
     return f"tank:{tank.id}" if tank else ''
 
@@ -1575,7 +1801,12 @@ def equipment_create_view(request):
                 'form': form, 'title': 'Add Equipment', 'back_url': next_url, 'full_page': True})
         _flash_form_errors(request, form)
         return redirect('equipment')
-    form = EquipmentForm(initial={'location': request.GET.get('location') or _default_location(get_active_tank(request))})
+    initial = {'location': request.GET.get('location') or _default_location(get_active_tank(request))}
+    if request.GET.get('category') in dict(Equipment.CATEGORY_CHOICES):
+        initial['category'] = request.GET['category']
+        if initial['category'] == 'filter':
+            initial['maintenance_interval_days'] = 7  # socks and pads get changed about weekly
+    form = EquipmentForm(initial=initial)
     return render(request, 'aquarium/generic_form.html', {
         'form': form, 'title': 'Add Equipment',
         'subtitle': 'Placed where you chose; change the location below if needed',

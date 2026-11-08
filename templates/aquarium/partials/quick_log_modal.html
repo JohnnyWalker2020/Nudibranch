@@ -23,12 +23,12 @@
       </div>
       {% endif %}
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Parameter</label>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">What are you measuring?</label>
         {{ modal_form.parameter_type }}
       </div>
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Measured Value</label>
-        {{ modal_form.value }}
+        {{ modal_form.value }}{{ modal_form.unit }}
       </div>
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Notes (Optional)</label>

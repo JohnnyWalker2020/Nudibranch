@@ -98,7 +98,7 @@
                 <span class="text-[11px] text-slate-400">%</span>
                 <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
               </form>
-              {% if eq.max_flow_gph %}<p class="text-[10px] text-slate-500">Rated {{ eq.max_flow_gph }} gph{% if eq.flow_derate_percent %} · −{{ eq.flow_derate_percent }}% for head height/plumbing{% endif %}. Flow is assumed to scale linearly with power.</p>{% endif %}
+              {% if eq.max_flow_gph %}<p class="text-[10px] text-slate-500">Rated {{ eq.max_flow_gph }} gph{% if eq.uses_head_curve %} · lifting {{ eq.sump.head_height|floatformat:"-1" }} {{ eq.sump.head_height_unit }} of {{ eq.max_head|floatformat:"-1" }} {{ eq.max_head_unit }} max head. Estimated from a straight-line pump curve, so the real figure may differ a little.{% else %}{% if eq.flow_derate_percent %} · −{{ eq.flow_derate_percent }}% for head height/plumbing{% endif %}. Flow is assumed to scale linearly with power.{% endif %}</p>{% endif %}
             </div>
           {% endif %}
 
@@ -135,6 +135,7 @@
               <input type="hidden" name="next" value="{{ request.get_full_path }}">
               <button type="submit" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">✓ Serviced</button>
             </form>
+            <a href="{% url 'equipment_delete' eq.id %}?next={{ request.get_full_path|urlencode }}" title="Delete" aria-label="Delete {{ eq.name }}" class="px-2.5 py-1.5 bg-slate-800 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 text-xs rounded-xl border border-slate-700 transition-colors">🗑</a>
           </div>
         </div>
       </div>
@@ -168,14 +169,23 @@
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Wattage (W)</label>{{ equipment_form.wattage }}</div>
         </div>
 
-        <div class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/20 space-y-3">
-          <p class="text-[11px] text-cyan-300 font-semibold">Pumps &amp; wavemakers: flow estimate</p>
-          <div class="grid grid-cols-3 gap-3">
+        <div data-for-categories="return_pump,wavemaker" class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/20 space-y-3">
+          <p class="text-[11px] text-cyan-300 font-semibold">Flow estimate</p>
+          <div class="grid grid-cols-2 gap-3">
             <div><label class="block text-[11px] text-slate-400 mb-1">Rated max (gph)</label>{{ equipment_form.max_flow_gph }}</div>
             <div><label class="block text-[11px] text-slate-400 mb-1">Power setting %</label>{{ equipment_form.power_setting_percent }}</div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Head loss %</label>{{ equipment_form.flow_derate_percent }}</div>
           </div>
-          <p class="text-[10px] text-slate-500">Return pumps lose flow to height and plumbing (often 20–40%). Wavemakers: leave head loss at 0.</p>
+          <div data-for-categories="return_pump" class="space-y-2">
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="block text-[11px] text-slate-400 mb-1">Head loss %</label>{{ equipment_form.flow_derate_percent }}</div>
+              <div><label for="{{ equipment_form.max_head.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Max head</label>{{ equipment_form.max_head }}{{ equipment_form.max_head_unit }}</div>
+            </div>
+            <p class="text-[10px] text-slate-500">Max head is on the box. With the sump's head height (Edit sump), it works out the real flow and replaces the head loss %, which is otherwise about 20–40% for a return pump.</p>
+          </div>
+          <div class="pt-2 border-t border-cyan-500/20">
+            {{ equipment_form.outlet_x }}{{ equipment_form.outlet_y }}{{ equipment_form.outlet_z }}{{ equipment_form.outlet_heading }}{{ equipment_form.outlet_tilt }}
+            <p class="mt-1 text-[10px] text-slate-500">Drawn on the tank page's flow sketch.</p>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">

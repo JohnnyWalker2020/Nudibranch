@@ -97,6 +97,7 @@ Tailscale may ask you to approve Serve the first time. Add the `https://` addres
 
 ### Dashboard and getting around
 - **On a phone,** the bar at the bottom has Home, Water, Livestock, Tanks and Tools. Calculators, timers, webcams, phone alerts and backups are under Tools.
+- **Water quality rating:** a 0–100 score and grade on the dashboard and Water page, from your latest test of each parameter in the last 30 days against that tank's targets (core parameters count double). It lists what's pulling it down and what hasn't been tested lately. It summarises your own tests; it isn't a lab result.
 - **The dashboard** shows your alerts, timers, a card for each water test, charts, reservoir levels and more. **Quick Add Test** and **Water Change** at the top log either in a couple of taps.
 - **Trend arrows:** each water test card shows the change since the test before. Green means it moved toward the ideal range, amber away from it, and grey that it held steady or moved within the range.
 - **Customize** picks which sections show and their order, and under **Water test cards**, which parameters get a card.
@@ -108,9 +109,9 @@ Pick a tank from the **Tank** menu at the top of any page (beside the logo on a 
 - **Order:** the ↑ and ↓ buttons on the **Tanks** page set the order of the tanks there and in the Tank menu.
 - **Shared across tanks:** the wishlist, plans, species catalog, parameter names and units, webhooks, backups and the quarantine list.
 - **All tanks views:** Equipment and Power can show every tank at once.
-- **Tank look:** use **Icon & colours** on a tank's page to give each tank its own colour scheme and icon, from 26 nudibranch characters or your own image. **Match my icon** builds the colour scheme from the icon itself.
-- **Retiring a tank:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests, and its character ages into the old version. You can bring it back at any time. Your own uploaded icon never changes.
-- **Icon settings:** under **Tools > Settings**, **Disable icon aging** keeps retired tanks young, **Enable old version icons** lets any tank use an old version, and **Enable random icons** gives tanks with no chosen icon a different character on every page.
+- **Tank look:** use **Icon & colours** on a tank's page to give each tank its own colour scheme and icon, from 26 nudibranch characters or your own image. **Match my icon** builds the colour scheme from the icon itself. **Style** switches the tank between **Standard** and **8-bit**: stepped corners (square in browsers that cannot cut them), chunky borders with hard shadows, flat colours and blocky lettering for headings and numbers. Charts keep their smooth lines. Normal text stays easy to read.
+- **Retiring a tank:** the **Retire** button on a tank's page keeps all its data but stops its alerts, schedules, time-lapse and new tests. You can bring it back at any time.
+- **Icon settings:** under **Tools > Settings**, **Enable random icons** gives tanks with no chosen icon a different character on every page. There are a couple of other icon options there too.
 
 ### Water quality
 - Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges. The **Water** page shows your last 10 readings, and **Load more** walks back through the rest.
@@ -123,9 +124,10 @@ Pick a tank from the **Tank** menu at the top of any page (beside the logo on a 
 - Want to see the charts and alerts in action first? Add 90 days of made-up tests with `docker compose exec web python manage.py seed_demo_readings`, and take them out again by adding `--remove`. Your own readings are left alone. Limit it to one tank with `--tank NAME`.
 
 ### Livestock and species catalog
-- Track animals with photos, groups, health status and notes. Photos are saved as JPEGs up to 1600 pixels on the longest side to keep them small, and the originals aren't kept. To shrink photos from before this, run `docker compose exec web python manage.py compress_photos`.
+- Track animals with photos, categories, health status and notes. Photos are saved as JPEGs up to 1600 pixels on the longest side to keep them small, and the originals aren't kept. To shrink photos from before this, run `docker compose exec web python manage.py compress_photos`.
 - Browse **240+ built-in species** with care level, diet, reef safety, minimum tank size, adult size and temperament. Add one with a single tap.
-- **Groups** work like tags, and an animal can be in several. Corals from the catalog go into **SPS Corals**, **LPS Corals** or **Soft Corals** (using the usual hobby labels) and also stay in **Corals**. Anemones get their own **Anemones** group.
+- **Categories** work like tags, and an animal can be in several. Corals from the catalog go into **SPS Corals**, **LPS Corals** or **Soft Corals** (using the usual hobby labels) and also stay in **Corals**. Anemones get their own **Anemones** category.
+- **Edit categories** (top of the Livestock page) manages them all on one page: rename, change the icon, colour and description, reorder with ↑ and ↓, **Merge into** another category (its animals move over and it goes away), or delete one (its animals are kept). The colour shows as a stripe on the category filters and badges.
 - See **compatibility warnings** when an animal may be too big for the tank, may fight, isn't reef safe, or would push the fish load too high.
 - **Quarantine tracker:** day counter and medication and observation log. When the planned days are up, you get a notification and the quarantine ends, marking the animal healthy.
 - **Growth timeline:** dated photos of each animal with a before and after slider.
@@ -138,8 +140,12 @@ The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spr
 - **Wishlist:** save animals and gear with a priority, price, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
 
 ### Equipment, dosing and maintenance
-- **Tank profile:** dimensions, sumps and plumbing, plus substrate type and amount, its linked product, and live rock, in lb or kg. Split a sump into chambers under **Edit sump**.
-- **Equipment:** service intervals, placement in the display or sump, and pump flow and turnover estimates.
+- **Tank profile:** dimensions, sumps and plumbing, plus substrate type and amount, its linked product, and live rock, in lb or kg. Split a sump into chambers under **Edit sump**. **Start from a common tank** on the Add and Edit tank forms fills in the size of a standard glass tank (20 gallon long, 40 gallon breeder and so on) or a Waterbox or Red Sea Reefer display. The sizes are approximate, so check them against your tank.
+- **Tank page:** Flow & Water Turnover lists **Return pumps** and **Wavemakers & powerheads** in their own groups. Each section (sumps and chambers, Flow & Water Turnover, Lighting, Filters, and the display) has its own add menu. Add new equipment, or pick something not in a tank yet, or move something from elsewhere. ✕ takes an item off the tank and keeps it in your equipment list, and 🗑 deletes it after a confirmation. **Lighting** shows each light with the automated routines that switch it on and off. **Filters** lists socks, roller mats, sponges, canisters and media reactors with a **✓ Changed** button.
+- **Equipment:** service intervals, placement in the display or sump, and pump flow and turnover estimates. 🗑 deletes an item wherever it's listed (Equipment, tank page, Routines, Power, PAR estimate), always after a confirmation.
+- **Flow sketch:** place each return pump and wavemaker outlet on two little pictures when you edit it: from above (tap where it is, slide to set which way it points) and from the front (tap how high it sits, slide to tilt it up or down) and where each sump's overflow is (type and position). The Flow section then draws the display from above, shaped like your tank, with numbered outlets, arrows for their aim, and the overflow.
+- **Import and export:** **⬇ Export** on a tank's page downloads its setup as a YAML tank file: the tank, sumps and chambers, plumbing, equipment and where it sits, living animals and their categories, target ranges, routines, and dosing and ATO containers. Water tests, logs and photos stay out (use backups or the CSV downloads for those), and so do prices unless you pick **with prices**. **⬆ Import a tank** on the Tanks page shows what a file will add before anything is saved, and always makes a new tank. Categories you already have are reused.
+- **Head height:** set a sump's head height (Edit sump, in ft or m), and a return pump's **Max head** from its box. A return pump sitting in that sump then gets its flow from a straight-line pump curve at its power setting, which feeds the turnover. Without a max head, the head loss % still applies. It's an estimate: real pump curves bow a little, and pipe and elbows add to the lift.
 - **Dosing and top-off:** reservoir levels and run-out forecasts.
 - **Dose log:** record what you add with **Log a dose** on the Dosing page, or **Log this dose** under the Dose Estimator's answer, which fills it in. Pick the container it came from, and a liquid dose (ml, tsp or fl oz) comes off its level. Deleting the dose puts it back.
 - **Calculators:** the Salt Mixing Calculator, Dose Estimator and PAR estimate are together on the **Tools** page. They use the selected tank's volume, or a custom one. Tap a unit (gal, L, SG, ppt, g, oz and so on) to switch it, and each answer appears once, in the unit you pick. The salt calculator can start from water that already has salt in it, and the Dose Estimator starts from your latest test. It works out dry chemicals or a product's label for alkalinity, calcium and magnesium, and uses the product's label for nitrate, phosphate, potassium, iodine and strontium. Results are estimates, so confirm them independently before using them.
@@ -242,6 +248,8 @@ Requests include `X-Nudibranch-Event` and `X-Nudibranch-Delivery` headers, plus 
 ---
 
 ## 🧪 Parameter Units & Decimal Precision
+
+**Logging in another unit:** wherever you log a test, pick what you measured, then tap the unit in the value box to switch it (for example dKH, meq/L or ppm for alkalinity). The reading is converted to the parameter's own unit when it's saved. The same tap-to-switch button is used for every unit in the app.
 
 You can change measurement units and customize decimal places for any parameter:
 - Click the **gear icon** ⚙️ on any dashboard parameter card, or select a parameter on the **Water** page and open its settings.
@@ -412,9 +420,10 @@ docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python 
 
 - `aquarium/`: the Django app. Views for the newer tools are in `views_tools.py`, sign-in is in `middleware.py`, alert history is in `alert_history.py`, CSV downloads are in `exports.py`, the main-tank app icon is in `app_icon.py`, and background jobs are in `management/commands/run_worker.py`. `request_cache.py` lets a page read the app settings once instead of many times.
 - `aquarium/species_catalog.csv`: the built-in species list.
-- `static/icons/nudibranch/`: character icons, as `NN-name-young.png` and `NN-name-old.png` pairs. Add a pair and restart to add a character. Small copies are generated at startup in `thumbs/`.
+- `static/icons/nudibranch/`: character icons, two PNG files per character. To add a character, copy the naming of an existing pair and restart. Small copies are generated at startup in `thumbs/`.
 - `.env.example`: the settings to copy into your private `.env`.
 - `static/css/tailwind.css` and `static/vendor/`: the styling and libraries, served from the app so it works without internet. The app doesn't need Node. If you change the classes used in a template, rebuild the CSS (below).
+- `static/fonts/`: the Press Start 2P pixel font used by the 8-bit style, by The Press Start 2P Project Authors under the SIL Open Font License (its licence is beside it).
 - [CHANGES.md](CHANGES.md): what changed in each round.
 
 Rebuild the CSS after changing templates, or add `&& npm run vendor` to update the libraries as well:

@@ -1,11 +1,13 @@
-<!-- Tank picker. Pass select_id, and compact=True for the phone top bar. -->
-<form method="POST" action="{% url 'system_select' %}" class="flex items-center gap-2 min-w-0 {{ form_class }}">
+<!-- Tank picker. Pass select_id, and compact='subtitle' for the line under the app name on phones. -->
+<form method="POST" action="{% url 'system_select' %}" class="flex items-center min-w-0 {% if compact %}gap-0{% else %}gap-2{% endif %}">
   {% csrf_token %}
   <input type="hidden" name="next" value="{{ request.get_full_path }}">
   <label for="{{ select_id }}" class="{% if compact %}sr-only{% else %}text-[10px] uppercase font-bold text-slate-500 shrink-0{% endif %}">Tank</label>
-  <select id="{{ select_id }}" name="tank" onchange="this.form.submit()" class="min-w-0 {% if compact %}w-full{% else %}max-w-[60vw] sm:max-w-xs{% endif %} px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500">
+  <select id="{{ select_id }}" name="tank" onchange="this.form.submit()" title="Switch tank"
+          class="min-w-0 {% if compact %}[field-sizing:content] max-w-full truncate appearance-none bg-transparent border-0 p-0 pr-4 text-[11px] font-semibold text-cyan-400 focus:outline-none focus:ring-0{% else %}max-w-[60vw] sm:max-w-xs px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500{% endif %}">
     {% for s in systems %}{% if not s.tank.is_archived %}<option value="{{ s.tank.id }}" {% if s.tank.id == active_tank.id %}selected{% endif %}>{{ s.tank.name }}{% if s.alerts and s.tank.id != active_tank.id %} ⚠️ {{ s.alerts }}{% endif %}</option>{% endif %}{% endfor %}
     <optgroup label="Retired">{% for s in systems %}{% if s.tank.is_archived %}<option value="{{ s.tank.id }}" {% if s.tank.id == active_tank.id %}selected{% endif %}>{{ s.tank.name }}</option>{% endif %}{% endfor %}</optgroup>
   </select>
+  {% if compact %}<span class="-ml-3.5 pointer-events-none text-[10px] text-cyan-400" aria-hidden="true">▾</span>{% endif %}
   <noscript><button class="text-xs text-cyan-400">Go</button></noscript>
 </form>

@@ -1,0 +1,4 @@
+<span class="inline-flex items-center gap-0.5 pl-2.5 pr-0.5 py-0.5 rounded-lg bg-slate-800 border border-slate-700 {% if eq.status == 'offline' %}opacity-60{% endif %}">
+  <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-[11px] font-semibold text-slate-300 hover:text-cyan-400 {% if eq.status == 'offline' %}line-through{% endif %}">⚙️ {{ eq.name }}</a>
+  {% include 'aquarium/partials/equipment_actions.html' %}
+</span>

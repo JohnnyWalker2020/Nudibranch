@@ -1,0 +1,49 @@
+{% comment %}Top-down sketch of the display: back at the top, front at the bottom. Needs `flow_sketch`.{% endcomment %}
+{% with s=flow_sketch %}
+{% if s.show %}
+<div class="space-y-2">
+  <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">From above</h3>
+  <p class="text-center text-[9px] uppercase tracking-wider text-slate-500 -mb-1">Back wall</p>
+  <div class="relative w-full rounded-xl border-2 border-cyan-500/30 bg-gradient-to-b from-cyan-950/40 to-slate-950/60 overflow-hidden min-h-[8rem]"
+       style="padding-bottom: {{ s.shape }}%" role="img" aria-label="Top-down sketch of the display tank showing where the overflow and pump outlets are">
+
+    {% for o in s.overflows %}
+      {% if o.spot.wide %}
+        <span class="absolute left-[4%] right-[4%] h-2.5 -translate-y-1/2 rounded bg-amber-500/70 border border-amber-300/70"
+              style="top: {{ o.spot.top }}%" title="{{ o.sump.name }}: {{ o.sump.overflow_label }}"></span>
+      {% else %}
+        <span class="absolute w-7 h-5 -translate-x-1/2 -translate-y-1/2 rounded bg-amber-500/70 border border-amber-300/70 flex items-center justify-center text-[9px] font-bold text-slate-950"
+              style="left: {{ o.spot.left }}%; top: {{ o.spot.top }}%" title="{{ o.sump.name }}: {{ o.sump.overflow_label }}">OF</span>
+      {% endif %}
+    {% endfor %}
+
+    {% for o in s.outlets %}
+      <span class="absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5" style="left: {{ o.spot.left }}%; top: {{ o.spot.top }}%"
+            title="{{ o.eq.name }}{% if o.eq.outlet_label %}: {{ o.eq.outlet_label }}{% endif %}">
+        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-950 {% if o.eq.category == 'return_pump' %}bg-cyan-400{% else %}bg-violet-400{% endif %} {% if o.eq.status == 'offline' %}opacity-40{% endif %}">{{ o.number }}</span>
+        {% if o.arrow %}<span class="text-sm font-bold leading-none {% if o.eq.category == 'return_pump' %}text-cyan-300{% else %}text-violet-300{% endif %} inline-block" style="transform: rotate({{ o.turn }}deg)">{{ o.arrow }}</span>{% endif %}
+      </span>
+    {% endfor %}
+  </div>
+
+  <p class="text-center text-[9px] uppercase tracking-wider text-slate-500 -mt-1">Front glass (where you stand)</p>
+  <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400">
+    {% for o in s.outlets %}
+      <span><span class="inline-flex w-4 h-4 rounded-full items-center justify-center text-[9px] font-bold text-slate-950 {% if o.eq.category == 'return_pump' %}bg-cyan-400{% else %}bg-violet-400{% endif %}">{{ o.number }}</span>
+        <span class="text-slate-200">{{ o.eq.name }}</span>{% if o.eq.estimated_flow_gph_display is not None %} · {{ o.eq.estimated_flow_gph_display }} gph{% endif %}{% if o.eq.outlet_label %} · {{ o.eq.outlet_label }}{% endif %}</span>
+    {% endfor %}
+    {% for o in s.overflows %}
+      <span><span class="inline-block w-4 h-3 rounded-sm bg-amber-500/70 align-middle"></span> <span class="text-slate-200">{{ o.sump.name }}</span> · {{ o.sump.overflow_label }}</span>
+    {% endfor %}
+  </div>
+  <p class="text-[10px] text-slate-500">
+    <span class="text-cyan-300">●</span> return &nbsp;<span class="text-violet-300">●</span> wavemaker &nbsp;· arrows show which way it points (⊙ up at the surface, ⊗ down at the rocks).
+    {% if s.unplaced %}Not drawn yet: {% for eq in s.unplaced %}<a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-cyan-400 hover:underline">{{ eq.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+  </p>
+</div>
+{% else %}
+<p class="text-[11px] text-slate-500 px-3 py-2 rounded-xl border border-dashed border-slate-800">
+  Set where each pump's outlet is (edit the pump) and where the overflow is (Edit sump) to see a top-down sketch of your flow here.
+</p>
+{% endif %}
+{% endwith %}

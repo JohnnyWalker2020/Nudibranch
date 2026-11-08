@@ -30,7 +30,7 @@ from .themes import theme_css
 from .schedule import parse_step
 from . import backups, compatibility, events, fill, planner, power, timelapse
 from .models import (
-    DoseLog,
+    DoseLog, PlumbingRun, SumpChamber,
     QuickTimer,
     WaterChangeLog,
     AlertRecord, Animal, AnimalGroup, AppSettings, CostEntry, ParameterTarget, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
@@ -3654,6 +3654,8 @@ class TankOrderTopBarAndParTests(TestCase):
     def test_phone_top_bar_has_the_tank_menu(self):
         page = self.client.get(reverse('dashboard')).content.decode()
         self.assertIn('id="system-select-top"', page)
+        phone_bar = page[page.index('Phones: the app name'):page.index('id="system-select-top"')]
+        self.assertIn('NUDIBRANCH', phone_bar)
         self.assertIn('id="system-select"', page)
 
     def test_par_estimate_lives_on_tools(self):
@@ -4215,3 +4217,630 @@ class FinalReviewTests(TestCase):
 
     def test_service_worker_does_not_preload_the_old_manifest(self):
         self.assertNotIn('/static/manifest.json', self.client.get('/sw.js').content.decode())
+
+
+class PixelStyleTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.other = Tank.objects.create(name='QT', volume_gallons=10, is_primary=False)
+
+    def test_standard_by_default(self):
+        self.assertEqual(self.tank.ui_style, 'standard')
+        self.assertContains(self.client.get(reverse('dashboard')), '<body class="style-standard')
+
+    def test_choose_8bit_for_one_tank(self):
+        page = self.client.get(reverse('system_theme'))
+        self.assertContains(page, 'name="ui_style" value="8bit"')
+        self.client.post(reverse('system_theme'), {'theme': self.tank.theme, 'ui_style': '8bit', 'icon_choice': ''})
+        self.tank.refresh_from_db()
+        self.assertEqual(self.tank.ui_style, '8bit')
+        self.assertContains(self.client.get(reverse('dashboard')), '<body class="style-8bit')
+        # Another tank keeps its own style.
+        self.client.post(reverse('system_select'), {'tank': self.other.pk, 'next': '/'})
+        self.assertContains(self.client.get(reverse('dashboard')), '<body class="style-standard')
+
+    def test_bad_style_is_refused(self):
+        self.client.post(reverse('system_theme'), {'theme': self.tank.theme, 'ui_style': 'neon', 'icon_choice': ''})
+        self.tank.refresh_from_db()
+        self.assertEqual(self.tank.ui_style, 'standard')
+
+
+class TankPageEquipmentLightsAndPresetTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.other = Tank.objects.create(name='QT', volume_gallons=10, is_primary=False)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=10)
+        self.light = Equipment.objects.create(tank=self.tank, name='Radion', category='lighting', wattage=100)
+        self.heater = Equipment.objects.create(tank=self.tank, name='Heater', category='heater')
+        self.spare = Equipment.objects.create(name='Spare pump', category='return_pump', max_flow_gph=800)
+        self.qt_wave = Equipment.objects.create(tank=self.other, name='QT wave', category='wavemaker')
+        self.url = reverse('tank_detail', args=[self.tank.pk])
+
+    def test_pickers_offer_unplaced_and_elsewhere_equipment(self):
+        page = self.client.get(self.url).content.decode()
+        self.assertIn(reverse('equipment_place'), page)
+        self.assertIn('<option value="%d">Spare pump</option>' % self.spare.pk, page)
+        self.assertIn('QT wave (QT · Display tank)', page)
+        self.assertIn('+ Add some flow', page)
+        self.assertIn('+ Add more sun', page)
+        self.assertIn('category=lighting', page)
+
+    def test_place_into_sump_and_take_off(self):
+        self.client.post(reverse('equipment_place'), {'equipment': self.spare.pk, 'location': f'sump:{self.sump.pk}',
+                                                      'next': self.url})
+        self.spare.refresh_from_db()
+        self.assertEqual((self.spare.tank, self.spare.sump), (self.tank, self.sump))
+        response = self.client.post(reverse('equipment_unplace', args=[self.spare.pk]), {'next': self.url})
+        self.assertRedirects(response, self.url, fetch_redirect_response=False)
+        self.spare.refresh_from_db()
+        self.assertIsNone(self.spare.tank)
+        self.assertTrue(Equipment.objects.filter(pk=self.spare.pk).exists())
+
+    def test_place_into_missing_spot_changes_nothing(self):
+        self.client.post(reverse('equipment_place'), {'equipment': self.spare.pk, 'location': 'sump:999'})
+        self.spare.refresh_from_db()
+        self.assertIsNone(self.spare.tank)
+
+    def test_every_listed_item_has_delete(self):
+        page = self.client.get(self.url).content.decode()
+        for eq in (self.light, self.heater):
+            self.assertIn(reverse('equipment_delete', args=[eq.pk]) + '?next=', page)
+            self.assertIn(reverse('equipment_unplace', args=[eq.pk]), page)
+        self.assertContains(self.client.get(reverse('equipment')), reverse('equipment_delete', args=[self.heater.pk]))
+        self.assertContains(self.client.get(reverse('power')), reverse('equipment_delete', args=[self.light.pk]))
+
+    def test_delete_returns_to_tank_page(self):
+        response = self.client.post(reverse('equipment_delete', args=[self.heater.pk]) + '?next=' + self.url)
+        self.assertRedirects(response, self.url, fetch_redirect_response=False)
+        self.assertFalse(Equipment.objects.filter(pk=self.heater.pk).exists())
+
+    def test_lights_section_shows_schedule(self):
+        routine = MaintenanceRoutine.objects.create(
+            tank=self.tank, title='Light cycle', routine_type='automated', category='lighting',
+            schedule_events=[{'time': '20:00', 'action': 'Lights off'}, {'time': '10:00', 'action': 'Lights on'}])
+        routine.equipment.add(self.light)
+        page = self.client.get(self.url)
+        self.assertContains(page, 'Light cycle')
+        self.assertContains(page, '10:00 Lights on · 20:00 Lights off')
+        self.assertEqual(page.context['display_equipment'], [self.heater])  # the light isn't listed twice
+
+    def test_light_without_schedule_says_so(self):
+        self.assertContains(self.client.get(self.url), 'No schedule yet')
+
+    def test_new_equipment_can_start_in_a_category(self):
+        page = self.client.get(reverse('equipment_create') + f'?location=tank:{self.tank.pk}&category=lighting')
+        self.assertEqual(page.context['form'].initial['category'], 'lighting')
+
+    def test_tank_form_offers_common_tanks(self):
+        for url in (reverse('tank_create'), reverse('tank_edit', args=[self.tank.pk])):
+            page = self.client.get(url)
+            self.assertContains(page, 'Start from a common tank')
+            self.assertContains(page, '20 gallon long')
+            self.assertContains(page, '40 gallon breeder')
+            self.assertContains(page, 'tank-presets-data')
+        self.assertNotContains(self.client.get(reverse('sump_edit', args=[self.sump.pk])), 'Start from a common tank')
+
+    def test_presets_are_sane(self):
+        from .tank_presets import TANK_PRESETS
+        for group in TANK_PRESETS:
+            for p in group['tanks']:
+                self.assertTrue(p['width'] > 0 and p['depth'] > 0 and p['height'] > 0, p['name'])
+                self.assertIn(p['unit'], ('in', 'cm'))
+
+
+class HeadHeightAndFilterTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=20)
+        self.pump = Equipment.objects.create(tank=self.tank, sump=self.sump, name='Return', category='return_pump',
+                                             max_flow_gph=2000, flow_derate_percent=30)
+
+    def test_pump_curve_math(self):
+        from .calculators import estimate_flow_at_head
+        self.assertAlmostEqual(estimate_flow_at_head(2000, 20, 0), 2000)
+        self.assertAlmostEqual(estimate_flow_at_head(2000, 20, 5), 1500)
+        self.assertEqual(estimate_flow_at_head(2000, 20, 25), 0.0)
+        # Half speed: half the flow, a quarter of the max head (affinity laws).
+        self.assertAlmostEqual(estimate_flow_at_head(2000, 20, 2.5, 50), 500)
+        self.assertEqual(estimate_flow_at_head(2000, 20, 6, 50), 0.0)
+        self.assertIsNone(estimate_flow_at_head(2000, None, 5))
+
+    def test_head_height_drives_return_flow_and_turnover(self):
+        before = self.tank.flow_summary()['return_gph']
+        self.assertAlmostEqual(self.pump.estimated_flow_gph, 1400)  # the old 30% head loss
+        self.sump.head_height, self.sump.head_height_unit = 5, 'ft'
+        self.sump.save()
+        self.pump.max_head, self.pump.max_head_unit = 20, 'ft'
+        self.pump.save()
+        pump = Equipment.objects.get(pk=self.pump.pk)
+        self.assertTrue(pump.uses_head_curve)
+        self.assertAlmostEqual(pump.estimated_flow_gph, 1500)
+        tank = Tank.objects.prefetch_related('equipment__sump').get(pk=self.tank.pk)
+        self.assertNotEqual(tank.flow_summary()['return_gph'], before)
+
+    def test_metres_convert(self):
+        self.sump.head_height, self.sump.head_height_unit = 1, 'm'
+        self.sump.save()
+        self.pump.max_head, self.pump.max_head_unit = 4, 'm'
+        self.pump.save()
+        self.assertAlmostEqual(Equipment.objects.get(pk=self.pump.pk).estimated_flow_gph, 1500, places=3)
+
+    def test_without_max_head_the_percent_still_applies(self):
+        self.sump.head_height = 5
+        self.sump.save()
+        pump = Equipment.objects.get(pk=self.pump.pk)
+        self.assertFalse(pump.uses_head_curve)
+        self.assertAlmostEqual(pump.estimated_flow_gph, 1400)
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), 'add its max head')
+
+    def test_sump_form_saves_head_height_with_unit_button(self):
+        page = self.client.get(reverse('sump_edit', args=[self.sump.pk]))
+        self.assertContains(page, 'data-units="ft,m"')
+        self.assertContains(page, 'name="head_height_unit"')
+        self.client.post(reverse('sump_edit', args=[self.sump.pk]), {
+            'name': 'Sump', 'dimension_unit': 'in', 'fill_percent': 60, 'volume_gallons': 20,
+            'capacity_is_manual': 'on', 'head_height': '1.5', 'head_height_unit': 'm'})
+        self.sump.refresh_from_db()
+        self.assertEqual((float(self.sump.head_height), self.sump.head_height_unit), (1.5, 'm'))
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), '1.5 m head height')
+
+    def test_equipment_form_has_max_head(self):
+        page = self.client.get(reverse('equipment_edit', args=[self.pump.pk]))
+        self.assertContains(page, 'name="max_head"')
+        self.assertContains(page, 'name="max_head_unit"')
+        self.assertContains(self.client.get(reverse('equipment')), 'name="max_head"')
+
+    def test_filters_section(self):
+        sock = Equipment.objects.create(tank=self.tank, sump=self.sump, name='Filter sock', category='filter')
+        page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        self.assertContains(page, '+ Catch more gunk')
+        self.assertContains(page, 'Filter sock')
+        self.assertContains(page, reverse('service_equipment', args=[sock.pk]))
+        self.assertIn(f'sump:{self.sump.pk}&category=filter', page.content.decode())
+        new = self.client.get(reverse('equipment_create') + '?category=filter')
+        self.assertEqual(new.context['form'].initial['maintenance_interval_days'], 7)
+
+
+class EditCategoriesTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.fish = AnimalGroup.objects.create(name='Fish', icon='🐠')
+        self.cuc = AnimalGroup.objects.create(name='Cleanup Crew', icon='🐌')
+        self.snail = Animal.objects.create(name='Trochus', tank=self.tank)
+        self.snail.groups.add(self.cuc)
+        self.both = Animal.objects.create(name='Goby', tank=self.tank)
+        self.both.groups.add(self.cuc, self.fish)
+
+    def test_livestock_page_links_to_edit_categories(self):
+        page = self.client.get(reverse('livestock'))
+        self.assertContains(page, '✏️ Edit categories')
+        self.assertContains(page, reverse('groups_manage'))
+        self.assertNotContains(page, 'New Group')
+
+    def test_new_categories_go_to_the_end(self):
+        names = [g.name for g in AnimalGroup.objects.all()]
+        self.assertLess(names.index('Fish'), names.index('Cleanup Crew'))
+        self.client.post(reverse('group_create'), {'new-name': 'Nano Fish', 'new-icon': '🐟', 'new-color': '#ff0000'})
+        self.assertEqual(AnimalGroup.objects.last().name, 'Nano Fish')
+
+    def test_page_lists_counts_and_edits(self):
+        page = self.client.get(reverse('groups_manage'))
+        self.assertContains(page, '2 living')
+        self.client.post(reverse('group_edit', args=[self.cuc.pk]), {
+            f'g{self.cuc.pk}-name': 'CUC', f'g{self.cuc.pk}-icon': '🦀', f'g{self.cuc.pk}-color': '#22C55E',
+            f'g{self.cuc.pk}-description': 'Snails and crabs'})
+        self.cuc.refresh_from_db()
+        self.assertEqual((self.cuc.name, self.cuc.icon, self.cuc.color), ('CUC', '🦀', '#22c55e'))
+
+    def test_duplicate_name_and_bad_colour(self):
+        self.client.post(reverse('group_edit', args=[self.cuc.pk]), {
+            f'g{self.cuc.pk}-name': 'fish', f'g{self.cuc.pk}-icon': '🐌', f'g{self.cuc.pk}-color': 'red;x'})
+        self.cuc.refresh_from_db()
+        self.assertEqual(self.cuc.name, 'Cleanup Crew')
+        self.client.post(reverse('group_edit', args=[self.cuc.pk]), {
+            f'g{self.cuc.pk}-name': 'Cleanup Crew', f'g{self.cuc.pk}-icon': '🐌', f'g{self.cuc.pk}-color': 'red;x'})
+        self.cuc.refresh_from_db()
+        self.assertTrue(self.cuc.color.startswith('#') and ';' not in self.cuc.color)
+
+    def test_reorder(self):
+        self.client.post(reverse('group_move', args=[self.cuc.pk]), {'direction': 'up'})
+        names = [g.name for g in AnimalGroup.objects.all()]
+        self.assertEqual(names.index('Cleanup Crew') + 1, names.index('Fish'))
+        self.assertContains(self.client.get(reverse('livestock')), 'Category:')
+
+    def test_merge_moves_animals_and_removes_the_category(self):
+        self.client.post(reverse('group_merge', args=[self.cuc.pk]), {'into': self.fish.pk})
+        self.assertFalse(AnimalGroup.objects.filter(pk=self.cuc.pk).exists())
+        self.assertEqual(set(self.fish.animals.values_list('name', flat=True)), {'Trochus', 'Goby'})
+
+    def test_merge_needs_another_category(self):
+        self.client.post(reverse('group_merge', args=[self.cuc.pk]), {'into': self.cuc.pk})
+        self.assertTrue(AnimalGroup.objects.filter(pk=self.cuc.pk).exists())
+
+    def test_delete_keeps_animals(self):
+        response = self.client.post(reverse('group_delete', args=[self.cuc.pk]))
+        self.assertRedirects(response, reverse('groups_manage'), fetch_redirect_response=False)
+        self.assertTrue(Animal.objects.filter(name='Trochus').exists())
+
+
+class DefaultReturnDerateTests(TestCase):
+    def test_new_return_pump_starts_at_the_usual_head_loss(self):
+        page = self.client.get(reverse('equipment_create') + '?category=return_pump')
+        self.assertEqual(page.context['form'].initial['flow_derate_percent'], 25)
+        self.assertContains(page, 'data-auto-derate="25"')
+
+    def test_other_new_equipment_starts_at_zero(self):
+        page = self.client.get(reverse('equipment_create') + '?category=wavemaker')
+        self.assertNotIn('flow_derate_percent', page.context['form'].initial)
+        self.assertContains(page, 'data-auto-derate="25"')  # follows the category if it's changed to a return pump
+
+    def test_editing_leaves_your_own_figure_alone(self):
+        pump = Equipment.objects.create(name='Pump', category='return_pump', flow_derate_percent=10)
+        page = self.client.get(reverse('equipment_edit', args=[pump.pk]))
+        self.assertNotContains(page, 'data-auto-derate')
+        self.assertEqual(page.context['form']['flow_derate_percent'].value(), 10)
+
+    def test_planner_uses_the_same_figure(self):
+        from . import planner
+        self.assertEqual(planner.RETURN_HEAD_LOSS_PERCENT, Equipment.DEFAULT_RETURN_DERATE)
+
+
+class OutletOverflowSketchTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, width=48, depth=18, height=21, is_primary=True)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=20)
+        self.pump = Equipment.objects.create(tank=self.tank, sump=self.sump, name='Return', category='return_pump',
+                                             max_flow_gph=1200)
+        self.wave = Equipment.objects.create(tank=self.tank, name='MP40', category='wavemaker', max_flow_gph=3000)
+        self.url = reverse('tank_detail', args=[self.tank.pk])
+
+    def test_nothing_set_shows_a_hint(self):
+        page = self.client.get(self.url)
+        self.assertFalse(page.context['flow_sketch']['show'])
+        self.assertContains(page, 'to see a top-down sketch')
+
+    def test_sketch_places_outlets_and_overflow(self):
+        self.pump.outlet_x, self.pump.outlet_y, self.pump.outlet_z, self.pump.outlet_heading = 50, 10, 5, 0
+        self.pump.save()
+        self.sump.overflow_type, self.sump.overflow_across, self.sump.overflow_depth = 'corner', 'right', 'back'
+        self.sump.save()
+        page = self.client.get(self.url)
+        sketch = page.context['flow_sketch']
+        self.assertTrue(sketch['show'])
+        self.assertEqual(sketch['outlets'][0]['spot'], {'left': 50.0, 'top': 18.0})
+        self.assertEqual(sketch['outlets'][0]['turn'], 0)
+        self.assertEqual(sketch['outlets'][0]['arrow'], '↓')
+        self.assertEqual(sketch['overflows'][0]['spot'], {'left': 90, 'top': 18})
+        self.assertEqual(sketch['shape'], 37.5)  # 18 deep / 48 wide
+        self.assertEqual([e.name for e in sketch['unplaced']], ['MP40'])
+        self.assertContains(page, 'Corner overflow, back right')
+        self.assertContains(page, 'Back, centre, near the surface, toward the front')
+
+    def test_coast_to_coast_runs_the_width(self):
+        self.sump.overflow_type = 'coast'
+        self.sump.save()
+        self.assertTrue(self.client.get(self.url).context['flow_sketch']['overflows'][0]['spot']['wide'])
+
+    def test_forms_save_positions(self):
+        self.client.post(reverse('sump_edit', args=[self.sump.pk]), {
+            'name': 'Sump', 'dimension_unit': 'in', 'fill_percent': 60, 'volume_gallons': 20, 'capacity_is_manual': 'on',
+            'head_height_unit': 'ft', 'overflow_type': 'internal', 'overflow_across': 'left', 'overflow_depth': 'back'})
+        self.sump.refresh_from_db()
+        self.assertEqual((self.sump.overflow_type, self.sump.overflow_across), ('internal', 'left'))
+        page = self.client.get(reverse('equipment_edit', args=[self.wave.pk]))
+        self.assertContains(page, 'name="outlet_heading"')
+        self.assertContains(page, 'class="outlet-picker')
+        self.assertContains(self.client.get(reverse('equipment')), 'class="outlet-picker')
+
+
+class TankFileTests(TestCase):
+    def setUp(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.Upload = SimpleUploadedFile
+        self.tank = Tank.objects.create(name='Reef', volume_gallons=75, width=48, depth=18, height=21, is_primary=True,
+                                        ui_style='8bit', substrate_type='live_sand')
+        sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=20, head_height=4,
+                                   overflow_type='corner', overflow_across='right', overflow_depth='back')
+        self.chamber = SumpChamber.objects.create(sump=sump, position=2, chamber_type='refugium', share_percent=40)
+        PlumbingRun.objects.create(tank=self.tank, name='Return', length=6, pipe_size='1')
+        self.pump = Equipment.objects.create(tank=self.tank, sump=sump, chamber=self.chamber, name='Vectra',
+                                             category='return_pump', max_flow_gph=2100, max_head=12.5, paid=500,
+                                             outlet_x=50, outlet_y=20, outlet_heading=0)
+        self.light = Equipment.objects.create(tank=self.tank, name='Radion', category='lighting', wattage=190)
+        sand = Equipment.objects.create(name='Arag-Alive', category='substrate')
+        self.tank.substrate_product = sand
+        self.tank.save()
+        group = AnimalGroup.objects.create(name='Fish', icon='🐠')
+        clown = Animal.objects.create(name='Clowns', tank=self.tank, count=2)
+        clown.groups.add(group)
+        Animal.objects.create(name='Old tang', tank=self.tank, status='deceased')
+        self.alk = ParameterType.objects.create(name='Alkalinity', code='alk_test', unit='dKH', min_ideal=7, max_ideal=9)
+        ParameterTarget.objects.create(tank=self.tank, parameter_type=self.alk, min_ideal=8, max_ideal=9)
+        routine = MaintenanceRoutine.objects.create(tank=self.tank, title='Lights', routine_type='automated',
+                                                    category='lighting',
+                                                    schedule_events=[{'time': '10:00', 'action': 'Lights on'}])
+        routine.equipment.add(self.light)
+        DosingReservoir.objects.create(tank=self.tank, name='Alk', capacity=1000, current_level=500, daily_consumption=20)
+
+    def _export(self, prices=False):
+        url = reverse('tank_export', args=[self.tank.pk]) + ('?prices=1' if prices else '')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('reef.nudibranch.yaml', response['Content-Disposition'])
+        return response.content.decode()
+
+    def test_export_is_readable_yaml_without_prices_or_history(self):
+        import yaml
+        text = self._export()
+        data = yaml.safe_load(text)
+        self.assertEqual(data['nudibranch_tank'], 1)
+        self.assertEqual(data['tank']['name'], 'Reef')
+        self.assertEqual(data['tank']['substrate_product'], 'Arag-Alive')
+        self.assertNotIn('paid', text)
+        self.assertEqual([a['name'] for a in data['livestock']], ['Clowns'])  # gone animals stay out
+        pump = next(e for e in data['equipment'] if e['name'] == 'Vectra')
+        self.assertEqual(pump['location'], {'sump': 'Sump', 'chamber': 2})
+        self.assertEqual(data['targets'][0]['parameter'], 'alk_test')
+        self.assertIn('paid: 500', self._export(prices=True))
+
+    def test_round_trip_makes_a_matching_new_tank(self):
+        text = self._export(prices=True)
+        before = Tank.objects.count()
+        page = self.client.post(reverse('tank_import'), {'file': self.Upload('reef.yaml', text.encode())})
+        self.assertContains(page, 'Import this tank')
+        self.assertContains(page, 'already have a tank called Reef')
+        self.assertEqual(Tank.objects.count(), before)  # the preview keeps nothing
+        response = self.client.post(reverse('tank_import'), {'text': text, 'confirm': '1'})
+        new = Tank.objects.exclude(pk=self.tank.pk).get()
+        self.assertRedirects(response, reverse('tank_detail', args=[new.pk]), fetch_redirect_response=False)
+        self.assertEqual(new.name, 'Reef (imported)')
+        self.assertFalse(new.is_primary)
+        self.assertEqual((new.ui_style, new.substrate_type, float(new.width)), ('8bit', 'live_sand', 48.0))
+        sump = new.sumps.get()
+        self.assertEqual((float(sump.head_height), sump.overflow_type), (4.0, 'corner'))
+        pump = new.equipment.get(name='Vectra')
+        self.assertEqual((pump.chamber.position, pump.sump, float(pump.max_head), pump.outlet_heading), (2, sump, 12.5, 0))
+        self.assertEqual(new.substrate_product.name, 'Arag-Alive')
+        self.assertEqual(new.plumbing_runs.count(), 1)
+        self.assertEqual([a.name for a in new.animals.all()], ['Clowns'])
+        self.assertEqual(AnimalGroup.objects.filter(name='Fish').count(), 1)  # reused, not copied
+        self.assertEqual(new.parameter_targets.get().parameter_type, self.alk)
+        self.assertEqual(list(new.routines.get().equipment.values_list('name', flat=True)), ['Radion'])
+        self.assertEqual(new.reservoirs.count(), 1)
+
+    def test_bad_files_are_refused_kindly(self):
+        cases = [
+            ('just: words', 'look like a Nudibranch tank file'),
+            ('nudibranch_tank: 9\ntank: {name: X}', 'version 9'),
+            ('nudibranch_tank: 1\ntank: {name: X\n', 'valid YAML'),
+            ('nudibranch_tank: 1\nx: &a [1]\ny: *a\ntank: {name: X}', 'aliases'),
+            ('nudibranch_tank: 1\ntank: {name: X, dimension_unit: furlongs}', 'dimension_unit'),
+        ]
+        for text, message in cases:
+            page = self.client.post(reverse('tank_import'), {'file': self.Upload('t.yaml', text.encode())})
+            self.assertContains(page, message, msg_prefix=text)
+        self.assertEqual(Tank.objects.count(), 1)
+
+    def test_unknown_parameter_is_skipped_with_a_note(self):
+        text = 'nudibranch_tank: 1\ntank: {name: Nano}\ntargets:\n  - {parameter: unobtainium, min_ideal: 1, max_ideal: 2}\n'
+        page = self.client.post(reverse('tank_import'), {'file': self.Upload('t.yaml', text.encode())})
+        self.assertContains(page, 'No parameter called unobtainium')
+
+    def test_buttons(self):
+        self.assertContains(self.client.get(reverse('tanks')), reverse('tank_import'))
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), reverse('tank_export', args=[self.tank.pk]))
+
+
+class QuickMeasureUnitTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.alk = ParameterType.objects.get_or_create(code='alkalinity', defaults={
+            'name': 'Alkalinity', 'unit': 'dKH', 'min_ideal': 7, 'max_ideal': 9, 'decimal_places': 1})[0]
+        self.oddball = ParameterType.objects.create(name='Iodine test', code='iodine_x', unit='ppb', min_ideal=0, max_ideal=1)
+
+    def test_card_offers_units_per_parameter(self):
+        page = self.client.get(reverse('dashboard'))
+        self.assertContains(page, f'data-units="{self.alk.unit},meq/L,ppm"')
+        self.assertContains(page, 'data-units="ppb"')  # no known conversions: one unit, not switchable
+
+    def test_other_units_are_converted_on_save(self):
+        self.client.post(reverse('quick_measure_create'), {
+            'parameter': [self.alk.pk], 'value': ['3.0'], 'unit': ['meq/L']})
+        log = ParameterLog.objects.get(parameter_type=self.alk)
+        self.assertEqual(float(log.value), 8.4)
+
+    def test_own_unit_and_missing_unit_are_unchanged(self):
+        self.client.post(reverse('quick_measure_create'), {
+            'parameter': [self.alk.pk, self.oddball.pk], 'value': ['8.3', '12'], 'unit': [self.alk.unit]})
+        self.assertEqual(float(ParameterLog.objects.get(parameter_type=self.alk).value), 8.3)
+        self.assertEqual(float(ParameterLog.objects.get(parameter_type=self.oddball).value), 12)
+
+    def test_unknown_unit_is_refused(self):
+        self.client.post(reverse('quick_measure_create'), {
+            'parameter': [self.oddball.pk], 'value': ['5'], 'unit': ['furlongs']})
+        self.assertFalse(ParameterLog.objects.filter(parameter_type=self.oddball).exists())
+
+
+class UnitButtonEverywhereTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.alk = ParameterType.objects.get_or_create(code='alkalinity', defaults={
+            'name': 'Alkalinity', 'unit': 'dKH', 'min_ideal': 7, 'max_ideal': 9, 'decimal_places': 1})[0]
+
+    def test_log_test_popup_lists_names_and_converts(self):
+        page = self.client.get(reverse('dashboard'))
+        self.assertContains(page, 'What are you measuring?')
+        self.assertContains(page, f'>{self.alk.name}</option>')
+        self.assertNotContains(page, f'>{self.alk.name} ({self.alk.unit})</option>')
+        self.client.post(reverse('quick_log_create'), {
+            'parameter_type': self.alk.pk, 'value': '150', 'unit': 'ppm', 'tank': self.tank.pk})
+        log = ParameterLog.objects.get(parameter_type=self.alk)
+        self.assertEqual(float(log.value), 8.4)
+
+    def test_edit_a_test_in_another_unit(self):
+        log = ParameterLog.objects.create(parameter_type=self.alk, tank=self.tank, value=8, measured_at=timezone.now())
+        page = self.client.get(reverse('log_edit', args=[log.pk]))
+        self.assertContains(page, 'data-units="dKH,meq/L,ppm"')
+        self.client.post(reverse('log_edit', args=[log.pk]), {
+            'parameter_type': self.alk.pk, 'tank': self.tank.pk, 'value': '3', 'unit': 'meq/L',
+            'measured_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M')})
+        log.refresh_from_db()
+        self.assertEqual(float(log.value), 8.4)
+
+    def test_substrate_and_live_rock_use_buttons(self):
+        page = self.client.get(reverse('tank_edit', args=[self.tank.pk]))
+        self.assertContains(page, 'data-units="lb,kg"')
+        self.assertContains(page, 'id="dim-unit-btn"')
+        self.assertNotContains(page, '<select name="substrate_unit"')
+
+    def test_plumbing_saves_metres(self):
+        page = self.client.get(reverse('plumbing_create', args=[self.tank.pk]))
+        self.assertContains(page, 'data-units="ft,m"')
+        self.assertContains(page, 'data-units="in,mm"')
+        self.client.post(reverse('plumbing_create', args=[self.tank.pk]), {
+            'name': 'Return', 'length': '2', 'length_unit': 'm', 'pipe_size': '1', 'custom_diameter_unit': 'in',
+            'count': 1, 'fill_percent': 100})
+        self.assertEqual(PlumbingRun.objects.get().length_unit, 'm')
+
+    def test_dose_and_container_units(self):
+        page = self.client.get(reverse('dosing'))
+        self.assertContains(page, 'data-units="ml,g,tsp,fl oz,drops"')
+        self.assertContains(page, 'data-units="ml,L,gal"')
+        self.assertContains(page, 'class="unit-suffix"')
+
+
+class NumberBoxStepTests(TestCase):
+    def test_every_step_and_minimum_allow_round_numbers(self):
+        """A browser only accepts min + n x step, so a step that doesn't divide evenly from the minimum
+        blocks ordinary values (a 5% step from 1% refused 100%)."""
+        import re
+        from decimal import Decimal
+        from pathlib import Path
+        app = Path(__file__).resolve().parent
+        sources = [app / 'forms.py', app / 'forms_tools.py']
+        sources += list((app.parent / 'templates').rglob('*.html'))
+        pairs = []
+        for path in sources:
+            for line in path.read_text(encoding='utf-8').splitlines():
+                step = re.search(r"""step["']?\s*[:=]\s*["']([0-9.]+)["']""", line)
+                low = re.search(r"""min["']?\s*[:=]\s*["']([0-9.]+)["']""", line)
+                if step and low:
+                    pairs.append((path.name, Decimal(step.group(1)), Decimal(low.group(1))))
+        self.assertTrue(pairs)
+        for name, step, low in pairs:
+            self.assertEqual(low % step, 0, f"{name}: min {low} isn't a whole number of {step} steps")
+
+    def test_plumbing_accepts_100_percent(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        page = self.client.get(reverse('plumbing_create', args=[tank.pk]))
+        self.assertContains(page, 'step="1"')
+        self.assertNotContains(page, 'step="5"')
+
+
+class OutletPickerAndFlowGroupTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        self.pump = Equipment.objects.create(tank=self.tank, name='Return', category='return_pump', max_flow_gph=1200)
+        self.wave = Equipment.objects.create(tank=self.tank, name='MP40', category='wavemaker', max_flow_gph=3000)
+
+    def _post(self, eq, **extra):
+        data = {'location': f'tank:{self.tank.pk}', 'name': eq.name, 'category': eq.category, 'max_flow_gph': 3000,
+                'power_setting_percent': 100, 'flow_derate_percent': 30, 'max_head': '10', 'max_head_unit': 'ft',
+                'maintenance_interval_days': 90, 'status': 'operational', 'outlet_tilt': 0}
+        data.update(extra)
+        return self.client.post(reverse('equipment_edit', args=[eq.pk]), data)
+
+    def test_picker_values_save_and_describe(self):
+        self._post(self.wave, outlet_x=5, outlet_y=50, outlet_z=40, outlet_heading=90, outlet_tilt=20)
+        self.wave.refresh_from_db()
+        self.assertEqual((self.wave.outlet_x, self.wave.outlet_heading, self.wave.outlet_tilt), (5, 90, 20))
+        self.assertEqual(self.wave.outlet_label, 'Middle, left, mid-water, to the right, angled up')
+
+    def test_wavemaker_drops_head_loss_and_max_head(self):
+        self._post(self.wave)
+        self.wave.refresh_from_db()
+        self.assertEqual((self.wave.flow_derate_percent, self.wave.max_head), (0, None))
+        self._post(self.pump)
+        self.pump.refresh_from_db()
+        self.assertEqual((self.pump.flow_derate_percent, float(self.pump.max_head)), (30, 10.0))
+
+    def test_non_flow_equipment_has_no_outlet(self):
+        heater = Equipment.objects.create(tank=self.tank, name='Heater', category='heater')
+        self.client.post(reverse('equipment_edit', args=[heater.pk]), {
+            'location': f'tank:{self.tank.pk}', 'name': 'Heater', 'category': 'heater', 'power_setting_percent': 100,
+            'flow_derate_percent': 0, 'max_head_unit': 'ft', 'maintenance_interval_days': 90, 'status': 'operational',
+            'outlet_x': 50, 'outlet_y': 50, 'outlet_tilt': 0})
+        heater.refresh_from_db()
+        self.assertIsNone(heater.outlet_x)
+
+    def test_fields_are_tagged_for_their_categories(self):
+        page = self.client.get(reverse('equipment_edit', args=[self.wave.pk])).content.decode()
+        self.assertIn('data-for-categories="return_pump"', page)
+        self.assertIn('data-for-categories="return_pump,wavemaker"', page)
+
+    def test_straight_up_outlet(self):
+        self.wave.outlet_x, self.wave.outlet_y, self.wave.outlet_tilt = 50, 50, 80
+        self.wave.save()
+        self.assertTrue(self.wave.outlet_label.endswith('pointing up'))
+        sketch = self.client.get(reverse('tank_detail', args=[self.tank.pk])).context['flow_sketch']
+        self.assertEqual(sketch['outlets'][0]['arrow'], '⊙')
+
+    def test_flow_section_groups(self):
+        page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        groups = page.context['flow_groups']
+        self.assertEqual([g['title'] for g in groups], ['Return pumps', 'Wavemakers & powerheads'])
+        self.assertEqual([[e.name for e in g['items']] for g in groups], [['Return'], ['MP40']])
+        self.assertContains(page, '+ Add a return pump')
+        self.assertContains(page, '+ Add some flow')
+
+
+class WaterQualityRatingTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.alk = ParameterType.objects.get_or_create(code='alkalinity', defaults={
+            'name': 'Alkalinity', 'unit': 'dKH', 'min_ideal': 7.5, 'max_ideal': 9, 'decimal_places': 1})[0]
+        ParameterType.objects.filter(pk=self.alk.pk).update(min_ideal=7.5, max_ideal=9, low_limit=6.5, high_limit=11)
+        self.alk.refresh_from_db()
+
+    def _log(self, pt, value, days_ago=0):
+        return ParameterLog.objects.create(parameter_type=pt, tank=self.tank, value=value,
+                                           measured_at=timezone.now() - timedelta(days=days_ago))
+
+    def test_scores(self):
+        from .water_quality import _score
+        self.assertEqual(_score(8, 7.5, 9, 6.5, 11), 100)
+        self.assertEqual(_score(7.0, 7.5, 9, 6.5, 11), 75)   # halfway to the low limit
+        self.assertEqual(_score(6.5, 7.5, 9, 6.5, 11), 50)   # at the limit
+        self.assertLess(_score(5.0, 7.5, 9, 6.5, 11), 40)    # past it
+        self.assertGreaterEqual(_score(-100, 7.5, 9, 6.5, 11), 0)
+
+    def test_rating_with_only_in_range_readings(self):
+        from .views import _water_quality
+        ParameterLog.objects.all().delete()
+        self._log(self.alk, 8.2)
+        q = _water_quality(self.tank)
+        self.assertEqual(q['score'], 100)
+        self.assertEqual(q['grade'], 'Excellent')
+
+    def test_out_of_range_drags_it_down_and_old_tests_are_left_out(self):
+        from .views import _water_quality
+        ParameterLog.objects.all().delete()
+        self._log(self.alk, 7.0)
+        old = ParameterType.objects.create(name='Iodine x', code='iodine_x', unit='ppb', min_ideal=50, max_ideal=70)
+        self._log(old, 10, days_ago=60)
+        q = _water_quality(self.tank)
+        self.assertEqual(q['score'], 75)
+        self.assertEqual(q['dragging'][0]['parameter'].pk, self.alk.pk)
+        self.assertEqual([pt.pk for pt in q['stale']], [old.pk])
+
+    def test_no_recent_tests_means_no_rating(self):
+        from .views import _water_quality
+        ParameterLog.objects.all().delete()
+        self.assertIsNone(_water_quality(self.tank))
+        self.assertContains(self.client.get(reverse('parameters')), 'your rating shows up here')
+
+    def test_card_on_dashboard_and_water_page(self):
+        ParameterLog.objects.all().delete()
+        self._log(self.alk, 8.2)
+        self.assertContains(self.client.get(reverse('dashboard')), 'not a lab result')
+        self.assertContains(self.client.get(reverse('parameters')), 'Excellent')

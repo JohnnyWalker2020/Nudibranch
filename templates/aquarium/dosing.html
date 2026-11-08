@@ -33,7 +33,7 @@
       {% for res in dosing_containers %}
         {% include 'aquarium/partials/reservoir_card.html' %}
       {% empty %}
-        <p class="col-span-full text-xs text-slate-500 p-6 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No dosing containers yet.</p>
+        <p class="col-span-full text-xs text-slate-500 p-6 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No dosing containers yet, so nothing can run dry.</p>
       {% endfor %}
     </div>
   </section>
@@ -81,10 +81,9 @@
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Type</label>{{ form.reservoir_type }}</div>
         </div>
         <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Name *</label>{{ form.name }}</div>
-        <div class="grid grid-cols-3 gap-3">
-          <div><label class="block text-[11px] text-slate-400 mb-1">Size</label>{{ form.capacity }}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-[11px] text-slate-400 mb-1">Size</label>{{ form.capacity }}{{ form.unit }}</div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Level now</label>{{ form.current_level }}</div>
-          <div><label class="block text-[11px] text-slate-400 mb-1">Unit</label>{{ form.unit }}</div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="block text-[11px] text-slate-400 mb-1">Daily use</label>{{ form.daily_consumption }}</div>

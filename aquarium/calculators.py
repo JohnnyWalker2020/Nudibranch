@@ -246,6 +246,26 @@ def estimate_flow_gph(max_flow_gph, power_percent=100, derate_percent=0):
     return float(max_flow_gph) * (power / 100.0) * (1.0 - derate / 100.0)
 
 
+FT_PER_M = 3.28084
+
+
+def estimate_flow_at_head(max_flow_gph, max_head_ft, head_ft, power_percent=100):
+    """
+    Estimated return-pump flow lifting water `head_ft`, from the two numbers on the box: rated max flow (at no
+    lift) and max head (the height where flow stops). The curve between them is taken as a straight line, and a
+    slower speed shrinks it by the pump affinity laws (flow with speed, head with speed squared). Real curves bow a
+    little, so treat it as an estimate. Returns 0 when the pump can't lift that high at this speed.
+    """
+    if not max_flow_gph or not max_head_ft or head_ft is None:
+        return None
+    speed = max(0.0, min(100.0, float(power_percent if power_percent is not None else 100))) / 100.0
+    shutoff = float(max_head_ft) * speed * speed
+    head = max(0.0, float(head_ft))
+    if speed <= 0 or head >= shutoff:
+        return 0.0
+    return float(max_flow_gph) * speed * (1.0 - head / shutoff)
+
+
 def gph_to_lph(gph):
     return gph * LITERS_PER_GAL if gph is not None else None
 

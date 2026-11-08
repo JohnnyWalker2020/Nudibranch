@@ -12,8 +12,8 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 
 from .calculators import (
-    estimate_capacity_gallons, estimate_flow_gph, gph_to_lph, par_estimate, turnover_summary,
-    pipe_volume_gallons, LITERS_PER_GAL, PIPE_SIZES,
+    estimate_capacity_gallons, estimate_flow_at_head, estimate_flow_gph, gph_to_lph, par_estimate, turnover_summary,
+    pipe_volume_gallons, FT_PER_M, LITERS_PER_GAL, PIPE_SIZES,
 )
 from . import icons
 from . import schedule as sched
@@ -250,12 +250,20 @@ class AnimalGroup(models.Model):
     description = models.TextField(blank=True)
     color = models.CharField(max_length=20, default="#64748b", help_text="Hex color for UI tag badges")
     icon = models.CharField(max_length=10, default="🐟", help_text="Emoji or icon symbol")
+    position = models.PositiveIntegerField(default=0, editable=False, help_text="Order on the Livestock page")
 
     class Meta:
-        ordering = ['name']
+        ordering = ['position', 'name']
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # A new category goes to the end of the list.
+        if self._state.adding and not self.position:
+            last = AnimalGroup.objects.aggregate(models.Max('position'))['position__max']
+            self.position = 0 if last is None else last + 1
+        super().save(*args, **kwargs)
 
 
 def _wikipedia_url(species, name):
@@ -500,6 +508,9 @@ class Tank(DimensionedVessel):
     created_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
     theme = models.CharField(max_length=20, choices=THEME_CHOICES, default=DEFAULT_THEME)
+    UI_STYLES = [('standard', 'Standard'), ('8bit', '8-bit')]
+    ui_style = models.CharField(max_length=10, choices=UI_STYLES, default='standard',
+                                help_text="How the cards and buttons look while this tank is selected")
     icon_choice = models.CharField(max_length=60, blank=True, help_text="A character icon, 'custom', or blank for the default")
     custom_icon = models.ImageField(upload_to='icons/', null=True, blank=True)
     substrate_type = models.CharField(max_length=20, choices=SUBSTRATE_TYPES, blank=True)
@@ -711,6 +722,34 @@ class PlumbingRun(models.Model):
         return round(self.gallons * LITERS_PER_GAL, 1)
 
 
+# Where things sit in the display, seen from the front: across, front to back, and how high.
+SPOT_ACROSS = [('left', 'Left'), ('left_center', 'Left of centre'), ('center', 'Centre'),
+               ('right_center', 'Right of centre'), ('right', 'Right')]
+SPOT_DEPTH = [('back', 'Back'), ('middle', 'Middle'), ('front', 'Front')]
+_ACROSS_PERCENT = {'left': 10, 'left_center': 30, 'center': 50, 'right_center': 70, 'right': 90}
+_DEPTH_PERCENT = {'back': 18, 'middle': 50, 'front': 82}
+
+
+def _band(value, words):
+    """0-100 split evenly into the given words: _band(10, ('left', 'centre', 'right')) == 'left'."""
+    return words[min(len(words) - 1, int(value * len(words) / 101))]
+
+
+def _aim_words(heading):
+    """A heading seen from above (0 = toward the front glass, clockwise) as words."""
+    names = ['toward the front', 'toward the front right', 'to the right', 'toward the back right',
+             'toward the back', 'toward the back left', 'to the left', 'toward the front left']
+    return names[int(((heading % 360) + 22.5) // 45) % 8]
+
+
+def spot_percent(across, depth):
+    """A spot on a top-down sketch of the display (back at the top), as {'left': %, 'top': %}, or None if unset.
+    Only one of the two set still places it, in the middle of the other."""
+    if not across and not depth:
+        return None
+    return {'left': _ACROSS_PERCENT.get(across, 50), 'top': _DEPTH_PERCENT.get(depth, 50)}
+
+
 class Sump(DimensionedVessel):
     """A sump / refugium system plumbed to a tank. Can be split into chambers."""
     tank = models.ForeignKey(Tank, on_delete=models.CASCADE, related_name='sumps')
@@ -723,9 +762,44 @@ class Sump(DimensionedVessel):
         help_text="Usable water as a % of the box volume (glass thickness, water line below the rim, bracing)",
     )
     volume_gallons = models.DecimalField(max_digits=7, decimal_places=1, default=20.0, help_text="Water volume (US gallons)")
+    HEAD_UNITS = [('ft', 'ft'), ('m', 'm')]
+    head_height = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True,
+        help_text="How far the return pump lifts the water: from the sump's water line up to the return outlet. "
+                  "Add about 1 ft (0.3 m) for every 10 ft of pipe and a little for each elbow")
+    head_height_unit = models.CharField(max_length=2, choices=HEAD_UNITS, default='ft')
+    OVERFLOW_TYPES = [('internal', 'Internal overflow box'), ('corner', 'Corner overflow'),
+                      ('coast', 'Coast-to-coast'), ('external', 'External / hang-on'), ('drilled', 'Drilled bulkhead')]
+    overflow_type = models.CharField(max_length=10, choices=OVERFLOW_TYPES, blank=True,
+                                     help_text="How water leaves the display for this sump")
+    overflow_across = models.CharField(max_length=12, choices=SPOT_ACROSS, blank=True,
+                                       help_text="Where the overflow is, seen from the front")
+    overflow_depth = models.CharField(max_length=6, choices=SPOT_DEPTH, blank=True)
 
     class Meta:
         ordering = ['tank', 'name']
+
+    @property
+    def overflow_label(self):
+        """'Corner overflow, back right', or '' if not set."""
+        where = ' '.join(p for p in [self.get_overflow_depth_display().lower() if self.overflow_depth else '',
+                                     self.get_overflow_across_display().lower() if self.overflow_across else ''] if p)
+        kind = self.get_overflow_type_display() if self.overflow_type else ''
+        if kind and where:
+            return f"{kind}, {where}"
+        return kind or (where[:1].upper() + where[1:])
+
+    @property
+    def overflow_spot(self):
+        if self.overflow_type == 'coast':  # runs the whole back wall
+            return {'left': 50, 'top': _DEPTH_PERCENT.get(self.overflow_depth or 'back'), 'wide': True}
+        return spot_percent(self.overflow_across, self.overflow_depth)
+
+    @property
+    def head_height_ft(self):
+        if self.head_height is None:
+            return None
+        return float(self.head_height) * (FT_PER_M if self.head_height_unit == 'm' else 1)
 
     def __str__(self):
         return f"{self.name} ({self.volume_gallons} gal)"
@@ -783,6 +857,7 @@ class Equipment(models.Model):
         ('ato', '💧 Auto Top-Off (ATO) Unit'),
         ('feeder', '🍤 Auto Feeder'),
         ('substrate', '🏖️ Substrate'),
+        ('filter', '🧦 Filter (sock, roller mat, sponge, canister)'),
         ('filtration', '🧽 Filtration & Media Reactor'),
         ('monitoring', '📊 Monitor / Controller (Apex, ReefBot)'),
         ('other', '⚙️ Other Equipment'),
@@ -795,6 +870,7 @@ class Equipment(models.Model):
     ]
 
     FLOW_CATEGORIES = ('return_pump', 'wavemaker')
+    DEFAULT_RETURN_DERATE = 25  # % lost to head height and plumbing, the middle of the usual 20-40%
     NO_SERVICE_CATEGORIES = ('substrate',)  # sand doesn't get cleaned on a schedule
 
     tank = models.ForeignKey(Tank, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipment')
@@ -813,7 +889,20 @@ class Equipment(models.Model):
     max_flow_gph = models.PositiveIntegerField(null=True, blank=True, help_text="Rated maximum flow in gallons per hour (L/h ÷ 3.785 = gph)")
     power_setting_percent = models.PositiveSmallIntegerField(default=100, help_text="Current power / speed setting, 1-100%")
     flow_derate_percent = models.PositiveSmallIntegerField(default=0, help_text="Flow lost to head height and plumbing, % (return pumps are often 20-40%)")
-    paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
+    max_head = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True,
+                                   help_text="Return pumps: rated max head from the box, the height where flow stops. "
+                                             "With the sump's head height, it replaces the head loss %")
+    max_head_unit = models.CharField(max_length=2, choices=[('ft', 'ft'), ('m', 'm')], default='ft')
+    # Pumps and wavemakers: where the water comes out in the display, set on the picture pickers.
+    # x: 0 left to 100 right, y: 0 back to 100 front, z: 0 surface to 100 bottom (all as seen from the front).
+    outlet_x = models.PositiveSmallIntegerField(null=True, blank=True)
+    outlet_y = models.PositiveSmallIntegerField(null=True, blank=True)
+    outlet_z = models.PositiveSmallIntegerField(null=True, blank=True)
+    # heading, seen from above: 0 toward the front glass, 90 to the right, 180 toward the back, 270 to the left.
+    outlet_heading = models.PositiveSmallIntegerField(null=True, blank=True)
+    # tilt, seen from the front: 90 straight up, 0 level, -90 straight down.
+    outlet_tilt = models.SmallIntegerField(default=0)
+    paid =models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
                                help_text="What you paid in total. Added to The Damage automatically")
     hours_per_day = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True,
                                         help_text="Hours it draws power per day, for the power estimate (blank = typical for this category)")
@@ -858,8 +947,63 @@ class Equipment(models.Model):
 
     @property
     def estimated_flow_gph(self):
-        """Estimated real flow (gph) at the current power setting, or None if no max flow is set."""
+        """Estimated real flow (gph) at the current power setting, or None if no max flow is set.
+        A return pump in a sump with a head height, whose max head is known, uses its pump curve instead of the
+        head loss %."""
+        head = self.head_lift_ft
+        if head is not None and self.max_head_ft:
+            return estimate_flow_at_head(self.max_flow_gph, self.max_head_ft, head, self.power_setting_percent)
         return estimate_flow_gph(self.max_flow_gph, self.power_setting_percent, self.flow_derate_percent)
+
+    @property
+    def max_head_ft(self):
+        if self.max_head is None:
+            return None
+        return float(self.max_head) * (FT_PER_M if self.max_head_unit == 'm' else 1)
+
+    @property
+    def head_lift_ft(self):
+        """The head height this pump lifts against: its sump's, for a return pump sitting in a sump."""
+        if self.category != 'return_pump' or not self.sump_id:
+            return None
+        return self.sump.head_height_ft
+
+    @property
+    def has_outlet(self):
+        return self.outlet_x is not None and self.outlet_y is not None
+
+    @property
+    def outlet_label(self):
+        """'Back, centre, near the surface, toward the front, angled up', or '' if not placed."""
+        if not self.has_outlet:
+            return ''
+        parts = [_band(self.outlet_y, ('Back', 'Middle', 'Front')),
+                 _band(self.outlet_x, ('left', 'left of centre', 'centre', 'right of centre', 'right'))]
+        if self.outlet_z is not None:
+            parts.append(_band(self.outlet_z, ('near the surface', 'mid-water', 'near the bottom')))
+        tilt = self.outlet_tilt or 0
+        if tilt >= 60:
+            parts.append('pointing up')
+        elif tilt <= -60:
+            parts.append('pointing down')
+        elif self.outlet_heading is not None:
+            parts.append(_aim_words(self.outlet_heading))
+            if tilt >= 15:
+                parts.append('angled up')
+            elif tilt <= -15:
+                parts.append('angled down')
+        return ', '.join(parts)
+
+    @property
+    def outlet_spot(self):
+        """Where to draw it on the top-down sketch, as left/top percentages, or None."""
+        if not self.has_outlet:
+            return None
+        return {'left': 6 + self.outlet_x * 0.88, 'top': 10 + self.outlet_y * 0.8}
+
+    @property
+    def uses_head_curve(self):
+        return self.head_lift_ft is not None and bool(self.max_head_ft) and bool(self.max_flow_gph)
 
     @property
     def estimated_flow_gph_display(self):

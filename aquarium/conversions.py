@@ -149,3 +149,20 @@ def suggest_decimals(unit: str, code: str = '') -> int:
 
     # Fallback default
     return 1
+
+
+def unit_choices(code: str, own_unit: str):
+    """Units a reading can be typed in, the parameter's own unit first, as [(unit, example)].
+    Only offers other units when the parameter's own unit is one this file knows how to convert."""
+    import re
+    suggestions = PARAMETER_UNIT_SUGGESTIONS.get((code or '').strip().lower(), [])
+    own = (own_unit or '').strip()
+    if own.lower() not in [u.lower() for u, _, _ in suggestions]:
+        return [(own, '')]
+
+    def example(label):
+        found = re.search(r'e\.g\. ([0-9.]+)', label)
+        return found.group(1) if found else ''
+
+    ordered = sorted(suggestions, key=lambda s: s[0].lower() != own.lower())
+    return [(u if u.lower() != own.lower() else own, example(label)) for u, label, _ in ordered]

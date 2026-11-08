@@ -87,6 +87,7 @@ def system_processor(request):
             'systems': systems,
             'theme_css': theme_css(palette if palette else THEMES.get(theme, {}).get('colors', {})),
             'theme_background': palette['slate']['950'] if palette else background_color(theme),
+            'ui_style': active.ui_style if active else 'standard',
             'system_icon_url': active.icon_url if active else '',
             'fallback_icon_url': fallback_url(),
             'random_icons': random_pool() if settings_obj.enable_random_icons else [],

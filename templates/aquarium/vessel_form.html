@@ -55,9 +55,27 @@
 
     <!-- Dimensions -->
     <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+      {% if tank_presets %}
+        <div class="space-y-1.5">
+          <label for="tank-preset" class="block text-[11px] text-slate-400">Start from a common tank</label>
+          <select id="tank-preset" class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500">
+            <option value="">Choose a size or model…</option>
+            {% for group in tank_presets %}
+              <optgroup label="{{ group.group }}">
+                {% for p in group.tanks %}<option value="{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}">{{ p.name }}{% if p.gallons %} · {{ p.gallons }} gal display{% endif %}</option>{% endfor %}
+              </optgroup>
+            {% endfor %}
+          </select>
+          <p id="tank-preset-note" class="text-[11px] text-slate-500">Fills in the size below. Sizes are approximate and vary by maker, so check them against your tank and adjust.</p>
+          {{ tank_presets|json_script:"tank-presets-data" }}
+        </div>
+      {% endif %}
       <div class="flex items-center justify-between">
         <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">Dimensions</span>
-        <div class="w-28">{{ form.dimension_unit }}</div>
+        <span class="flex items-center gap-2 text-[11px] text-slate-400">Measured in
+          <button type="button" id="dim-unit-btn" data-units="in,cm" data-name="Dimension unit" value="{{ form.dimension_unit.value|default:'in' }}" class="unit-btn unit-inline"
+                  onchange="var u = document.getElementById('id_dimension_unit'); u.value = this.value; u.dispatchEvent(new Event('change'));">{{ form.dimension_unit.value|default:'in' }}</button>
+        </span>{{ form.dimension_unit }}
       </div>
       <div class="grid grid-cols-3 gap-3">
         <div><label class="block text-[11px] text-slate-400 mb-1">Width</label>{{ form.width }}</div>
@@ -99,6 +117,27 @@
       </div>
     </div>
 
+    {% if kind == 'sump' %}
+      <!-- Head height -->
+      <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
+        <label for="{{ form.head_height.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Head height</label>
+        <div class="sm:w-1/2">{{ form.head_height }}{{ form.head_height_unit }}</div>
+        <p class="text-[11px] text-slate-500">{{ form.head_height.help_text }}. Return pumps in this sump that have their max head set use it to estimate their real flow and the turnover.</p>
+        {% for err in form.head_height.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+      </div>
+
+      <!-- Overflow -->
+      <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
+        <span class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Overflow</span>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div><label for="{{ form.overflow_type.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Type</label>{{ form.overflow_type }}</div>
+          <div><label for="{{ form.overflow_across.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Across</label>{{ form.overflow_across }}</div>
+          <div><label for="{{ form.overflow_depth.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Front to back</label>{{ form.overflow_depth }}</div>
+        </div>
+        <p class="text-[11px] text-slate-500">Where water leaves the display for this sump, seen from the front. It's drawn on the tank page's flow sketch.</p>
+      </div>
+    {% endif %}
+
     {% if kind == 'tank' %}
       <!-- Substrate & live rock -->
       <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
@@ -107,7 +146,7 @@
           <div><label for="{{ form.substrate_type.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Type</label>{{ form.substrate_type }}</div>
           <div>
             <label for="{{ form.substrate_amount.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Amount</label>
-            <div class="flex gap-2"><div class="flex-1 min-w-0">{{ form.substrate_amount }}</div><div class="w-24 shrink-0">{{ form.substrate_unit }}</div></div>
+            {{ form.substrate_amount }}{{ form.substrate_unit }}
             {% for err in form.substrate_amount.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
           </div>
           <div><label for="{{ form.substrate_product.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Product</label>{{ form.substrate_product }}</div>
@@ -116,7 +155,7 @@
         <p class="text-[11px] text-slate-500">A new product is added to your equipment list under Substrate.</p>
         <div class="pt-3 border-t border-slate-800">
           <label for="{{ form.live_rock_amount.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">Live rock</label>
-          <div class="flex gap-2 sm:w-1/2"><div class="flex-1 min-w-0">{{ form.live_rock_amount }}</div><div class="w-24 shrink-0">{{ form.live_rock_unit }}</div></div>
+          <div class="sm:w-1/2">{{ form.live_rock_amount }}{{ form.live_rock_unit }}</div>
           {% for err in form.live_rock_amount.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
         </div>
       </div>
@@ -174,6 +213,27 @@
     }
     [w, d, h, unit, fill, manual, vol].forEach(el => { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
     refresh();
+
+    // The common-tank menu fills the size. Reef-ready systems also fill the display water.
+    const presetMenu = $('tank-preset'), presetData = $('tank-presets-data'), presetNote = $('tank-preset-note');
+    if (presetMenu && presetData) {
+      const groups = JSON.parse(presetData.textContent);
+      const defaultNote = presetNote.textContent;
+      presetMenu.addEventListener('change', () => {
+        const [g, t] = presetMenu.value.split('-').map(Number);
+        const p = groups[g] && groups[g].tanks[t];
+        if (!p) return;
+        unit.value = p.unit; setUnitButton($('dim-unit-btn'), p.unit); w.value = p.width; d.value = p.depth; h.value = p.height;
+        manual.checked = !!p.gallons;
+        if (p.gallons) vol.value = p.gallons;
+        const name = $('id_name');
+        if (name && !name.value.trim()) name.value = p.name;
+        presetNote.textContent = p.gallons
+          ? `Display: ${p.width} × ${p.depth} × ${p.height} cm, about ${p.liters} L (${p.gallons} gal) of water, as listed by the maker or retailers. ${p.note} Check against your tank and adjust.`
+          : defaultNote;
+        refresh();
+      });
+    }
 
   })();
 </script>

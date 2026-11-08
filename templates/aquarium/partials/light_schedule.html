@@ -1,0 +1,7 @@
+<a href="{% url 'routine_edit' r.id %}" class="block px-2.5 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/30 hover:border-violet-400/60 text-[11px] {% if not r.is_active %}opacity-60{% endif %}">
+  <span class="font-semibold text-violet-300">🤖 {{ r.title }}</span>
+  <span class="text-slate-400">· {{ r.recurrence_label }}{% if not r.is_active %} · paused{% endif %}</span>
+  {% if r.sorted_events %}
+    <span class="block text-slate-300">{% for e in r.sorted_events %}{{ e.time }} {{ e.action }}{% if not forloop.last %} · {% endif %}{% endfor %}</span>
+  {% endif %}
+</a>

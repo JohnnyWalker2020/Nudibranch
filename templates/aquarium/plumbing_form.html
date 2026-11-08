@@ -31,14 +31,10 @@
     </div>
 
     <div class="grid grid-cols-3 gap-3">
-      <div class="col-span-2 space-y-1.5">
+      <div class="col-span-3 space-y-1.5">
         <label for="{{ form.length.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Length of one pipe *</label>
-        {{ form.length }}
+        {{ form.length }}{{ form.length_unit }}
         {% for err in form.length.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
-      </div>
-      <div class="space-y-1.5">
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Unit</label>
-        {{ form.length_unit }}
       </div>
     </div>
 
@@ -49,14 +45,10 @@
     </div>
 
     <div id="custom-diameter" class="grid grid-cols-3 gap-3 p-4 bg-slate-950/60 border border-slate-800 rounded-2xl">
-      <div class="col-span-2 space-y-1.5">
+      <div class="col-span-3 space-y-1.5">
         <label for="{{ form.custom_diameter.id_for_label }}" class="block text-[11px] text-slate-400">Inside diameter *</label>
-        {{ form.custom_diameter }}
+        {{ form.custom_diameter }}{{ form.custom_diameter_unit }}
         {% for err in form.custom_diameter.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
-      </div>
-      <div class="space-y-1.5">
-        <label class="block text-[11px] text-slate-400">Unit</label>
-        {{ form.custom_diameter_unit }}
       </div>
       <p class="col-span-3 text-[11px] text-slate-500">Use the <em>inside</em> diameter: for metric PVC that's the outside size minus twice the wall thickness.</p>
     </div>

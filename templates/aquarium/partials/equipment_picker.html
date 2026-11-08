@@ -1,0 +1,26 @@
+{% comment %}
+The "+ Equipment" menu for one spot on the tank page: new equipment, something not placed anywhere, or something to move
+from elsewhere. Needs `picker` (from _equipment_picker). Optional `label`.
+{% endcomment %}
+<form method="POST" action="{% url 'equipment_place' %}" class="inline-block">
+  {% csrf_token %}
+  <input type="hidden" name="location" value="{{ picker.location }}">
+  <input type="hidden" name="next" value="{{ request.path }}">
+  <select name="equipment" aria-label="Add equipment here"
+          data-new="{% url 'equipment_create' %}?location={{ picker.location }}{% if picker.category %}&category={{ picker.category }}{% endif %}&next={{ request.path|urlencode }}"
+          onchange="if (this.value === 'new') { window.location.href = this.dataset.new; } else if (this.value) { this.form.submit(); }"
+          class="appearance-none cursor-pointer max-w-[11rem] px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500">
+    <option value="">{{ label|default:'+ Add gear' }}</option>
+    <option value="new">＋ New equipment…</option>
+    {% if picker.unplaced %}
+      <optgroup label="Not in a tank">
+        {% for eq in picker.unplaced %}<option value="{{ eq.id }}">{{ eq.name }}</option>{% endfor %}
+      </optgroup>
+    {% endif %}
+    {% if picker.elsewhere %}
+      <optgroup label="Move from elsewhere">
+        {% for eq in picker.elsewhere %}<option value="{{ eq.id }}">{{ eq.name }} ({{ eq.tank.name }} · {{ eq.location_label }})</option>{% endfor %}
+      </optgroup>
+    {% endif %}
+  </select>
+</form>

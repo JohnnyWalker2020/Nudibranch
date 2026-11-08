@@ -25,7 +25,106 @@
     @apply text-[10px] font-normal opacity-60;
   }
   /* A switchable unit beside a result rather than inside a field. */
+  .unit-btn:disabled {
+    @apply cursor-default text-slate-400 hover:bg-slate-900/70;
+  }
+  .unit-btn:disabled::after {
+    content: none;
+  }
   .unit-btn.unit-inline {
     @apply min-w-0 px-2 py-0.5 rounded-lg border border-slate-700;
   }
 }
+
+/* ---- 8-bit style ----
+   A tank can use it (Icon & colours > Style). Everything is scoped to body.style-8bit, and works on top of the
+   normal classes, so the pages don't need their own versions. Body text keeps the readable font. */
+/* Press Start 2P, by The Press Start 2P Project Authors, under the SIL Open Font License (static/fonts/PressStart2P-OFL.txt).
+   Served by the app so it works offline. Only loaded by pages that use it. */
+@font-face {
+  font-family: 'Press Start 2P';
+  src: url('/static/fonts/PressStart2P-Regular.woff2') format('woff2');
+  font-display: swap;
+}
+.style-8bit {
+  --pixel-font: 'Press Start 2P', ui-monospace, "Cascadia Mono", "Consolas", "Courier New", monospace;
+  --pixel-shadow: 4px 4px 0 0 rgb(0 0 0 / 0.6);
+}
+/* Square corners everywhere */
+.style-8bit [class*="rounded"],
+.style-8bit input,
+.style-8bit select,
+.style-8bit textarea,
+.style-8bit button { border-radius: 0 !important; }
+/* Stepped corners where the browser can cut them (recent Chrome and Edge); the border and shadow follow the step.
+   Other browsers keep the square corners above. */
+@supports (corner-shape: notch) {
+  .style-8bit [class*="rounded"],
+  .style-8bit input,
+  .style-8bit select,
+  .style-8bit textarea,
+  .style-8bit button { border-radius: 4px !important; corner-shape: notch; }
+  .style-8bit .rounded-xl,
+  .style-8bit .rounded-2xl,
+  .style-8bit .rounded-3xl { border-radius: 8px !important; }
+}
+/* No soft glows... */
+.style-8bit [class*="shadow"] { box-shadow: none !important; }
+/* ...but cards and panels get chunky borders and a hard drop shadow */
+.style-8bit .rounded-2xl.border,
+.style-8bit .rounded-3xl.border { border-width: 2px !important; box-shadow: var(--pixel-shadow) !important; }
+.style-8bit .rounded-xl.border { border-width: 2px !important; }
+/* Flat colours instead of gradients: buttons go solid, panels go plain */
+.style-8bit a[class*="bg-gradient-to"],
+.style-8bit button[class*="bg-gradient-to"],
+.style-8bit .pixel-sample {
+  background-image: none !important;
+  background-color: rgb(var(--cyan-600)) !important;
+  border: 2px solid rgb(0 0 0 / 0.55) !important;
+  box-shadow: 3px 3px 0 0 rgb(0 0 0 / 0.6) !important;
+}
+.style-8bit a[class*="bg-gradient-to"]:active,
+.style-8bit button[class*="bg-gradient-to"]:active { transform: translate(2px, 2px) !important; box-shadow: 1px 1px 0 0 rgb(0 0 0 / 0.6) !important; }
+.style-8bit div[class*="bg-gradient-to"],
+.style-8bit section[class*="bg-gradient-to"] { background-image: none !important; background-color: rgb(var(--slate-900)) !important; }
+/* Blocky lettering for headings, big numbers, buttons and tabs */
+.style-8bit h1, .style-8bit h2, .style-8bit h3,
+.style-8bit .font-black,
+.style-8bit button, .style-8bit .unit-btn,
+.style-8bit nav a span,
+.style-8bit .uppercase { font-family: var(--pixel-font) !important; letter-spacing: 0 !important; }
+/* The pixel font is wide and sharpest at multiples of 8px, so it gets its own sizes. */
+.style-8bit h1, .style-8bit h2, .style-8bit h3, .style-8bit .font-black, .style-8bit button, .style-8bit .unit-btn,
+.style-8bit nav a span, .style-8bit .uppercase { font-weight: 400 !important; line-height: 1.6 !important; }
+.style-8bit h1 { font-size: 16px !important; }
+.style-8bit h2, .style-8bit h3 { font-size: 11px !important; }
+.style-8bit .font-black { font-size: 16px !important; }
+.style-8bit .font-black.text-3xl, .style-8bit .font-black.text-5xl { font-size: 24px !important; }
+.style-8bit button, .style-8bit .unit-btn { font-size: 9px !important; }
+.style-8bit .uppercase, .style-8bit nav a span { font-size: 8px !important; }
+/* Small bold text (badges, counts) stays small */
+.style-8bit .font-black.text-xs, .style-8bit .font-black.text-sm, .style-8bit .font-black.text-base { font-size: 10px !important; }
+.style-8bit .font-black.text-lg { font-size: 12px !important; }
+.style-8bit .font-black[class*="text-[9px]"], .style-8bit .font-black[class*="text-[10px]"], .style-8bit .font-black[class*="text-[11px]"] { font-size: 8px !important; }
+/* The app name fits beside the buttons */
+.style-8bit header .text-lg.font-black { font-size: 13px !important; }
+/* Larger buttons made of several lines (like Add a timer) keep their descriptions readable */
+.style-8bit button span:not(.font-black):not(.font-bold) { font-family: ui-sans-serif, system-ui, sans-serif !important; }
+/* Icons stay crisp, like sprites */
+.style-8bit #nudibranch-logo,
+.style-8bit img[src*="/icons/"],
+.style-8bit img[src*="/app-icon/"] { image-rendering: pixelated; }
+/* The app's icon in the top bar is a plain square, like a sprite (no stepped corners either) */
+.style-8bit #nudibranch-logo { border-radius: 0 !important; corner-shape: round; }
+/* Level bars fill in blocks */
+.style-8bit .h-2 > div,
+.style-8bit .h-2\.5 > div { background-image: repeating-linear-gradient(90deg, transparent 0 6px, rgb(0 0 0 / 0.45) 6px 8px) !important; }
+/* A blinking cursor on the timers */
+.style-8bit [data-display]::after { content: '_'; animation: pixel-blink 1s steps(1) infinite; }
+/* The countdown card has − and + beside its time, so its digits are smaller and skip the cursor */
+.style-8bit [data-adjustable] [data-display] { font-size: 12px !important; }
+.style-8bit [data-adjustable] [data-display]::after { content: none; }
+@keyframes pixel-blink { 50% { opacity: 0; } }
+/* The style picker shows a sample of each look */
+.pixel-sample { background-color: rgb(var(--cyan-600)); border: 2px solid rgb(0 0 0 / 0.55); box-shadow: 3px 3px 0 0 rgb(0 0 0 / 0.6);
+  background-image: repeating-linear-gradient(90deg, transparent 0 6px, rgb(0 0 0 / 0.3) 6px 8px); }

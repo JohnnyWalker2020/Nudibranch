@@ -25,9 +25,12 @@ urlpatterns = [
     # Livestock GUI
     path('livestock/', views.livestock_view, name='livestock'),
     path('livestock/add/', views.animal_create_view, name='animal_create'),
+    path('livestock/groups/', views.groups_manage_view, name='groups_manage'),
     path('livestock/groups/add/', views.group_create_view, name='group_create'),
     path('livestock/groups/<int:group_id>/edit/', views.group_edit_view, name='group_edit'),
     path('livestock/groups/<int:group_id>/delete/', views.group_delete_view, name='group_delete'),
+    path('livestock/groups/<int:group_id>/move/', views.group_move_view, name='group_move'),
+    path('livestock/groups/<int:group_id>/merge/', views.group_merge_view, name='group_merge'),
     path('livestock/<int:animal_id>/edit/', views.animal_edit_view, name='animal_edit'),
     path('livestock/<int:animal_id>/photo/', views.animal_upload_photo_view, name='animal_upload_photo'),
     path('livestock/<int:animal_id>/delete/', views.animal_delete_view, name='animal_delete'),
@@ -58,6 +61,8 @@ urlpatterns = [
     path('tanks/<int:tank_id>/edit/', views.tank_edit_view, name='tank_edit'),
     path('tanks/<int:tank_id>/move/', views.tank_move_view, name='tank_move'),
     path('tanks/<int:tank_id>/delete/', views.tank_delete_view, name='tank_delete'),
+    path('tanks/<int:tank_id>/export/', views.tank_export_view, name='tank_export'),
+    path('tanks/import/', views.tank_import_view, name='tank_import'),
     path('tanks/<int:tank_id>/sumps/add/', views.sump_create_view, name='sump_create'),
     path('sumps/<int:sump_id>/edit/', views.sump_edit_view, name='sump_edit'),
     path('sumps/<int:sump_id>/delete/', views.sump_delete_view, name='sump_delete'),
@@ -72,6 +77,8 @@ urlpatterns = [
     path('equipment/<int:eq_id>/delete/', views.equipment_delete_view, name='equipment_delete'),
     path('equipment/<int:eq_id>/service/', views.service_equipment_view, name='service_equipment'),
     path('equipment/<int:eq_id>/power/', views.equipment_power_view, name='equipment_power'),
+    path('equipment/place/', views.equipment_place_view, name='equipment_place'),
+    path('equipment/<int:eq_id>/unplace/', views.equipment_unplace_view, name='equipment_unplace'),
 
     # Maintenance Routines & Water Changes
     path('tanks/<int:tank_id>/plumbing/add/', views.plumbing_create_view, name='plumbing_create'),

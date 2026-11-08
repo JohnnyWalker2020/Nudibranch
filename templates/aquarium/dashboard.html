@@ -119,16 +119,47 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCustomizeModal(); });
 
   // ---- Quick measurements: add another row ----
+  // Each row: what you measured, then the value with its unit as a tap-to-switch button.
+  function quickMeasureUnit(btn) {
+    const row = btn.closest('.qm-row');
+    row.querySelector('input[name="unit"]').value = btn.value;
+    const option = row.querySelector('select').selectedOptions[0];
+    const units = (option.dataset.units || '').split(',');
+    const examples = (option.dataset.examples || '').split('|');
+    const example = examples[units.indexOf(btn.value)] || '';
+    row.querySelector('input[name="value"]').placeholder = example ? 'e.g. ' + example : 'Value';
+  }
+  function quickMeasureParameter(select) {
+    const row = select.closest('.qm-row');
+    const btn = row.querySelector('button[data-units]');
+    const units = select.selectedOptions[0].dataset.units || '';
+    btn.dataset.units = units || '-';
+    btn.disabled = !units.includes(',');
+    setUnitButton(btn, units.split(',')[0]);
+    quickMeasureUnit(btn);
+  }
   function addQuickMeasureRow() {
     const body = document.getElementById('qm-rows');
     if (!body) return;
-    const first = body.querySelector('.qm-row');
-    const row = first.cloneNode(true);
-    row.querySelector('input').value = '';
-    row.querySelector('select').selectedIndex = 0;
+    const row = body.querySelector('.qm-row').cloneNode(true);
+    row.querySelector('input[name="value"]').value = '';
+    const select = row.querySelector('select');
+    // Start on the next parameter down, since you're probably working through your test kits.
+    const rows = body.querySelectorAll('.qm-row');
+    const last = rows[rows.length - 1].querySelector('select');
+    select.selectedIndex = Math.min(last.selectedIndex + 1, select.options.length - 1);
+    row.querySelector('.qm-remove').classList.remove('invisible');
     body.appendChild(row);
-    row.querySelector('input').focus();
+    quickMeasureParameter(select);
+    row.querySelector('input[name="value"]').focus();
   }
+  function removeQuickMeasureRow(btn) {
+    const rows = document.querySelectorAll('#qm-rows .qm-row');
+    if (rows.length > 1) btn.closest('.qm-row').remove();
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#qm-rows select').forEach(quickMeasureParameter);
+  });
 
   // ---- Trend chart (only runs if the trends widget is visible) ----
   let chartInstance = null;

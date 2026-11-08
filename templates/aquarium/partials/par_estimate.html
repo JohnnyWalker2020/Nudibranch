@@ -10,7 +10,7 @@
       {% for eq in light.lights %}
       <div class="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-2 {% if eq.status == 'offline' %}opacity-50{% endif %}">
         <div class="flex items-baseline justify-between gap-2">
-          <a href="{% url 'equipment_edit' eq.id %}" class="text-sm font-bold text-white hover:text-cyan-400 truncate">{{ eq.name }}</a>
+          <span class="flex items-center gap-1 min-w-0"><a href="{% url 'equipment_edit' eq.id %}" class="text-sm font-bold text-white hover:text-cyan-400 truncate">{{ eq.name }}</a>{% include 'aquarium/partials/equipment_actions.html' %}</span>
           <span class="text-[11px] text-slate-500 shrink-0">{% if eq.wattage %}{{ eq.wattage }} W at 100%{% else %}<a href="{% url 'equipment_edit' eq.id %}" class="text-cyan-400 underline">add wattage</a>{% endif %}</span>
         </div>
         <form method="POST" action="{% url 'equipment_power' eq.id %}" class="flex items-center gap-2">

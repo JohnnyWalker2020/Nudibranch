@@ -1,0 +1,17 @@
+{% comment %}
+Small buttons for one piece of equipment. Needs `eq`.
+`unplace` adds ✕ (take it off this tank; it stays in the equipment list). The bin goes to the delete confirmation page.
+{% endcomment %}
+<span class="inline-flex items-center gap-0.5 shrink-0">
+  {% if unplace %}
+    <form method="POST" action="{% url 'equipment_unplace' eq.id %}" class="inline"
+          onsubmit="return confirm('Take {{ eq.name|escapejs }} off this tank? It stays in your equipment list.')">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" title="Take off this tank" aria-label="Take {{ eq.name }} off this tank"
+              class="px-1.5 py-0.5 text-[11px] leading-none text-slate-500 hover:text-amber-400 rounded">✕</button>
+    </form>
+  {% endif %}
+  <a href="{% url 'equipment_delete' eq.id %}?next={{ request.get_full_path|urlencode }}" title="Delete" aria-label="Delete {{ eq.name }}"
+     class="px-1.5 py-0.5 text-[11px] leading-none text-slate-500 hover:text-rose-400 rounded">🗑</a>
+</span>

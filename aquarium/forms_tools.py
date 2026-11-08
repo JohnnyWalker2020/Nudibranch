@@ -8,7 +8,7 @@ from django.db.models import Q
 
 from .events import EVENT_TYPES
 from .icons import character_icons
-from .forms import CHECKBOX, INPUT, TEXTAREA
+from .forms import CHECKBOX, INPUT, TEXTAREA, UnitNumberInput, unit_pair
 from .models import (
     AnimalPhoto, AppSettings, CostEntry, Equipment, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, currency_choices,
     SpeciesCatalog, Tank, WebhookEndpoint, WishlistItem,
@@ -43,7 +43,7 @@ class SystemThemeForm(forms.ModelForm):
 
     class Meta:
         model = Tank
-        fields = ['theme', 'icon_choice', 'custom_icon']
+        fields = ['theme', 'ui_style', 'icon_choice', 'custom_icon']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,6 +52,10 @@ class SystemThemeForm(forms.ModelForm):
         if AppSettings.load().enable_old_version_icons:
             choices += [(c['old'], f"{c['label']} (old)") for c in character_icons()]
         self.fields['icon_choice'].choices = choices
+        self.fields['ui_style'].required = False  # left out, the tank keeps its style
+
+    def clean_ui_style(self):
+        return self.cleaned_data.get('ui_style') or self.instance.ui_style or 'standard'
 
     def clean_custom_icon(self):
         upload = self.cleaned_data.get('custom_icon')
@@ -283,6 +287,14 @@ class PlannedSystemForm(StyledFormMixin, forms.ModelForm):
         self.fields['existing_tank'].empty_label = 'No, this is a new tank'
         self.fields['project'].empty_label = 'No project'
         self.fields['existing_tank'].queryset = Tank.objects.filter(is_archived=False)
+        self.fields['width'].widget = UnitNumberInput('dimension_unit', ('in', 'cm'),
+                                                      attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal'})
+        unit_pair(self, 'width', 'dimension_unit')
+        for name in ('depth', 'height'):
+            self.fields[name].help_text = 'Same unit as the width'
+
+    def clean_dimension_unit(self):
+        return self.cleaned_data.get('dimension_unit') or self.instance.dimension_unit or 'in'
 
 
 class PlanProjectForm(StyledFormMixin, forms.ModelForm):

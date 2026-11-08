@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Livestock categories | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-5">
+  <div class="flex items-center gap-3">
+    <a href="{% url 'livestock' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Livestock categories</h1>
+      <p class="text-xs text-slate-400">Rename, recolour, reorder, merge or remove them. Animals can be in more than one.</p>
+    </div>
+  </div>
+
+  <!-- New category -->
+  <form method="POST" action="{% url 'group_create' %}" class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+    {% csrf_token %}
+    <h2 class="text-xs font-bold uppercase tracking-wider text-cyan-400">New category</h2>
+    <div class="grid grid-cols-[4rem_1fr_3.5rem] gap-2 items-end">
+      <div><label for="{{ new_form.icon.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Icon</label>{{ new_form.icon }}</div>
+      <div><label for="{{ new_form.name.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Name *</label>{{ new_form.name }}</div>
+      <div><label for="{{ new_form.color.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">Colour</label>{{ new_form.color }}</div>
+    </div>
+    <div class="flex flex-col sm:flex-row gap-2">
+      <div class="flex-1">{{ new_form.description }}</div>
+      <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add category</button>
+    </div>
+  </form>
+
+  <!-- Existing categories -->
+  <div class="space-y-3">
+    {% for row in groups %}
+      {% with g=row.group form=row.form %}
+      <div id="group-{{ g.id }}" class="scroll-mt-32 bg-slate-900 border border-slate-800 border-l-4 rounded-2xl p-4 space-y-3" style="border-left-color: {{ g.color }}">
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <a href="{% url 'livestock' %}?group={{ g.id }}" class="text-sm font-bold text-white hover:text-cyan-400">{{ g.icon }} {{ g.name }}</a>
+            <p class="text-[11px] text-slate-500">{{ g.living_count }} living{% if g.animal_count != g.living_count %} · {{ g.animal_count }} in all, including gone{% endif %} · across every tank</p>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <form method="POST" action="{% url 'group_move' g.id %}">{% csrf_token %}<input type="hidden" name="direction" value="up">
+              <button type="submit" {% if forloop.first %}disabled{% endif %} aria-label="Move {{ g.name }} up" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 text-xs rounded-lg border border-slate-700">↑</button></form>
+            <form method="POST" action="{% url 'group_move' g.id %}">{% csrf_token %}<input type="hidden" name="direction" value="down">
+              <button type="submit" {% if forloop.last %}disabled{% endif %} aria-label="Move {{ g.name }} down" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 text-xs rounded-lg border border-slate-700">↓</button></form>
+            <a href="{% url 'group_delete' g.id %}" title="Delete" aria-label="Delete {{ g.name }}" class="px-2 py-1 bg-slate-800 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 text-xs rounded-lg border border-slate-700">🗑</a>
+          </div>
+        </div>
+
+        <form method="POST" action="{% url 'group_edit' g.id %}" class="space-y-2">
+          {% csrf_token %}
+          <div class="grid grid-cols-[4rem_1fr_3.5rem] gap-2">
+            {{ form.icon }}{{ form.name }}{{ form.color }}
+          </div>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <div class="flex-1">{{ form.description }}</div>
+            <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700">Save</button>
+          </div>
+        </form>
+
+        {% if groups|length > 1 %}
+          <form method="POST" action="{% url 'group_merge' g.id %}" class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80"
+                onsubmit="return confirm('Move every animal in {{ g.name|escapejs }} into the chosen category and remove {{ g.name|escapejs }}?')">
+            {% csrf_token %}
+            <label for="merge-{{ g.id }}" class="text-[11px] text-slate-400">Merge into</label>
+            <select id="merge-{{ g.id }}" name="into" required class="px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500">
+              <option value="">Choose…</option>
+              {% for other in groups %}{% if other.group.id != g.id %}<option value="{{ other.group.id }}">{{ other.group.icon }} {{ other.group.name }}</option>{% endif %}{% endfor %}
+            </select>
+            <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-lg border border-slate-700">Merge</button>
+          </form>
+        {% endif %}
+      </div>
+      {% endwith %}
+    {% empty %}
+      <p class="text-xs text-slate-500 text-center py-6">No categories yet. Start sorting your critters above.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

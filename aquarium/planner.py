@@ -8,7 +8,7 @@ from .compatibility import bioload, check_stock, tank_stock
 from .models import AnimalGroup, Animal, AppSettings, Equipment, PlannedItem, PlannedSystem, Sump, Tank
 from .power import DAYS_PER_MONTH, TYPICAL_HOURS, daily_kwh, power_summary
 
-RETURN_HEAD_LOSS_PERCENT = 25  # planning assumption for head height and plumbing losses
+RETURN_HEAD_LOSS_PERCENT = Equipment.DEFAULT_RETURN_DERATE  # planning assumption for head height and plumbing losses
 HEATER_WATTS_PER_GALLON = (3.0, 5.0)
 
 # Gear a system normally needs, by planning goal.

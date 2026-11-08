@@ -66,7 +66,7 @@ function openQuickLogModal(paramId = null) {
   openModal('quick-log-modal');
 
   const select = modal.querySelector('select[name="parameter_type"]');
-  if (select && paramId) select.value = paramId;
+  if (select && paramId) { select.value = paramId; select.dispatchEvent(new Event('change', { bubbles: true })); }
   if (window.nudibranchParamTypes.length) syncModalInputStep();
   else initParameterMetadata();  // only needed once someone actually opens this
 
@@ -87,11 +87,34 @@ function syncModalInputStep() {
   const valInput = modal.querySelector('input[name="value"]');
   if (!select || !valInput) return;
 
-  const pt = (window.nudibranchParamTypes || []).find(p => String(p.id) === String(select.value));
-  if (!pt) return;
-  const d = Number(pt.decimal_places);
-  valInput.step = d <= 0 ? '1' : '0.' + '0'.repeat(d - 1) + '1';
+  // Readings can be typed in other units now (the unit button), so any precision is allowed.
+  valInput.step = 'any';
 }
+
+// A parameter dropdown with data-unit-for="value" drives the unit button in that value box: its units, the
+// unit shown (the parameter's own), and the example in the box.
+document.addEventListener('change', e => {
+  const select = e.target;
+  if (!select.matches || !select.matches('select[data-unit-for]') || !select.form) return;
+  const box = select.form.querySelector(`input[name="${select.dataset.unitFor}"]`);
+  const btn = box && box.closest('.unit-field') && box.closest('.unit-field').querySelector('button[data-units]');
+  const option = select.selectedOptions[0];
+  if (!btn || !option || !option.dataset.units) return;
+  btn.dataset.units = option.dataset.units;
+  btn.dataset.examples = option.dataset.examples || '';
+  btn.disabled = !option.dataset.units.includes(',');
+  setUnitButton(btn, option.dataset.units.split(',')[0]);
+  btn.dispatchEvent(new Event('change', { bubbles: true }));
+});
+// A unit button with examples keeps its box's "e.g." in step with the unit.
+document.addEventListener('change', e => {
+  const btn = e.target;
+  if (!btn.matches || !btn.matches('button[data-units][data-examples]')) return;
+  const box = btn.closest('.unit-field') && btn.closest('.unit-field').querySelector('input:not([type="hidden"])');
+  if (!box) return;
+  const example = (btn.dataset.examples || '').split('|')[btn.dataset.units.split(',').indexOf(btn.value)] || '';
+  box.placeholder = example ? 'e.g. ' + example : '';
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   const select = document.querySelector('#quick-log-modal select[name="parameter_type"]');
@@ -142,3 +165,101 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn.value !== start) btn.dispatchEvent(new Event('change', { bubbles: true }));
   });
 });
+
+// New equipment: head loss follows the category (the usual % for a return pump, 0 for anything else)
+// until it's typed in by hand.
+document.addEventListener('change', e => {
+  const category = e.target;
+  if (!category.matches || !category.matches('select[name$="category"]') || !category.form) return;
+  const derate = category.form.querySelector('input[data-auto-derate]');
+  if (!derate) return;
+  derate.value = category.value === 'return_pump' ? derate.dataset.autoDerate : 0;
+});
+document.addEventListener('input', e => {
+  if (e.target.matches && e.target.matches('input[data-auto-derate]')) delete e.target.dataset.autoDerate;
+});
+
+// Number boxes that show a unit picked by a unit button elsewhere in the form follow it.
+document.addEventListener('change', e => {
+  const field = e.target;
+  if (!field.id || field.type !== 'hidden') return;
+  document.querySelectorAll(`.unit-suffix[data-follows="${field.id}"]`).forEach(s => { s.textContent = field.value; });
+});
+
+// ---- Equipment: show only the fields that apply to the chosen category -------
+function showFieldsForCategory(form) {
+  const select = form.querySelector('select[name$="category"]');
+  if (!select) return;
+  form.querySelectorAll('[data-for-categories]').forEach(el => {
+    const wrap = el.tagName === 'DIV' ? el : el.closest('[class~="space-y-1.5"]');
+    if (wrap) wrap.classList.toggle('hidden', !el.dataset.forCategories.split(',').includes(select.value));
+  });
+}
+document.addEventListener('change', e => {
+  if (e.target.matches && e.target.matches('select[name$="category"]') && e.target.form) showFieldsForCategory(e.target.form);
+});
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('form').forEach(f => { if (f.querySelector('[data-for-categories]')) showFieldsForCategory(f); });
+});
+
+// ---- Outlet picker: tap the pictures to place a pump outlet, sliders to aim it ----
+const AIM_WORDS = ['toward the front', 'toward the front right', 'to the right', 'toward the back right',
+                   'toward the back', 'toward the back left', 'to the left', 'toward the front left'];
+function initOutletPicker(root) {
+  const field = name => document.getElementById(root.dataset.prefix + name);
+  const X = field('outlet_x'), Y = field('outlet_y'), Z = field('outlet_z'), H = field('outlet_heading'), T = field('outlet_tilt');
+  if (!X || !Y || !Z || !H || !T) return;
+  const top = root.querySelector('[data-view="top"]'), front = root.querySelector('[data-view="front"]');
+  const headSlider = root.querySelector('[data-heading]'), tiltSlider = root.querySelector('[data-tilt]');
+  const pct = (v, lo, hi) => Math.round(Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100)));
+  const point = (svg, e) => { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 300, y: (e.clientY - r.top) / r.height * 120 }; };
+  const fillMissing = () => {
+    if (H.value === '') H.value = headSlider.value;
+    if (T.value === '') T.value = 0;
+  };
+  top.addEventListener('pointerdown', e => {
+    const p = point(top, e);
+    X.value = pct(p.x, 12, 288); Y.value = pct(p.y, 18, 104);
+    if (Z.value === '') Z.value = 50;
+    fillMissing(); draw();
+  });
+  front.addEventListener('pointerdown', e => {
+    const p = point(front, e);
+    X.value = pct(p.x, 12, 288); Z.value = pct(p.y, 14, 102);
+    if (Y.value === '') Y.value = 50;
+    fillMissing(); draw();
+  });
+  headSlider.addEventListener('input', () => { H.value = headSlider.value; if (X.value !== '') draw(); else drawText(); });
+  tiltSlider.addEventListener('input', () => { T.value = tiltSlider.value; if (X.value !== '') draw(); else drawText(); });
+  root.querySelector('[data-clear]').addEventListener('click', () => {
+    X.value = Y.value = Z.value = H.value = ''; T.value = 0; draw();
+  });
+
+  function drawText() {
+    const h = Number(headSlider.value), t = Number(tiltSlider.value);
+    root.querySelector('[data-heading-text]').textContent = Math.abs(t) >= 60 ? '(straight ' + (t > 0 ? 'up' : 'down') + ')' : AIM_WORDS[Math.floor(((h % 360) + 22.5) / 45) % 8];
+    root.querySelector('[data-tilt-text]').textContent = t === 0 ? 'level' : (t > 0 ? 'up ' : 'down ') + Math.abs(t) + '°';
+  }
+  function place(svg, cx, cy, dx, dy) {
+    const g = svg.querySelector('[data-marker]');
+    g.classList.remove('hidden');
+    g.setAttribute('transform', `translate(${cx} ${cy})`);
+    const arrow = g.querySelector('[data-arrow]');
+    arrow.setAttribute('x1', 0); arrow.setAttribute('y1', 0); arrow.setAttribute('x2', dx); arrow.setAttribute('y2', dy);
+  }
+  function draw() {
+    headSlider.value = H.value === '' ? headSlider.value : H.value;
+    tiltSlider.value = T.value === '' ? 0 : T.value;
+    drawText();
+    if (X.value === '' || Y.value === '') {
+      root.querySelectorAll('[data-marker]').forEach(g => g.classList.add('hidden'));
+      return;
+    }
+    const h = Number(headSlider.value) * Math.PI / 180, t = Number(tiltSlider.value) * Math.PI / 180;
+    const x = 12 + Number(X.value) * 2.76;
+    place(top, x, 18 + Number(Y.value) * 0.86, Math.sin(h) * Math.cos(t) * 28, Math.cos(h) * Math.cos(t) * 28);
+    place(front, x, 14 + Number(Z.value === '' ? 50 : Z.value) * 0.88, Math.sin(h) * Math.cos(t) * 28, -Math.sin(t) * 28);
+  }
+  draw();
+}
+document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.outlet-picker').forEach(initOutletPicker));

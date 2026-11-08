@@ -11,7 +11,7 @@
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <a href="{% url 'species_catalog' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">📖 Browse Common Species</a>
-      <button type="button" onclick="openModal('add-group-modal')" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🏷️ New Group</button>
+      <a href="{% url 'groups_manage' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs transition-colors">✏️ Edit categories</a>
       <a href="{% url 'animal_create' %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Specimen</a>
     </div>
   </div>
@@ -19,14 +19,14 @@
   <!-- Filters -->
   <div class="space-y-2.5 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3">
     <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-      <span class="text-[10px] uppercase font-bold text-slate-500 px-2 shrink-0">Group:</span>
-      <a href="{% url 'livestock' %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_group %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %}">All Groups</a>
+      <span class="text-[10px] uppercase font-bold text-slate-500 px-2 shrink-0">Category:</span>
+      <a href="{% url 'livestock' %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_group %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %}">All</a>
       {% for g in groups %}
-        <a href="{% url 'livestock' %}?group={{ g.id }}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_group == g.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %}">{{ g.icon }} {{ g.name }} <span class="text-[10px] opacity-70">({{ g.scoped_count }})</span></a>
+        <a href="{% url 'livestock' %}?group={{ g.id }}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_group == g.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white border-l-2{% endif %}" style="border-left-color: {{ g.color }}">{{ g.icon }} {{ g.name }} <span class="text-[10px] opacity-70">({{ g.scoped_count }})</span></a>
       {% endfor %}
       {% if selected_group %}
-        <a href="{% url 'group_edit' selected_group %}" class="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap bg-slate-800/60 text-slate-300 hover:text-cyan-400 border border-slate-700/60">Edit group</a>
-        <a href="{% url 'group_delete' selected_group %}" class="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap text-rose-400 hover:bg-rose-500/10 border border-rose-500/30">Delete group</a>
+        <a href="{% url 'groups_manage' %}#group-{{ selected_group }}" class="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap bg-slate-800/60 text-slate-300 hover:text-cyan-400 border border-slate-700/60">Edit category</a>
+        <a href="{% url 'group_delete' selected_group %}?next={% url 'livestock' %}" class="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap text-rose-400 hover:bg-rose-500/10 border border-rose-500/30">Delete category</a>
       {% endif %}
     </div>
   </div>
@@ -65,7 +65,7 @@
             <div class="flex flex-wrap gap-1.5">
               {% if costs_enabled and animal.paid is not None %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30">💸 Paid {{ currency_symbol }}{{ animal.paid|floatformat:2 }}</span>{% endif %}
               {% if animal.tank and animal.tank_id != active_tank.id %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">🏛️ {{ animal.tank.name }}</span>{% endif %}
-              {% for g in animal.groups.all %}<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60">{{ g.icon }} {{ g.name }}</span>{% empty %}{% if not animal.tank %}<span class="text-[10px] text-slate-500">No group assigned</span>{% endif %}{% endfor %}
+              {% for g in animal.groups.all %}<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 border-l-2" style="border-left-color: {{ g.color }}">{{ g.icon }} {{ g.name }}</span>{% empty %}{% if not animal.tank %}<span class="text-[10px] text-slate-500">No category</span>{% endif %}{% endfor %}
             </div>
             {% if animal.notes %}<p class="text-xs text-slate-300 line-clamp-2 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ animal.notes }}</p>{% endif %}
             <div class="flex flex-wrap items-center gap-2 pt-1">
@@ -97,29 +97,6 @@
         </div>
       </div>
     {% endfor %}
-  </div>
-
-  <!-- Modal: new group -->
-  <div id="add-group-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-    <div class="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl my-8">
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-        <h3 class="text-lg font-bold text-white">Create Livestock Group</h3>
-        <button type="button" onclick="closeModal('add-group-modal')" class="p-1 text-slate-400 hover:text-white" aria-label="Close">✕</button>
-      </div>
-      <form method="POST" action="{% url 'group_create' %}" class="mt-4 space-y-4">
-        {% csrf_token %}
-        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Group name *</label>{{ group_form.name }}</div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Icon</label>{{ group_form.icon }}</div>
-          <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Colour</label>{{ group_form.color }}</div>
-        </div>
-        <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Description</label>{{ group_form.description }}</div>
-        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
-          <button type="button" onclick="closeModal('add-group-modal')" class="px-4 py-2 text-slate-400 text-xs font-semibold">Cancel</button>
-          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Save Group</button>
-        </div>
-      </form>
-    </div>
   </div>
 </div>
 {% endblock %}

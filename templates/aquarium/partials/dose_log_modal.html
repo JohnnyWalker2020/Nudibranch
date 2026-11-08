@@ -13,10 +13,7 @@
         <div><label for="dose_parameter" class="block text-xs font-bold uppercase text-slate-400 mb-1">For</label>{{ dose_form.parameter }}</div>
       </div>
       <div><label for="dose_product" class="block text-xs font-bold uppercase text-slate-400 mb-1">Product</label>{{ dose_form.product }}</div>
-      <div class="grid grid-cols-2 gap-3">
-        <div><label for="dose_amount" class="block text-xs font-bold uppercase text-slate-400 mb-1">Amount *</label>{{ dose_form.amount }}</div>
-        <div><label for="dose_unit" class="block text-xs font-bold uppercase text-slate-400 mb-1">Unit</label>{{ dose_form.unit }}</div>
-      </div>
+      <div><label for="dose_amount" class="block text-xs font-bold uppercase text-slate-400 mb-1">Amount *</label>{{ dose_form.amount }}{{ dose_form.unit }}</div>
       <div>
         <label for="dose_reservoir" class="block text-xs font-bold uppercase text-slate-400 mb-1">From container</label>{{ dose_form.reservoir }}
         <p class="text-[11px] text-slate-500 mt-1">A liquid dose (ml, tsp or fl oz) comes off its level. Deleting the dose puts it back.</p>
@@ -39,6 +36,8 @@
     set('dose_product', values.product);
     set('dose_amount', values.amount);
     set('dose_unit', values.unit);
+    const unitBtn = document.querySelector('#dose_amount + button[data-units]');
+    if (unitBtn && values.unit) setUnitButton(unitBtn, values.unit);
     openModal('dose-log-modal');
   }
 </script>

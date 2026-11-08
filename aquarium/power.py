@@ -13,6 +13,7 @@ TYPICAL_HOURS = {
     'dosing': 0.5,
     'ato': 0.5,
     'feeder': 0.2,
+    'filter': 24,
     'filtration': 24,
     'monitoring': 24,
     'other': 24,

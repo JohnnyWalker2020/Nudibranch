@@ -11,6 +11,121 @@ from .models import (
     DoseLog, PlumbingRun, QuickTimer, WEEKDAYS, WebhookEndpoint,
 )
 from .schedule import REPEAT_PRESETS, parse_step, preset_key
+from .conversions import convert_value, unit_choices
+
+
+class UnitNumberInput(forms.NumberInput):
+    """A number box with its unit as a tap-to-switch button inside it (see app.js), writing the unit to a hidden
+    field of the same form. The form sets `unit_value` to the current unit."""
+
+    def __init__(self, unit_field, units, attrs=None, field_class='', input_class=''):
+        super().__init__(attrs)
+        self.unit_field, self.units, self.unit_value = unit_field, tuple(units), units[0] if units else ''
+        self.examples = ()
+        self.field_class, self.input_class = field_class, input_class
+
+    def render(self, name, value, attrs=None, renderer=None):
+        from django.utils.html import format_html
+        attrs = {**(attrs or {}), 'class': self.input_class}
+        units = self.units or ('',)
+        unit = self.unit_value if self.unit_value in units else units[0]
+        if self.examples and 'placeholder' not in attrs and units.index(unit) < len(self.examples):
+            example = self.examples[units.index(unit)]
+            if example:
+                attrs['placeholder'] = f'e.g. {example}'
+        number = super().render(name, value, attrs, renderer)
+        hidden_id = (attrs.get('id') or f'id_{name}').rsplit(name, 1)[0] + self.unit_field
+        return format_html(
+            '<div class="unit-field {}">{}<button type="button" data-units="{}" data-examples="{}" data-name="Unit" value="{}" '
+            'class="unit-btn" {} onchange="var u = document.getElementById(\'{}\'); u.value = this.value; '
+            'u.dispatchEvent(new Event(\'change\', {{bubbles: true}}))">{}</button></div>',
+            self.field_class, number, ','.join(units), '|'.join(self.examples), unit,
+            'disabled' if len(units) < 2 else '', hidden_id, unit)
+
+
+class UnitSuffixInput(forms.NumberInput):
+    """A number box showing a unit picked elsewhere in the form (by a UnitNumberInput); it follows that unit."""
+
+    def __init__(self, unit_field, attrs=None):
+        super().__init__(attrs)
+        self.unit_field, self.unit_value = unit_field, ''
+
+    def render(self, name, value, attrs=None, renderer=None):
+        from django.utils.html import format_html
+        attrs = {**(attrs or {}), 'class': ''}
+        number = super().render(name, value, attrs, renderer)
+        hidden_id = (attrs.get('id') or f'id_{name}').rsplit(name, 1)[0] + self.unit_field
+        return format_html('<div class="unit-field">{}<span class="unit-suffix" data-follows="{}">{}</span></div>',
+                           number, hidden_id, self.unit_value)
+
+
+class OutletPickerInput(forms.HiddenInput):
+    """Two little pictures of the display for placing a pump outlet: from above (tap to place, slider for which way
+    it points) and from the front (tap to set the height, slider to tilt it up or down). Renders outlet_x itself;
+    the form keeps outlet_y, outlet_z, outlet_heading and outlet_tilt as hidden fields that the pictures fill in
+    (see initOutletPicker in app.js)."""
+
+    @property
+    def is_hidden(self):
+        return False  # the value is hidden, but the pictures are shown with a label
+
+    def render(self, name, value, attrs=None, renderer=None):
+        from django.utils.html import format_html
+        hidden = super().render(name, value, attrs, renderer)
+        prefix = (attrs or {}).get('id', f'id_{name}').rsplit(name, 1)[0]
+        return format_html(
+            '<div class="outlet-picker space-y-3" data-prefix="{}">{}'
+            '<div><div class="flex items-baseline justify-between mb-1">'
+            '<span class="text-[11px] font-semibold text-slate-300">From above: tap where the outlet is</span>'
+            '<button type="button" data-clear class="text-[11px] text-slate-500 hover:text-rose-400">Clear</button></div>'
+            '<svg data-view="top" viewBox="0 0 300 120" class="w-full cursor-crosshair rounded-lg touch-none select-none">'
+            '<defs><marker id="{}tip-top" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3" markerHeight="3" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#67e8f9"/></marker></defs>'
+            '<rect x="1" y="1" width="298" height="118" rx="6" class="fill-cyan-950/40 stroke-cyan-500/40" stroke-width="2"/>'
+            '<text x="150" y="13" text-anchor="middle" class="fill-slate-500 text-[9px]">BACK</text>'
+            '<text x="150" y="114" text-anchor="middle" class="fill-slate-500 text-[9px]">FRONT (YOU)</text>'
+            '<g data-marker class="hidden"><line data-arrow stroke-width="4" stroke-linecap="round" class="stroke-cyan-300" marker-end="url(#{}tip-top)"/>'
+            '<circle r="7" class="fill-cyan-400"/></g></svg>'
+            '<label class="flex flex-wrap items-center gap-x-2 mt-1 text-[11px] text-slate-400">Points'
+            '<input type="range" data-heading min="0" max="355" step="5" value="0" class="flex-1 min-w-[7rem] accent-cyan-400">'
+            '<span data-heading-text class="shrink-0 whitespace-nowrap text-right text-slate-300"></span></label></div>'
+            '<div><span class="block mb-1 text-[11px] font-semibold text-slate-300">From the front: tap how high it sits</span>'
+            '<svg data-view="front" viewBox="0 0 300 120" class="w-full cursor-crosshair rounded-lg touch-none select-none">'
+            '<defs><marker id="{}tip-front" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3" markerHeight="3" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#67e8f9"/></marker></defs>'
+            '<rect x="1" y="1" width="298" height="118" rx="6" class="fill-slate-950/60 stroke-slate-700" stroke-width="2"/>'
+            '<rect x="2" y="12" width="296" height="96" class="fill-cyan-950/50"/>'
+            '<line x1="2" y1="12" x2="298" y2="12" stroke-dasharray="4 3" class="stroke-cyan-400/60"/>'
+            '<rect x="2" y="104" width="296" height="14" rx="4" class="fill-amber-200/20"/>'
+            '<g data-marker class="hidden"><line data-arrow stroke-width="4" stroke-linecap="round" class="stroke-cyan-300" marker-end="url(#{}tip-front)"/>'
+            '<circle r="7" class="fill-cyan-400"/></g></svg>'
+            '<label class="flex flex-wrap items-center gap-x-2 mt-1 text-[11px] text-slate-400">Tilt'
+            '<input type="range" data-tilt min="-90" max="90" step="5" value="0" class="flex-1 min-w-[7rem] accent-cyan-400">'
+            '<span data-tilt-text class="shrink-0 whitespace-nowrap text-right text-slate-300"></span></label></div>'
+            '</div>', prefix, hidden, prefix, prefix, prefix, prefix)
+
+
+def unit_pair(form, number_field, unit_field):
+    """Hides `unit_field` and shows it as the button inside `number_field`."""
+    form.fields[unit_field].widget = forms.HiddenInput()
+    form.fields[unit_field].required = False
+    form.fields[number_field].widget.unit_value = form[unit_field].value()
+
+
+def _spot_selects(form, labels):
+    """Optional position menus: styled, labelled, with 'Not set' for blank."""
+    for name, label in labels.items():
+        field = form.fields[name]
+        field.label = label
+        field.widget.attrs['class'] = INPUT
+        field.choices = [('', 'Not set')] + [c for c in field.choices if c[0]]
+
+
+def _clean_unit(form, field, units):
+    value = form.cleaned_data.get(field)
+    if value in units:
+        return value
+    return getattr(form.instance, field, None) or units[0]
+
+
 
 # Shared Tailwind class strings
 INPUT = 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
@@ -43,23 +158,70 @@ class DefaultNowMixin:
         return cleaned
 
 
-class QuickParameterLogForm(DefaultNowMixin, forms.ModelForm):
+class ParameterSelect(forms.Select):
+    """Parameters by name only. Each option carries the units its reading can be typed in, for the unit button."""
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        pt = getattr(value, 'instance', None)
+        if pt is not None:
+            choices = unit_choices(pt.code, pt.unit)
+            option['attrs']['data-units'] = ','.join(u for u, _ in choices)
+            option['attrs']['data-examples'] = '|'.join(e for _, e in choices)
+        return option
+
+
+class ParameterValueUnitMixin:
+    """A reading typed in any unit its parameter offers (the button in the value box), stored in the parameter's own
+    unit. Needs a `unit` form field and a `value` field using UnitNumberInput('unit', ...)."""
+
+    def _setup_value_unit(self):
+        field = self.fields['parameter_type']
+        field.label_from_instance = lambda pt: pt.name
+        field.empty_label = None  # always on a real parameter, so the unit button matches it
+        field.widget.attrs['data-unit-for'] = 'value'
+        unit_pair(self, 'value', 'unit')
+        pt = None
+        chosen = self['parameter_type'].value()
+        if chosen:
+            pt = field.queryset.filter(pk=chosen).first() if str(chosen).isdigit() else None
+        if pt is None:
+            pt = field.queryset.first()
+        widget = self.fields['value'].widget
+        if pt is not None:
+            choices = unit_choices(pt.code, pt.unit)
+            widget.units = tuple(u for u, _ in choices)
+            widget.examples = tuple(e for _, e in choices)
+            if not self.is_bound:
+                widget.unit_value = pt.unit
+
+    def _convert_value_unit(self, cleaned):
+        pt, value, unit = cleaned.get('parameter_type'), cleaned.get('value'), (cleaned.get('unit') or '').strip()
+        if pt is None or value is None or not unit or unit.lower() == (pt.unit or '').lower():
+            return cleaned
+        if unit.lower() not in [u.lower() for u, _ in unit_choices(pt.code, pt.unit)]:
+            self.add_error('value', f"Can't convert {unit} to {pt.unit} for {pt.name}.")
+            return cleaned
+        converted = convert_value(float(value), unit, pt.unit, pt.code)
+        cleaned['value'] = round(Decimal(f"{converted:.4f}"), pt.decimal_places)
+        self.converted_from = f"{value.normalize():f} {unit}"
+        return cleaned
+
+
+class QuickParameterLogForm(ParameterValueUnitMixin, DefaultNowMixin, forms.ModelForm):
     """Mobile-friendly quick add form for water parameters."""
     now_field = 'measured_at'
+    unit = forms.CharField(required=False, max_length=20)
 
     class Meta:
         model = ParameterLog
-        fields = ['parameter_type', 'value', 'notes', 'measured_at']
+        fields = ['parameter_type', 'value', 'unit', 'notes', 'measured_at']
         widgets = {
-            'parameter_type': forms.Select(attrs={
+            'parameter_type': ParameterSelect(attrs={
                 'class': 'w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 text-lg'
             }),
-            'value': forms.NumberInput(attrs={
-                'class': 'w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 text-2xl font-bold tracking-wide text-center',
-                'placeholder': '0.00',
-                'step': 'any',
-                'inputmode': 'decimal',
-            }),
+            'value': UnitNumberInput('unit', ('',), attrs={'step': 'any', 'inputmode': 'decimal'},
+                                     field_class='h-14', input_class='!text-2xl !font-bold tracking-wide text-center'),
             'notes': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm',
                 'placeholder': 'Optional note (e.g. before water change)'
@@ -74,6 +236,10 @@ class QuickParameterLogForm(DefaultNowMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self._setup_now_field()
         self.fields['parameter_type'].queryset = ParameterType.objects.in_use()
+        self._setup_value_unit()
+
+    def clean(self):
+        return self._convert_value_unit(super().clean())
 
 
 class ParameterSettingsForm(forms.ModelForm):
@@ -190,18 +356,19 @@ class ParameterTypeForm(forms.ModelForm):
         return cleaned
 
 
-class ParameterLogEditForm(DefaultNowMixin, forms.ModelForm):
+class ParameterLogEditForm(ParameterValueUnitMixin, DefaultNowMixin, forms.ModelForm):
     """Fix a typo in an existing measurement."""
     now_field = 'measured_at'
+    unit = forms.CharField(required=False, max_length=20)
 
     class Meta:
         model = ParameterLog
-        fields = ['parameter_type', 'tank', 'value', 'measured_at', 'notes']
-        labels = {'tank': 'Tank'}
+        fields = ['parameter_type', 'tank', 'value', 'unit', 'measured_at', 'notes']
+        labels = {'tank': 'Tank', 'parameter_type': 'What you measured'}
         widgets = {
-            'parameter_type': forms.Select(attrs={'class': INPUT}),
+            'parameter_type': ParameterSelect(attrs={'class': INPUT}),
             'tank': forms.Select(attrs={'class': INPUT}),
-            'value': forms.NumberInput(attrs={'class': INPUT, 'step': 'any', 'inputmode': 'decimal'}),
+            'value': UnitNumberInput('unit', ('',), attrs={'step': 'any', 'inputmode': 'decimal'}),
             'measured_at': _datetime_widget(),
             'notes': forms.TextInput(attrs={'class': INPUT}),
         }
@@ -213,6 +380,10 @@ class ParameterLogEditForm(DefaultNowMixin, forms.ModelForm):
         if self.instance.pk:
             in_use = ParameterType.objects.filter(models.Q(pk__in=in_use) | models.Q(pk=self.instance.parameter_type_id))
         self.fields['parameter_type'].queryset = in_use
+        self._setup_value_unit()
+
+    def clean(self):
+        return self._convert_value_unit(super().clean())
 
 
 class AnimalGroupForm(forms.ModelForm):
@@ -230,14 +401,27 @@ class AnimalGroupForm(forms.ModelForm):
                 'placeholder': 'Emoji or icon e.g. 🐠, 🪸, 🦀, 🐌, 🦐, 🐡'
             }),
             'color': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'class': 'w-full h-[42px] p-1 bg-slate-800 border border-slate-700 rounded-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'type': 'color'
             }),
             'description': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500',
-                'placeholder': 'Optional brief notes about this group'
+                'placeholder': 'Optional brief notes about this category'
             }),
         }
+
+    def clean_name(self):
+        name = (self.cleaned_data.get('name') or '').strip()
+        if AnimalGroup.objects.filter(name__iexact=name).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError(f"There's already a category called {name}.")
+        return name
+
+    def clean_color(self):
+        import re
+        color = (self.cleaned_data.get('color') or '').strip()
+        if not re.fullmatch(r'#[0-9a-fA-F]{6}', color):
+            return self.instance.color if self.instance.pk else '#64748b'
+        return color.lower()
 
 
 class CostGatedMixin:
@@ -381,7 +565,7 @@ class VesselFormMixin:
 
 
 VESSEL_WIDGETS = {
-    'dimension_unit': forms.Select(attrs={'class': INPUT}),
+    'dimension_unit': forms.HiddenInput(),
     'width': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'inputmode': 'decimal', 'placeholder': 'Width'}),
     'depth': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'inputmode': 'decimal', 'placeholder': 'Depth'}),
     'height': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'inputmode': 'decimal', 'placeholder': 'Height'}),
@@ -405,10 +589,10 @@ class TankForm(VesselFormMixin, forms.ModelForm):
         widgets = {
             **VESSEL_WIDGETS,
             'substrate_type': forms.Select(attrs={'class': INPUT}),
-            'substrate_amount': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
+            'substrate_amount': UnitNumberInput('substrate_unit', ('lb', 'kg'), attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
             'substrate_unit': forms.Select(attrs={'class': INPUT, 'aria-label': 'Substrate weight unit'}),
             'substrate_product': forms.Select(attrs={'class': INPUT}),
-            'live_rock_amount': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
+            'live_rock_amount': UnitNumberInput('live_rock_unit', ('lb', 'kg'), attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
             'live_rock_unit': forms.Select(attrs={'class': INPUT, 'aria-label': 'Live rock weight unit'}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. 120g Display Tank'}),
             'is_primary': forms.CheckboxInput(attrs={'class': CHECKBOX}),
@@ -420,8 +604,8 @@ class TankForm(VesselFormMixin, forms.ModelForm):
         self.fields['substrate_type'].choices = [('', 'Not set')] + Tank.SUBSTRATE_TYPES
         self.fields['substrate_product'].queryset = Equipment.objects.filter(category='substrate').order_by('name')
         self.fields['substrate_product'].empty_label = 'None'
-        self.fields['substrate_unit'].required = False
-        self.fields['live_rock_unit'].required = False
+        unit_pair(self, 'substrate_amount', 'substrate_unit')
+        unit_pair(self, 'live_rock_amount', 'live_rock_unit')
 
     def clean_substrate_amount(self):
         return self._clean_weight('substrate_amount')
@@ -463,19 +647,29 @@ class TankForm(VesselFormMixin, forms.ModelForm):
 
 
 class PlumbingRunForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        unit_pair(self, 'length', 'length_unit')
+        unit_pair(self, 'custom_diameter', 'custom_diameter_unit')
+
+    def clean_length_unit(self):
+        return _clean_unit(self, 'length_unit', ('ft', 'm'))
+
+    def clean_custom_diameter_unit(self):
+        return _clean_unit(self, 'custom_diameter_unit', ('in', 'mm'))
+
     class Meta:
         model = PlumbingRun
         fields = ['name', 'length', 'length_unit', 'pipe_size', 'custom_diameter', 'custom_diameter_unit',
                   'count', 'fill_percent']
         widgets = {
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Return line, Main drain'}),
-            'length': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '0.1', 'min': '0.1', 'inputmode': 'decimal'}),
-            'length_unit': forms.Select(attrs={'class': INPUT}),
+            'length': UnitNumberInput('length_unit', ('ft', 'm'), attrs={'step': '0.1', 'min': '0.1', 'inputmode': 'decimal'}),
             'pipe_size': forms.Select(attrs={'class': INPUT}),
-            'custom_diameter': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'Inside diameter'}),
-            'custom_diameter_unit': forms.Select(attrs={'class': INPUT}),
+            'custom_diameter': UnitNumberInput('custom_diameter_unit', ('in', 'mm'),
+                                               attrs={'step': 'any', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'Inside diameter'}),
             'count': forms.NumberInput(attrs={'class': INPUT, 'min': '1', 'max': '50'}),
-            'fill_percent': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '5', 'min': '1', 'max': '100'}),
+            'fill_percent': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': '1', 'min': '1', 'max': '100'}),
         }
 
     def clean(self):
@@ -499,12 +693,29 @@ class SumpForm(VesselFormMixin, forms.ModelForm):
     class Meta:
         model = Sump
         fields = ['name', 'dimension_unit', 'width', 'depth', 'height',
-                  'fill_percent', 'capacity_is_manual', 'volume_gallons', 'notes']
+                  'fill_percent', 'capacity_is_manual', 'volume_gallons', 'head_height', 'head_height_unit',
+                  'overflow_type', 'overflow_across', 'overflow_depth', 'notes']
         widgets = {
             **VESSEL_WIDGETS,
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Basement Sump, Refugium'}),
+            'head_height': UnitNumberInput('head_height_unit', ('ft', 'm'),
+                                           attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'e.g. 4.5'}),
             'notes': forms.Textarea(attrs={'class': TEXTAREA, 'rows': 2}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        unit_pair(self, 'head_height', 'head_height_unit')
+        _spot_selects(self, {'overflow_type': 'Overflow', 'overflow_across': 'Across', 'overflow_depth': 'Front to back'})
+
+    def clean_head_height(self):
+        value = self.cleaned_data.get('head_height')
+        if value is not None and not 0 <= value <= 100:
+            raise forms.ValidationError("Use a height between 0 and 100.")
+        return value
+
+    def clean_head_height_unit(self):
+        return _clean_unit(self, 'head_height_unit', ('ft', 'm'))
 
 
 class SumpChamberForm(forms.ModelForm):
@@ -532,6 +743,20 @@ def _clean_paid(value):
     return value
 
 
+def resolve_location(raw):
+    """'tank:3' / 'sump:5' / 'chamber:9' -> {'tank', 'sump', 'chamber'}, or None if it doesn't exist."""
+    kind, _, pk = (raw or '').partition(':')
+    model = {'tank': Tank, 'sump': Sump, 'chamber': SumpChamber}.get(kind)
+    obj = model.objects.filter(pk=pk).first() if model and pk.isdecimal() else None
+    if obj is None:
+        return None
+    if kind == 'chamber':
+        return {'tank': obj.sump.tank, 'sump': obj.sump, 'chamber': obj}
+    if kind == 'sump':
+        return {'tank': obj.tank, 'sump': obj, 'chamber': None}
+    return {'tank': obj, 'sump': None, 'chamber': None}
+
+
 def equipment_location_choices():
     """Grouped choices: each tank, then its sumps and their chambers."""
     choices = [('', '— Not placed in a tank —')]
@@ -557,7 +782,8 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
     class Meta:
         model = Equipment
         fields = ['location', 'name', 'category', 'brand', 'wattage', 'max_flow_gph', 'power_setting_percent',
-                  'flow_derate_percent', 'installed_date', 'maintenance_interval_days', 'last_serviced_date',
+                  'flow_derate_percent', 'max_head', 'max_head_unit', 'outlet_x', 'outlet_y', 'outlet_z',
+                  'outlet_heading', 'outlet_tilt', 'installed_date', 'maintenance_interval_days', 'last_serviced_date',
                   'status', 'paid', 'notes']
         labels = {'paid': 'What you paid'}
         widgets = {
@@ -569,6 +795,13 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
             'max_flow_gph': forms.NumberInput(attrs={'class': INPUT, 'placeholder': 'Rated max GPH (pumps / wavemakers)'}),
             'power_setting_percent': forms.NumberInput(attrs={'class': INPUT, 'min': '1', 'max': '100'}),
             'flow_derate_percent': forms.NumberInput(attrs={'class': INPUT, 'min': '0', 'max': '90'}),
+            'max_head': UnitNumberInput('max_head_unit', ('ft', 'm'),
+                                        attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'From the box'}),
+            'outlet_x': OutletPickerInput(),
+            'outlet_y': forms.HiddenInput(),
+            'outlet_z': forms.HiddenInput(),
+            'outlet_heading': forms.HiddenInput(),
+            'outlet_tilt': forms.HiddenInput(),
             'installed_date': forms.DateInput(format='%Y-%m-%d', attrs={'class': INPUT, 'type': 'date'}),
             'maintenance_interval_days': forms.NumberInput(attrs={'class': INPUT, 'min': '1'}),
             'last_serviced_date': forms.DateInput(format='%Y-%m-%d', attrs={'class': INPUT, 'type': 'date'}),
@@ -581,6 +814,46 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
         self.fields['location'].choices = equipment_location_choices()
         if self.instance and self.instance.pk and not self.is_bound:
             self.initial['location'] = self.instance.location_key
+        unit_pair(self, 'max_head', 'max_head_unit')
+        if not self.instance.pk:
+            # A new return pump starts with the usual head loss; app.js keeps it in step with the category
+            # until the head loss is typed in.
+            self.fields['flow_derate_percent'].widget.attrs['data-auto-derate'] = Equipment.DEFAULT_RETURN_DERATE
+            if self.initial.get('category') == 'return_pump' and not self.is_bound:
+                self.initial.setdefault('flow_derate_percent', Equipment.DEFAULT_RETURN_DERATE)
+        self.fields['max_head'].label = 'Max head'
+        self.fields['outlet_x'].label = 'Where the outlet is'
+        self.fields['outlet_tilt'].required = False
+        # Shown only for the categories they apply to (app.js hides the rest as you change the category).
+        for name in ('flow_derate_percent', 'max_head'):
+            self.fields[name].widget.attrs['data-for-categories'] = 'return_pump'
+        for name in ('max_flow_gph', 'power_setting_percent', 'outlet_x'):
+            self.fields[name].widget.attrs['data-for-categories'] = 'return_pump,wavemaker'
+
+    def clean(self):
+        cleaned = super().clean()
+        category = cleaned.get('category')
+        if category != 'return_pump':  # head loss and max head only mean something for a return pump
+            cleaned['flow_derate_percent'] = 0
+            cleaned['max_head'] = None
+        if category not in Equipment.FLOW_CATEGORIES:
+            for name in ('outlet_x', 'outlet_y', 'outlet_z', 'outlet_heading'):
+                cleaned[name] = None
+            cleaned['outlet_tilt'] = 0
+        for name, low, high in (('outlet_x', 0, 100), ('outlet_y', 0, 100), ('outlet_z', 0, 100), ('outlet_heading', 0, 359)):
+            if cleaned.get(name) is not None:
+                cleaned[name] = max(low, min(high, cleaned[name]))
+        cleaned['outlet_tilt'] = max(-90, min(90, cleaned.get('outlet_tilt') or 0))
+        return cleaned
+
+    def clean_max_head(self):
+        value = self.cleaned_data.get('max_head')
+        if value is not None and not 0 < value <= 200:
+            raise forms.ValidationError("Use the height from the box, above 0.")
+        return value
+
+    def clean_max_head_unit(self):
+        return _clean_unit(self, 'max_head_unit', ('ft', 'm'))
 
     def clean_location(self):
         """Turns 'tank:3' / 'sump:5' / 'chamber:9' into the matching objects."""
@@ -588,17 +861,10 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
         self._placement = {'tank': None, 'sump': None, 'chamber': None}
         if not raw:
             return raw
-        kind, _, pk = raw.partition(':')
-        model = {'tank': Tank, 'sump': Sump, 'chamber': SumpChamber}.get(kind)
-        obj = model.objects.filter(pk=pk).first() if model and pk.isdecimal() else None
-        if obj is None:
+        placement = resolve_location(raw)
+        if placement is None:
             raise forms.ValidationError("That location no longer exists. Pick another.")
-        if kind == 'chamber':
-            self._placement = {'tank': obj.sump.tank, 'sump': obj.sump, 'chamber': obj}
-        elif kind == 'sump':
-            self._placement = {'tank': obj.tank, 'sump': obj, 'chamber': None}
-        else:
-            self._placement = {'tank': obj, 'sump': None, 'chamber': None}
+        self._placement = placement
         return raw
 
     def save(self, commit=True):
@@ -631,6 +897,9 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
         return value
 
 
+RESERVOIR_UNITS = ('ml', 'L', 'gal')
+
+
 class DosingReservoirForm(forms.ModelForm):
     class Meta:
         model = DosingReservoir
@@ -639,12 +908,24 @@ class DosingReservoirForm(forms.ModelForm):
             'tank': forms.Select(attrs={'class': INPUT}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Alkalinity (Soda Ash), ATO RO/DI'}),
             'reservoir_type': forms.Select(attrs={'class': INPUT}),
-            'capacity': forms.NumberInput(attrs={'class': INPUT, 'step': '0.1', 'min': '0.1'}),
-            'current_level': forms.NumberInput(attrs={'class': INPUT, 'step': '0.1', 'min': '0'}),
-            'unit': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'ml, gal, or L'}),
-            'daily_consumption': forms.NumberInput(attrs={'class': INPUT, 'step': '0.1', 'min': '0'}),
-            'color': forms.TextInput(attrs={'class': INPUT, 'type': 'color'}),
+            'capacity': UnitNumberInput('unit', RESERVOIR_UNITS, attrs={'step': '0.1', 'min': '0.1', 'inputmode': 'decimal'}),
+            'current_level': UnitSuffixInput('unit', attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
+            'daily_consumption': UnitSuffixInput('unit', attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
+            'color': forms.TextInput(attrs={'class': 'w-full h-[42px] p-1 bg-slate-800 border border-slate-700 rounded-xl cursor-pointer', 'type': 'color'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        current = self.instance.unit if self.instance.pk else ''
+        units = RESERVOIR_UNITS + ((current,) if current and current not in RESERVOIR_UNITS else ())
+        self.fields['capacity'].widget.units = units
+        unit_pair(self, 'capacity', 'unit')
+        shown = self['unit'].value() or units[0]
+        for name in ('current_level', 'daily_consumption'):
+            self.fields[name].widget.unit_value = shown
+
+    def clean_unit(self):
+        return (self.cleaned_data.get('unit') or '').strip() or (self.instance.unit if self.instance.pk else 'ml')
 
     def clean(self):
         cleaned = super().clean()
@@ -986,8 +1267,7 @@ class DoseLogForm(DefaultNowMixin, forms.ModelForm):
             'tank': forms.Select(attrs={'class': INPUT}),
             'parameter': forms.Select(attrs={'class': INPUT}),
             'product': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Soda ash, All-For-Reef'}),
-            'amount': forms.NumberInput(attrs={'class': INPUT_NOSPIN, 'step': 'any', 'min': '0'}),
-            'unit': forms.Select(attrs={'class': INPUT}),
+            'amount': UnitNumberInput('unit', [u for u, _ in DoseLog.UNITS], attrs={'step': 'any', 'min': '0', 'inputmode': 'decimal'}),
             'reservoir': forms.Select(attrs={'class': INPUT}),
             'dosed_at': _datetime_widget(),
             'notes': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'Optional'}),
@@ -1006,6 +1286,10 @@ class DoseLogForm(DefaultNowMixin, forms.ModelForm):
         self.fields['reservoir'].queryset = DosingReservoir.objects.filter(reservoir_type='dosing_additive').select_related('tank')
         self.fields['reservoir'].empty_label = 'None'
         self.fields['reservoir'].help_text = "A liquid dose in ml, tsp or fl oz comes off its level. Deleting the dose puts it back."
+        unit_pair(self, 'amount', 'unit')
+
+    def clean_unit(self):
+        return _clean_unit(self, 'unit', [u for u, _ in DoseLog.UNITS])
 
     def clean_parameter(self):
         from .calculators import DOSE_PARAMETERS

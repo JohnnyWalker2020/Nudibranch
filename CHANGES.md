@@ -1,5 +1,39 @@
 # Nudibranch: change summary
 
+## Round 20 (2026-11-08)
+
+Apply with `docker compose up -d --build`; migrations 0032 to 0035 run on start.
+
+- **8-bit charts**: back to smooth lines and round points. Cards keep their stepped corners.
+- **Tank page sections**: sumps, chambers, Flow & Water Turnover, Lighting, Filters and the display each have an add menu: new equipment, something not in a tank, or something to move from elsewhere. ✕ takes an item off the tank (it stays in the equipment list) and 🗑 deletes it after a confirmation.
+- **Delete anywhere**: 🗑 beside equipment on the Equipment page, Routines, Power and the PAR estimate too.
+- **Lighting section**: each light with its wattage and the automated routines that run it, with their on and off times.
+- **Filters**: a new Filter equipment category (sock, roller mat, sponge, canister), and a Filters section with a ✓ Changed button. New filters default to a weekly change.
+- **Head height**: sumps have a head height and return pumps a max head (ft or m). Together they estimate a return pump's real flow from a pump curve, and the turnover with it.
+- **Common tanks**: the Add and Edit tank forms can start from a standard glass size or a Waterbox or Red Sea Reefer display.
+- **Outlets, overflows and the flow sketch**: pumps and wavemakers have an outlet position and aim, and sumps an overflow type and position (Edit sump). The Flow section draws them on a top-down sketch of the display. Migration 0034.
+- **Friendlier wording**: the tank page's add menus read **+ Add some flow**, **+ Add more sun**, **+ Catch more gunk** and **+ Add gear**, and a few empty pages got a lighter touch. Warnings, numbers and estimates stay plain.
+- **Outlet pickers**: pump and wavemaker outlets are placed on a top-down and a front picture, with sliders for direction and tilt. Your earlier choices were converted (migration 0035). The flow sketch draws the real angle.
+- **Flow groups**: return pumps and wavemakers are listed separately on the tank page, with the same rows. Head loss % and max head only appear (and only count) for return pumps.
+- **Water quality rating**: a 0-100 score with a grade, on the dashboard (as a card you can hide in Customize) and the Water page.
+- **8-bit**: the top bar icon is a plain square.
+- **Tank files**: export a tank's setup as YAML and import it as a new tank, with a preview first. Uses PyYAML, so this round needs `docker compose up -d --build`.
+- **Unit buttons everywhere**: logging a test (the Log Test popup, quick measurements and editing a test) now picks *what* you measured by name, and the unit is a tap-to-switch button in the value box. A reading in another unit (meq/L, ppm, °C, ppt...) is converted to the parameter's own unit when saved. The same buttons replace the unit dropdowns for tank dimensions, substrate and live rock, plumbing length and pipe size, dose amounts, and dosing and ATO containers.
+- **Head loss default**: new return pumps start at 25% head loss (the middle of the usual 20-40%, and what the planner already assumed). Wavemakers and everything else start at 0. Changing the category on a new item updates it until you type your own figure. Existing equipment is unchanged.
+- **Edit categories**: replaces New Group on the Livestock page. One page to rename, recolour, reorder, merge and delete livestock categories, with how many animals are in each. Category colours now show on the filters and badges. Migration 0033 keeps your current (alphabetical) order to start.
+
+## Round 19 (2026-11-07)
+
+Apply with `docker compose up -d --build`; migration 0031 runs on start.
+
+- **8-bit style, per tank**: Icon & colours has a Style choice, Standard or 8-bit. 8-bit gives stepped corners (square in browsers other than recent Chrome and Edge), chunky borders with hard drop shadows, flat colours instead of gradients, blocky lettering for headings, numbers and buttons, crisp pixel icons, striped level bars, and a blinking cursor on the timers. It applies while that tank is selected. The lettering uses the Press Start 2P pixel font (SIL Open Font License), served by the app so it works offline.
+
+## Round 18 (2026-11-07)
+
+Apply with `docker compose up -d --build`. There's no database change.
+
+- **The name is back on phones**: the top bar shows NUDIBRANCH again, with the selected tank under it. Tap the tank name to switch tanks.
+- **Alerts bar on phones**: the Open Alerts Hub button is hidden there; each alert in the bar, and the bell, still open the Alerts page.
 ## Round 17 (2026-11-07)
 
 Apply with `docker compose up -d --build`. There's no database change.
@@ -152,10 +186,10 @@ Apply with `docker compose up -d --build`; migrations 0012 to 0021 run on start 
 - **Calculators** use the selected system automatically, with whole system, display, sump or custom volume.
 - **Planner projects**: group several planned systems into a project to compare them side by side and see combined water, cost, power and
   budget. Copy a plan to try a variation. Nothing becomes real until you track that one plan.
-- **Retiring a system** (button on its tank page): keeps all its data, switches its icon to the old version, and stops its alerts, schedules,
-  time-lapse and new tests. It moves to a Retired group in the selector and can be brought back any time. An uploaded icon never changes.
-- **System look**: each system has a colour scheme and a character or uploaded icon. Characters are `NN-name-young.png` and `NN-name-old.png`
-  pairs in `static/icons/nudibranch`, and small copies are made at startup. The "Match my icon" scheme builds its colours from the icon. Settings has "Disable icon aging" and "Enable old version icons".
+- **Retiring a system** (button on its tank page): keeps all its data, and stops its alerts, schedules,
+  time-lapse and new tests. It moves to a Retired group in the selector and can be brought back any time.
+- **System look**: each system has a colour scheme and a character or uploaded icon. Characters are PNG files
+  in `static/icons/nudibranch`, and small copies are made at startup. The "Match my icon" scheme builds its colours from the icon. Settings has a couple of extra icon options.
 - **The Damage**: there's a hidden, fire-themed spending ledger. It's off until you "light the match" inside it, which turns on "what you
   paid" on livestock and equipment. Those land in the ledger and stay in sync with it. Planner and Wishlist prices are always visible, and
   only reach the ledger when an item moves into an active tank. Putting the fire out hides spending but erases nothing, and the page says so. The ledger can be filtered by system and dates.

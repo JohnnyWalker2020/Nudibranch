@@ -17,6 +17,8 @@
     </div>
   </div>
 
+  {% if not selected_code %}{% include 'aquarium/partials/water_quality_card.html' %}{% endif %}
+
   <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
     <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors">All tests</a>
     {% for pt in chip_types %}
@@ -60,7 +62,7 @@
       {% for log in recent_logs %}
         {% include 'aquarium/partials/parameter_log_row.html' %}
       {% empty %}
-        <div class="p-12 text-center text-slate-500 text-sm bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No records yet. Use “Log Test” to add one.</div>
+        <div class="p-12 text-center text-slate-500 text-sm bg-slate-900 border border-dashed border-slate-800 rounded-2xl">No test results yet. Grab a test kit and tap “Log Test”.</div>
       {% endfor %}
       {% if next_offset %}{% include 'aquarium/partials/parameter_log_page.html' with recent_logs=None %}{% endif %}
     </div>
