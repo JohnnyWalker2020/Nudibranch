@@ -1,0 +1,13 @@
+{% comment %}How hard a pump or light runs: a slider with the exact number beside it. Needs `eq`.{% endcomment %}
+<form method="POST" action="{% url 'equipment_power' eq.id %}" class="flex items-center gap-2 min-w-0">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <label class="text-[11px] text-slate-400 shrink-0" for="power-{{ eq.id }}">Running at</label>
+  <input type="range" min="1" max="100" value="{{ eq.power_setting_percent }}" aria-label="{{ eq.name }} output"
+         class="flex-1 min-w-[5rem] accent-cyan-400" oninput="this.form.power.value = this.value">
+  <input type="number" name="power" id="power-{{ eq.id }}" min="1" max="100" value="{{ eq.power_setting_percent }}"
+         class="w-14 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs text-center"
+         oninput="this.form.querySelector('input[type=range]').value = this.value">
+  <span class="text-[11px] text-slate-400">%</span>
+  <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
+</form>

@@ -79,7 +79,7 @@
         <div class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/60">
           <div class="min-w-0">
             <p class="text-sm font-semibold text-white">{{ item.quantity }}x {{ item.name }}{% if item.tracked %} <span class="text-[10px] font-bold text-emerald-400">Tracking</span>{% endif %}</p>
-            <p class="text-[11px] text-slate-500">{{ item.get_category_display }}{% if item.wattage %} · {{ item.wattage }} W{% endif %}{% if item.max_flow_gph %} · {{ item.max_flow_gph }} gph{% endif %}</p>
+            <p class="text-[11px] text-slate-500">{{ item.get_category_display }}{% if item.wattage %} · {{ item.wattage }} W{% endif %}{% if item.max_flow_gph %} · {{ item.max_flow_gph }} gph{% endif %}{% if item.category == "lighting" or item.category == "return_pump" or item.category == "wavemaker" %} · running at {{ item.power_percent }}%{% endif %}{% if item.hours_per_day %} · {{ item.hours_per_day|floatformat:"-1" }} h a day{% endif %}</p>
           </div>
           <div class="flex items-center gap-3 shrink-0">
             {% if item.unit_cost %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
@@ -95,7 +95,9 @@
           <div class="col-span-2 sm:col-span-1"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Type</label>{{ equipment_form.category }}</div>
           <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">How many</label>{{ equipment_form.quantity }}</div>
           <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Watts each</label>{{ equipment_form.wattage }}</div>
-          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Flow each (gph)</label>{{ equipment_form.max_flow_gph }}</div>
+          <div data-for-categories="return_pump,wavemaker"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Rated flow each (gph)</label>{{ equipment_form.max_flow_gph }}</div>
+          <div data-for-categories="lighting"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Lights on (hours a day)</label>{{ equipment_form.hours_per_day }}</div>
+          <div data-for-categories="return_pump,wavemaker,lighting" class="col-span-2 sm:col-span-3"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Running at</label>{{ equipment_form.power_percent }}</div>
           <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Price each</label>{{ equipment_form.unit_cost }}</div>
           <button class="col-span-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-cyan-400">Add equipment</button>
         </form>
@@ -123,6 +125,21 @@
         <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Return turnover</span><span class="font-semibold {% if a.flow.return_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.flow.return_turnover %}{{ a.flow.return_turnover }}x/hr{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.flow.return_range.0|floatformat:0 }}-{{ a.flow.return_range.1|floatformat:0 }})</span></span></div>
         <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Circulation</span><span class="font-semibold {% if a.flow.circulation_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.flow.circulation_turnover %}{{ a.flow.circulation_turnover }}x/hr{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.flow.circulation_range.0|floatformat:0 }}-{{ a.flow.circulation_range.1|floatformat:0 }})</span></span></div>
         <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Heating</span><span class="font-semibold {% if a.heater_status == 'ok' %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if a.heater_per_gal %}{{ a.heater_per_gal }} W/gal{% else %}Not set{% endif %} <span class="text-slate-500 font-normal">(aim {{ a.heater_range.0|floatformat:0 }}-{{ a.heater_range.1|floatformat:0 }})</span></span></div>
+        <div class="text-xs flex items-center justify-between gap-2"><span class="text-slate-400">Lighting</span><span class="font-semibold text-slate-200">{% if a.light_watts %}{{ a.light_watts }} W at the set output{% else %}Not set{% endif %}</span></div>
+        {% if a.par_levels %}
+          <div class="grid grid-cols-3 gap-1.5 text-center">
+            {% for level in a.par_levels %}
+              <div class="p-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span class="block text-[10px] text-slate-500">{{ level.label }}</span>
+                <span class="block text-sm font-bold text-white">~{{ level.par }}</span>
+                <span class="block text-[10px] text-slate-500">PAR · {{ level.zone }}</span>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="text-[10px] text-slate-500">A rough average from watts and tank size. Real PAR depends on the fixture, its height and optics, so check with a PAR meter.</p>
+        {% elif a.light_watts %}
+          <p class="text-[10px] text-slate-500">Add the plan's width, depth and height for a rough PAR estimate.</p>
+        {% endif %}
         {% if a.missing %}
         <div class="pt-2 border-t border-slate-800">
           <p class="text-xs font-bold text-amber-300">Still to add</p>

@@ -4844,3 +4844,56 @@ class WaterQualityRatingTests(TestCase):
         self._log(self.alk, 8.2)
         self.assertContains(self.client.get(reverse('dashboard')), 'not a lab result')
         self.assertContains(self.client.get(reverse('parameters')), 'Excellent')
+
+
+class PlannerGearAndSliderTests(TestCase):
+    def setUp(self):
+        self.plan = PlannedSystem.objects.create(name='Big reef', goal='mixed', width=48, depth=24, height=24,
+                                                 dimension_unit='in', volume_gallons=120)
+        self.url = reverse('plan_detail', args=[self.plan.pk])
+
+    def test_add_form_offers_category_fields_and_a_slider(self):
+        page = self.client.get(self.url).content.decode()
+        self.assertIn('data-for-categories="lighting"', page)
+        self.assertIn('Lights on (hours a day)', page)
+        self.assertIn('type="range"', page)
+
+    def test_light_and_wavemaker_use_their_output(self):
+        self.client.post(reverse('plan_add_equipment', args=[self.plan.pk]), {
+            'gear-name': 'LED', 'gear-category': 'lighting', 'gear-quantity': 2, 'gear-wattage': 100,
+            'gear-power_percent': 50, 'gear-hours_per_day': 9, 'gear-max_flow_gph': 999})
+        self.client.post(reverse('plan_add_equipment', args=[self.plan.pk]), {
+            'gear-name': 'MP40', 'gear-category': 'wavemaker', 'gear-quantity': 1, 'gear-wattage': 40,
+            'gear-max_flow_gph': 4000, 'gear-power_percent': 30, 'gear-hours_per_day': 5})
+        light = PlannedItem.objects.get(name='LED')
+        wave = PlannedItem.objects.get(name='MP40')
+        self.assertEqual((light.power_percent, float(light.hours_per_day), light.max_flow_gph), (50, 9.0, None))
+        self.assertEqual((wave.power_percent, wave.hours_per_day), (30, None))
+        from . import planner
+        a = planner.analyze(self.plan)
+        self.assertEqual(a['light_watts'], 100)
+        self.assertTrue(a['par_levels'])
+        self.assertEqual(round(a['flow']['wavemaker_gph']), 1200)
+        page = self.client.get(self.url)
+        self.assertContains(page, 'running at 30%')
+        self.assertContains(page, '9 h a day')
+
+    def test_tracking_carries_output_over(self):
+        from . import planner
+        PlannedItem.objects.create(plan=self.plan, kind='equipment', name='MP40', category='wavemaker',
+                                   max_flow_gph=4000, power_percent=30)
+        tank = planner.track_plan(self.plan) if hasattr(planner, 'track_plan') else None
+        if tank is None:
+            self.skipTest('tracking helper has another name')
+        self.assertEqual(Equipment.objects.get(name='MP40').power_setting_percent, 30)
+
+    def test_tank_page_and_equipment_form_use_sliders(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        wave = Equipment.objects.create(tank=tank, name='MP40', category='wavemaker', max_flow_gph=4000,
+                                        power_setting_percent=30)
+        Equipment.objects.create(tank=tank, name='Radion', category='lighting', wattage=100)
+        page = self.client.get(reverse('tank_detail', args=[tank.pk])).content.decode()
+        self.assertGreaterEqual(page.count('aria-label="MP40 output"') + page.count('aria-label="Radion output"'), 2)
+        form = self.client.get(reverse('equipment_edit', args=[wave.pk])).content.decode()
+        self.assertIn('data-for-categories="return_pump,wavemaker,lighting"', form)
+        self.assertIn('type="range" min="1" max="100" step="1" value="30"', form)

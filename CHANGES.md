@@ -2,7 +2,7 @@
 
 ## Round 20 (2026-11-08)
 
-Apply with `docker compose up -d --build`; migrations 0032 to 0035 run on start.
+Apply with `docker compose up -d --build`; migrations 0032 to 0036 run on start.
 
 - **8-bit charts**: back to smooth lines and round points. Cards keep their stepped corners.
 - **Tank page sections**: sumps, chambers, Flow & Water Turnover, Lighting, Filters and the display each have an add menu: new equipment, something not in a tank, or something to move from elsewhere. ✕ takes an item off the tank (it stays in the equipment list) and 🗑 deletes it after a confirmation.
@@ -13,6 +13,9 @@ Apply with `docker compose up -d --build`; migrations 0032 to 0035 run on start.
 - **Common tanks**: the Add and Edit tank forms can start from a standard glass size or a Waterbox or Red Sea Reefer display.
 - **Outlets, overflows and the flow sketch**: pumps and wavemakers have an outlet position and aim, and sumps an overflow type and position (Edit sump). The Flow section draws them on a top-down sketch of the display. Migration 0034.
 - **Friendlier wording**: the tank page's add menus read **+ Add some flow**, **+ Add more sun**, **+ Catch more gunk** and **+ Add gear**, and a few empty pages got a lighter touch. Warnings, numbers and estimates stay plain.
+- **Planner equipment**: the add form shows what fits the type: lights get hours on a day and a **Running at** slider, pumps and wavemakers get rated flow and the slider. Flow, power use and a rough PAR estimate (new, under Checks) all use those settings, and they carry over when you start tracking the tank (migration 0036).
+- **Output sliders**: everywhere a pump or light's output is set (tank page rows, the equipment forms, the planner) it's a slider with the exact % beside it.
+- **Plumbing**: the "% full" box accepts any whole percent up to 100.
 - **Outlet pickers**: pump and wavemaker outlets are placed on a top-down and a front picture, with sliders for direction and tilt. Your earlier choices were converted (migration 0035). The flow sketch draws the real angle.
 - **Flow groups**: return pumps and wavemakers are listed separately on the tank page, with the same rows. Head loss % and max head only appear (and only count) for return pumps.
 - **Water quality rating**: a 0-100 score with a grade, on the dashboard (as a card you can hide in Customize) and the Water page.

@@ -135,7 +135,7 @@ Pick a tank from the **Tank** menu at the top of any page (beside the logo on a 
 The catalog lives in `aquarium/species_catalog.csv`, which you can edit in a spreadsheet (save as CSV UTF-8). Starting the app adds new rows and fills empty fields, but never overwrites your edits. To apply edited values to existing species, run `docker compose exec web python manage.py seed_reef_data --update-species`. Care details are hobby rules of thumb, not checked against a reference, so please verify them before buying.
 
 ### Planning
-- **Tank Planner:** design a new tank or plan stocking for an existing tank, with checks for stocking, flow, heating and power. **Start tracking this tank** then creates the real tank, sump, equipment and livestock.
+- **Tank Planner:** design a new tank or plan stocking for an existing tank, with checks for stocking, flow, heating and power. **Start tracking this tank** then creates the real tank, sump, equipment and livestock. Equipment you add shows the fields for its type: a light gets hours on a day and a **Running at** slider, which feed the power cost and a rough PAR estimate under **Checks**.
 - **Projects:** group several planned tanks to compare them side by side and see combined cost, water and power. Copy a plan to try a variation. Nothing becomes real until you track that one plan.
 - **Wishlist:** save animals and gear with a priority, price, link and notes. Each animal is checked against your tank, and you can move items into a plan or mark them bought.
 

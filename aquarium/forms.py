@@ -59,6 +59,23 @@ class UnitSuffixInput(forms.NumberInput):
                            number, hidden_id, self.unit_value)
 
 
+class PercentSliderInput(forms.NumberInput):
+    """How hard a light or pump runs: a slider with the exact number beside it, kept in step (1-100%)."""
+
+    def render(self, name, value, attrs=None, renderer=None):
+        from django.utils.html import format_html
+        attrs = {**(attrs or {}), 'min': '1', 'max': '100', 'step': '1', 'inputmode': 'numeric',
+                 'class': 'w-14 px-1.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm text-center',
+                 'oninput': 'this.parentElement.querySelector(\'input[type=range]\').value = this.value'}
+        number = super().render(name, value, attrs, renderer)
+        start = value if value not in (None, '') else 100
+        return format_html(
+            '<div class="flex items-center gap-2"><input type="range" min="1" max="100" step="1" value="{}" '
+            'class="flex-1 min-w-0 accent-cyan-400" aria-label="Output, percent" '
+            'oninput="this.parentElement.querySelector(\'input[type=number]\').value = this.value">{}'
+            '<span class="text-xs text-slate-400">%</span></div>', start, number)
+
+
 class OutletPickerInput(forms.HiddenInput):
     """Two little pictures of the display for placing a pump outlet: from above (tap to place, slider for which way
     it points) and from the front (tap to set the height, slider to tilt it up or down). Renders outlet_x itself;
@@ -793,7 +810,7 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
             'brand': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. EcoTech Marine'}),
             'wattage': forms.NumberInput(attrs={'class': INPUT, 'placeholder': 'Watts'}),
             'max_flow_gph': forms.NumberInput(attrs={'class': INPUT, 'placeholder': 'Rated max GPH (pumps / wavemakers)'}),
-            'power_setting_percent': forms.NumberInput(attrs={'class': INPUT, 'min': '1', 'max': '100'}),
+            'power_setting_percent': PercentSliderInput(),
             'flow_derate_percent': forms.NumberInput(attrs={'class': INPUT, 'min': '0', 'max': '90'}),
             'max_head': UnitNumberInput('max_head_unit', ('ft', 'm'),
                                         attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'From the box'}),
@@ -827,8 +844,10 @@ class EquipmentForm(CostGatedMixin, forms.ModelForm):
         # Shown only for the categories they apply to (app.js hides the rest as you change the category).
         for name in ('flow_derate_percent', 'max_head'):
             self.fields[name].widget.attrs['data-for-categories'] = 'return_pump'
-        for name in ('max_flow_gph', 'power_setting_percent', 'outlet_x'):
+        for name in ('max_flow_gph', 'outlet_x'):
             self.fields[name].widget.attrs['data-for-categories'] = 'return_pump,wavemaker'
+        self.fields['power_setting_percent'].widget.attrs['data-for-categories'] = 'return_pump,wavemaker,lighting'
+        self.fields['power_setting_percent'].label = 'Running at'
 
     def clean(self):
         cleaned = super().clean()

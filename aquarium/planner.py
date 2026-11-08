@@ -3,10 +3,10 @@ from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 
-from .calculators import estimate_flow_gph, turnover_summary
+from .calculators import estimate_flow_gph, par_estimate, turnover_summary
 from .compatibility import bioload, check_stock, tank_stock
 from .models import AnimalGroup, Animal, AppSettings, Equipment, PlannedItem, PlannedSystem, Sump, Tank
-from .power import DAYS_PER_MONTH, TYPICAL_HOURS, daily_kwh, power_summary
+from .power import DAYS_PER_MONTH, SCALES_WITH_SETTING, TYPICAL_HOURS, daily_kwh, power_summary
 
 RETURN_HEAD_LOSS_PERCENT = Equipment.DEFAULT_RETURN_DERATE  # planning assumption for head height and plumbing losses
 HEATER_WATTS_PER_GALLON = (3.0, 5.0)
@@ -59,9 +59,9 @@ def analyze(plan):
         real_gear = list(existing_tank.equipment.exclude(status='offline'))
     categories = {i.category for i in gear} | {e.category for e in real_gear}
 
-    return_gph = sum(estimate_flow_gph(i.max_flow_gph, 100, RETURN_HEAD_LOSS_PERCENT) * i.quantity
+    return_gph = sum(estimate_flow_gph(i.max_flow_gph, i.power_percent, RETURN_HEAD_LOSS_PERCENT) * i.quantity
                      for i in gear if i.category == 'return_pump' and i.max_flow_gph and not (existing_tank and i.tracked))
-    wave_gph = sum(float(i.max_flow_gph) * i.quantity
+    wave_gph = sum(estimate_flow_gph(i.max_flow_gph, i.power_percent) * i.quantity
                    for i in gear if i.category == 'wavemaker' and i.max_flow_gph and not (existing_tank and i.tracked))
     for eq in real_gear:
         flow = eq.estimated_flow_gph
@@ -85,8 +85,21 @@ def analyze(plan):
 
     settings_obj = AppSettings.load()
     rate = float(settings_obj.electricity_rate)
-    planned_kwh = sum(daily_kwh(i.wattage, TYPICAL_HOURS.get(i.category, 24)) * i.quantity
+    def planned_hours(i):
+        return float(i.hours_per_day) if i.hours_per_day is not None else TYPICAL_HOURS.get(i.category, 24)
+
+    def planned_setting(i):
+        return i.power_percent if i.category in SCALES_WITH_SETTING else 100
+
+    planned_kwh = sum(daily_kwh(i.wattage, planned_hours(i), planned_setting(i)) * i.quantity
                       for i in gear if i.wattage and not (existing_tank and i.tracked))
+
+    # Planned lights (plus any already over the display), at their output, for a rough PAR.
+    light_watts = sum((i.wattage or 0) * i.quantity * i.power_percent / 100 for i in gear
+                      if i.category == 'lighting' and not (existing_tank and i.tracked))
+    light_watts += sum((e.wattage or 0) * e.power_setting_percent / 100 for e in real_gear
+                       if e.category == 'lighting' and not e.sump_id)
+    par_levels = par_estimate(light_watts, plan.width, plan.depth, plan.height, plan.dimension_unit) if light_watts else None
     existing_kwh = power_summary(existing_tank)['kwh_day'] if existing_tank else 0
     kwh_day = planned_kwh + existing_kwh
 
@@ -115,6 +128,8 @@ def analyze(plan):
         'heater_per_gal': heater_per_gal,
         'heater_status': heater_status,
         'heater_range': HEATER_WATTS_PER_GALLON,
+        'light_watts': round(light_watts),
+        'par_levels': par_levels,
         'kwh_day': round(kwh_day, 2),
         'cost_month_power': round(kwh_day * DAYS_PER_MONTH * rate, 2),
         'currency': settings_obj.currency_symbol,
@@ -128,7 +143,7 @@ def analyze(plan):
 
 
 def create_tracked_record(tank, *, kind, name, species=None, quantity=1, category='', wattage=None,
-                          max_flow_gph=None, quarantine_fish=False, unit_price=None):
+                          max_flow_gph=None, quarantine_fish=False, unit_price=None, power_percent=100, hours_per_day=None):
     """
     Creates the real equipment or animal record for something planned or bought. A known price is
     recorded as what you paid, which adds it to The Damage. That happens even while prices are hidden,
@@ -139,7 +154,7 @@ def create_tracked_record(tank, *, kind, name, species=None, quantity=1, categor
         for _ in range(quantity):
             Equipment.objects.create(
                 tank=tank, name=name[:120], category=category or 'other', wattage=wattage,
-                max_flow_gph=max_flow_gph, paid=price,
+                max_flow_gph=max_flow_gph, paid=price, power_setting_percent=power_percent or 100, hours_per_day=hours_per_day,
                 flow_derate_percent=RETURN_HEAD_LOSS_PERCENT if category == 'return_pump' else 0,
             )
         return
@@ -213,6 +228,7 @@ def track_plan(plan, *, quarantine_fish=False):
         create_tracked_record(
             tank, kind=item.kind, name=item.name, species=item.species, quantity=item.quantity,
             category=item.category, wattage=item.wattage, max_flow_gph=item.max_flow_gph,
+            power_percent=item.power_percent, hours_per_day=item.hours_per_day,
             quarantine_fish=quarantine_fish, unit_price=item.unit_cost,
         )
         item.tracked = True

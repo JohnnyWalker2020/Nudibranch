@@ -169,12 +169,11 @@
           <div><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Wattage (W)</label>{{ equipment_form.wattage }}</div>
         </div>
 
+        <div data-for-categories="return_pump,wavemaker,lighting"><label class="block text-xs font-bold uppercase text-slate-400 mb-1">Running at</label>{{ equipment_form.power_setting_percent }}</div>
+
         <div data-for-categories="return_pump,wavemaker" class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/20 space-y-3">
           <p class="text-[11px] text-cyan-300 font-semibold">Flow estimate</p>
-          <div class="grid grid-cols-2 gap-3">
-            <div><label class="block text-[11px] text-slate-400 mb-1">Rated max (gph)</label>{{ equipment_form.max_flow_gph }}</div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Power setting %</label>{{ equipment_form.power_setting_percent }}</div>
-          </div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Rated max (gph)</label>{{ equipment_form.max_flow_gph }}</div>
           <div data-for-categories="return_pump" class="space-y-2">
             <div class="grid grid-cols-2 gap-3">
               <div><label class="block text-[11px] text-slate-400 mb-1">Head loss %</label>{{ equipment_form.flow_derate_percent }}</div>

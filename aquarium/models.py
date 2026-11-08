@@ -1773,6 +1773,9 @@ class PlannedItem(models.Model):
     category = models.CharField(max_length=30, choices=Equipment.CATEGORY_CHOICES, blank=True)
     wattage = models.PositiveIntegerField(null=True, blank=True, help_text="Watts each")
     max_flow_gph = models.PositiveIntegerField(null=True, blank=True, help_text="Rated flow each, gph")
+    power_percent = models.PositiveSmallIntegerField(default=100, help_text="Lights and pumps: how hard it'll run, 1-100%")
+    hours_per_day = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True,
+                                        help_text="Lights: hours on a day")
     tracked = models.BooleanField(default=False, editable=False)
 
     class Meta:

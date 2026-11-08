@@ -8,7 +8,7 @@ from django.db.models import Q
 
 from .events import EVENT_TYPES
 from .icons import character_icons
-from .forms import CHECKBOX, INPUT, TEXTAREA, UnitNumberInput, unit_pair
+from .forms import CHECKBOX, INPUT, TEXTAREA, PercentSliderInput, UnitNumberInput, unit_pair
 from .models import (
     AnimalPhoto, AppSettings, CostEntry, Equipment, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, currency_choices,
     SpeciesCatalog, Tank, WebhookEndpoint, WishlistItem,
@@ -358,9 +358,41 @@ class PlannedEquipmentForm(StyledFormMixin, forms.ModelForm):
 
     class Meta:
         model = PlannedItem
-        fields = ['name', 'category', 'quantity', 'wattage', 'max_flow_gph', 'unit_cost']
-        labels = {'wattage': 'Watts each', 'max_flow_gph': 'Rated flow each (gph)', 'unit_cost': 'Price each'}
-        widgets = {'name': forms.TextInput(attrs={'placeholder': 'e.g. 36 W LED, 300 W heater'})}
+        fields = ['name', 'category', 'quantity', 'wattage', 'max_flow_gph', 'power_percent', 'hours_per_day', 'unit_cost']
+        labels = {'wattage': 'Watts each', 'max_flow_gph': 'Rated flow each (gph)', 'unit_cost': 'Price each',
+                  'power_percent': 'Running at', 'hours_per_day': 'Lights on (hours a day)'}
+        widgets = {'name': forms.TextInput(attrs={'placeholder': 'e.g. 36 W LED, 300 W heater'}),
+                   'power_percent': PercentSliderInput(),
+                   'hours_per_day': forms.NumberInput(attrs={'min': '0', 'max': '24', 'step': '0.5', 'placeholder': 'e.g. 9'})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only what applies to the chosen type shows (app.js swaps them as the type changes).
+        self.fields['max_flow_gph'].widget.attrs['data-for-categories'] = 'return_pump,wavemaker'
+        self.fields['power_percent'].widget.attrs['data-for-categories'] = 'return_pump,wavemaker,lighting'
+        self.fields['hours_per_day'].widget.attrs['data-for-categories'] = 'lighting'
+        self.fields['power_percent'].required = False
+
+    def clean_power_percent(self):
+        value = self.cleaned_data.get('power_percent') or 100
+        return max(1, min(100, value))
+
+    def clean_hours_per_day(self):
+        value = self.cleaned_data.get('hours_per_day')
+        if value is not None and not 0 <= value <= 24:
+            raise forms.ValidationError("Use 0 to 24 hours.")
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        category = cleaned.get('category')
+        if category not in ('return_pump', 'wavemaker'):
+            cleaned['max_flow_gph'] = None
+        if category not in ('return_pump', 'wavemaker', 'lighting'):
+            cleaned['power_percent'] = 100
+        if category != 'lighting':
+            cleaned['hours_per_day'] = None
+        return cleaned
 
 
 # Tank names show total water; load what that needs with the menu.
