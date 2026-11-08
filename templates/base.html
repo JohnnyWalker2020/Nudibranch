@@ -30,6 +30,11 @@
     @supports (-webkit-touch-callout: none) { input, select, textarea { font-size: 16px !important; } }
     .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
     .pt-safe { padding-top: env(safe-area-inset-top, 0.5rem); }
+    /* The body only has a minimum height so it grows with the page; a fixed height let the old bottom margin get dropped.
+       On phones, leave room for the fixed tab bar (4rem plus the iPhone home-bar area) and some breathing space. */
+    body { min-height: 100%; }
+    .page-main { padding-top: 1.5rem; padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }
+    @media (min-width: 768px) { .page-main { padding-bottom: 3rem; } }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
@@ -38,7 +43,7 @@
     .modal-open { display: flex !important; }
   </style>
 </head>
-<body class="h-full flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500 selection:text-white" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500 selection:text-white" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
   <!-- Top Navigation -->
   <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 pt-safe">
@@ -147,7 +152,7 @@
   </div>
   {% endif %}
 
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 mb-16 md:mb-6">
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 page-main">
     {% block content %}{% endblock %}
   </main>
 
