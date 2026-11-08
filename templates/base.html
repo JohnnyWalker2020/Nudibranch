@@ -43,7 +43,7 @@
     .modal-open { display: flex !important; }
   </style>
 </head>
-<body class="flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500 selection:text-white" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="style-{{ ui_style|default:'standard' }} flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500 selection:text-white" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
   <!-- Top Navigation -->
   <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 pt-safe">
@@ -57,11 +57,15 @@
         </div>
       </a>
 
-      {% if systems %}
-      <div class="md:hidden flex-1 min-w-0">
-        {% include 'aquarium/partials/tank_select.html' with select_id='system-select-top' compact=True form_class='w-full' %}
+      <!-- Phones: the app name, with the selected tank under it. Tap the tank name to switch tanks. -->
+      <div class="md:hidden flex-1 min-w-0 leading-tight">
+        <a href="{% url 'dashboard' %}" class="block text-lg font-black tracking-tight text-white">NUDIBRANCH</a>
+        {% if systems %}
+          {% include 'aquarium/partials/tank_select.html' with select_id='system-select-top' compact='subtitle' %}
+        {% else %}
+          <span class="block text-[10px] font-semibold text-cyan-400 tracking-wide">Reef Manager</span>
+        {% endif %}
       </div>
-      {% endif %}
 
       {% with current=request.resolver_match.url_name %}
       <nav class="hidden md:flex items-center gap-0.5 min-w-0 overflow-x-auto no-scrollbar">
@@ -130,7 +134,7 @@
       {% if global_due_routines_count %}<a href="{% url 'routines' %}" class="hover:text-amber-300 underline underline-offset-2">{{ global_due_routines_count }} routine{{ global_due_routines_count|pluralize }} due</a>{% endif %}
       {% if global_due_equipment_count %}<a href="{% url 'equipment' %}" class="hover:text-amber-300 underline underline-offset-2">{{ global_due_equipment_count }} equipment service{{ global_due_equipment_count|pluralize }} overdue</a>{% endif %}
       {% if global_sick_animals_count %}<a href="{% url 'livestock' %}?status=monitoring" class="hover:text-amber-300 underline underline-offset-2">{{ global_sick_animals_count }} animal{{ global_sick_animals_count|pluralize }} need attention</a>{% endif %}
-      <a href="{% url 'notifications' %}" class="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 text-[11px]">Open Alerts Hub →</a>
+      <a href="{% url 'notifications' %}" class="hidden md:inline-block px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 text-[11px]">Open Alerts Hub →</a>
       <button type="button" onclick="document.getElementById('alert-banner').remove()" class="ml-auto text-amber-500 hover:text-amber-300 font-bold" title="Dismiss">✕</button>
     </div>
   </div>
