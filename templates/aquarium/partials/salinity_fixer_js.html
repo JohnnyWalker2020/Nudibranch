@@ -1,0 +1,157 @@
+<script>
+  // Salinity Fixer. Uses toPpt, toSg and SALT_FIELDS from the salt calculator's script.
+  (function () {
+    const el = id => document.getElementById(id);
+    const ACTIVE = ['bg-cyan-500/15', 'text-cyan-300', 'border-cyan-500/40'];
+    const IDLE = ['bg-slate-800', 'text-slate-400', 'border-slate-700'];
+    const modeButtons = document.querySelectorAll('[data-fix-mode]');
+    const SALINITY_BOXES = ['fix-current', 'fix-target'];
+
+    let mode = 'top_up';
+    let volumeUnit = 'gal';
+    let salinityUnit = el('salinity-fixer').dataset.unit;
+    let result = null;
+    let latestRequest = 0;
+
+    function showMode() {
+      modeButtons.forEach(btn => {
+        const on = btn.dataset.fixMode === mode;
+        btn.setAttribute('aria-pressed', on);
+        btn.classList.remove(...(on ? IDLE : ACTIVE));
+        btn.classList.add(...(on ? ACTIVE : IDLE));
+      });
+      el('fix-added-label').textContent = mode === 'top_up' ? 'New water to add' : 'Water to swap';
+    }
+    modeButtons.forEach(btn => btn.addEventListener('click', () => { mode = btn.dataset.fixMode; showMode(); recalculate(); }));
+
+    // Each pair of unit buttons stays together, so both boxes always read in the same unit.
+    function setVolumeUnit(unit, other) {
+      if (unit === volumeUnit) return;
+      setUnitButton(other, unit);
+      ['fix-volume', 'fix-added'].forEach(id => {
+        const v = parseFloat(el(id).value);
+        if (!isNaN(v)) el(id).value = Number((unit === 'L' ? v * 3.78541 : v / 3.78541).toFixed(1));
+      });
+      volumeUnit = unit;
+      recalculate();
+    }
+    el('fix-volume-unit').addEventListener('change', e => setVolumeUnit(e.target.value, el('fix-added-unit')));
+    el('fix-added-unit').addEventListener('change', e => setVolumeUnit(e.target.value, el('fix-volume-unit')));
+
+    function setSalinityUnit(unit, other) {
+      if (unit === salinityUnit) return;
+      setUnitButton(other, unit);
+      SALINITY_BOXES.forEach(id => {
+        const v = parseFloat(el(id).value);
+        if (isNaN(v)) return;
+        el(id).value = unit === 'ppt' ? toPpt(v).toFixed(1) : toSg(v).toFixed(3);
+      });
+      salinityUnit = unit;
+      recalculate();
+    }
+    el('fix-current-unit').addEventListener('change', e => setSalinityUnit(e.target.value, el('fix-target-unit')));
+    el('fix-target-unit').addEventListener('change', e => setSalinityUnit(e.target.value, el('fix-current-unit')));
+
+    const saltText = salt => {
+      const unit = el('fix-salt-unit').value;
+      return salt[SALT_FIELDS[unit]] + ' ' + unit;
+    };
+    const ppt = value => Number(value).toFixed(1) + ' ppt';
+    const sg = value => Number(value).toFixed(3) + ' SG';
+    const amount = value => Number(value) + ' ' + volumeUnit;
+
+    function showPlan(data) {
+      const days = el('fix-plan-days');
+      days.textContent = '';
+      el('fix-plan').classList.toggle('hidden', !data.plan.length);
+      if (!data.plan.length) return;
+      if (data.mode === 'top_up') {
+        el('fix-plan-title').textContent = `Gentler: add it over ${data.plan_days} days`;
+        el('fix-plan-intro').textContent = 'Mix the whole batch once at the strength above, keep it covered and stirred, and add one part a day.';
+      } else {
+        el('fix-plan-title').textContent = `Gentler: swap water on ${data.plan_days} days`;
+        el('fix-plan-intro').textContent = 'A smaller step each day, so each day has its own batch, and each mix is closer to seawater than doing it all at once.';
+      }
+      data.plan.forEach(step => {
+        const row = document.createElement('li');
+        row.className = 'py-1.5';
+        const start = document.createElement('strong');
+        start.textContent = `Day ${step.day}: `;
+        row.append(start);
+        const batch = data.mode === 'top_up'
+          ? `add ${amount(step.volume)}`
+          : `swap ${amount(step.volume)} at ${ppt(step.strength_ppt)} (${sg(step.strength_sg)}), using ${saltText(step.salt)} of salt`;
+        row.append(`${batch}, reaching about ${ppt(step.reaches_ppt)} (${sg(step.reaches_sg)})`);
+        days.append(row);
+      });
+    }
+
+    function noteFor(data) {
+      if (data.at_target) return "Your water is already at that salinity, so there's nothing to fix.";
+      if (!data.possible) {
+        const least = data.least_water === null ? '' : ` You'd need at least ${amount(data.least_water)} of RO/DI.`;
+        return `Even plain RO/DI can't get there with this much water. It would reach about ${ppt(data.closest_ppt)}.${least}`;
+      }
+      const parts = [];
+      if (data.too_strong) parts.push("That's too strong to mix. Use more new water to bring it down.");
+      else if (data.very_strong) parts.push("That's much stronger than seawater, and past what most refractometers read. More new water brings the strength down.");
+      if (data.plan.length || data.plan_too_long) {
+        parts.push(`That's a ${ppt(data.change_ppt)} change, more than your daily limit. A quick change can stress corals and invertebrates, so with livestock in the tank go slowly.`);
+      }
+      if (data.plan_too_long) parts.push(`Staying within your limit would take more than 14 days this way, so there's no day-by-day plan. More new water makes it quicker.`);
+      return parts.join(' ');
+    }
+
+    function show() {
+      const data = result;
+      const answer = data && !data.at_target && data.possible;
+      el('fix-answer').classList.toggle('hidden', !answer);
+      const note = data ? noteFor(data) : '';
+      el('fix-note').textContent = note;
+      el('fix-note').classList.toggle('hidden', !note);
+      showPlan(data && answer ? data : { plan: [] });
+      if (!answer) return;
+      el('fix-needed').textContent = ppt(data.needed_ppt);
+      el('fix-needed-sg').textContent = `about ${sg(data.needed_sg)}`;
+      el('fix-salt-row').classList.toggle('hidden', !data.salt);
+      if (data.salt) el('fix-salt').textContent = data.salt[SALT_FIELDS[el('fix-salt-unit').value]];
+      el('fix-salt-label').textContent = 'Salt for that batch, from RO/DI';
+      const first = data.mode === 'water_change' ? 'Take the water out first, then add the new water. ' : '';
+      el('fix-summary').textContent = `${first}All in one go, you end up with ${amount(data.total_volume)} at about ${ppt(data.target_ppt)}.`;
+    }
+    el('fix-salt-unit').addEventListener('change', show);
+
+    function clearResult(message) {
+      result = null;
+      el('fix-error').textContent = message || '';
+      el('fix-error').classList.toggle('hidden', !message);
+      show();
+    }
+
+    async function recalculate() {
+      const request = ++latestRequest;
+      const fields = ['fix-volume', 'fix-added', 'fix-current', 'fix-target'];
+      if (fields.some(id => el(id).value === '')) { clearResult(); return; }
+      const q = new URLSearchParams({
+        current_volume: el('fix-volume').value, added: el('fix-added').value, volume_unit: volumeUnit,
+        current: el('fix-current').value, target: el('fix-target').value, salinity_unit: salinityUnit,
+        mode, max_daily: el('fix-max-daily').value, brand: el('fix-brand').value,
+      });
+      try {
+        const res = await fetch('{% url "salinity_fix_api" %}?' + q.toString());
+        const data = await res.json();
+        if (request !== latestRequest) return;  // a newer answer is on its way
+        if (data.error) { clearResult(data.error); return; }
+        result = data;
+        el('fix-error').classList.add('hidden');
+        show();
+      } catch (err) { console.warn(err); }
+    }
+
+    ['fix-added', 'fix-current', 'fix-target', 'fix-max-daily'].forEach(id => el(id).addEventListener('input', recalculate));
+    el('fix-brand').addEventListener('change', recalculate);
+    volumePicker({ prefix: 'fix', input: 'fix-volume', unit: () => volumeUnit, scope: 'custom', onChange: recalculate });
+    showMode();
+    recalculate();
+  })();
+</script>

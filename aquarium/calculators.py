@@ -139,6 +139,147 @@ def calculate_salt_mix(
 
 
 # ---------------------------------------------------------------------------
+# Fixing salinity with a batch of new water
+# ---------------------------------------------------------------------------
+
+MAX_SALINITY_PPT = 135.0     # about the salt calculator's MAX_TARGET_SG
+STRONG_BATCH_PPT = 45.0      # past what most refractometers read and well past seawater
+SALINITY_PLAN_MAX_DAYS = 14  # a slower plan than this isn't worth laying out day by day
+
+
+def _salinity_to_ppt(value, unit, label):
+    """A reading in SG or ppt as ppt, using 1.026 SG = 35 ppt like the salt calculator."""
+    if not math.isfinite(value):
+        raise ValueError('Please enter real numbers.')
+    if value < 0:
+        raise ValueError(f"The {label} salinity can't be negative.")
+    if unit == 'ppt':
+        if 1.0 < value <= 1.1:
+            raise ValueError(f"The {label} salinity looks like SG, but the unit is set to ppt.")
+        ppt = value
+    else:
+        if value > 1.1:
+            raise ValueError(f"The {label} salinity looks like ppt, but the unit is set to SG.")
+        ppt = (value - 1.0) / 0.026 * 35.0 if value > 1.0 else 0.0
+    if ppt > MAX_SALINITY_PPT:
+        raise ValueError(f'The {label} salinity is far above seawater. Check the number and the SG or ppt setting.')
+    return ppt
+
+
+def _ppt_to_sg(ppt):
+    return round(1.0 + ppt / 35.0 * 0.026, 3)
+
+
+def _salt_for(volume, volume_unit, ppt, brand_key):
+    """Salt to make a batch of that strength from RO/DI, or None when it's past what the salt calculator takes."""
+    if ppt > MAX_SALINITY_PPT:
+        return None
+    mix = calculate_salt_mix(volume=volume, volume_unit=volume_unit, brand_key=brand_key,
+                             target_salinity=ppt, salinity_unit='ppt')
+    return {key: mix[key] for key in ('grams', 'ounces', 'lbs', 'cups')}
+
+
+def salinity_fix(current_volume, added, current, target, salinity_unit='ppt', volume_unit='gal',
+                 mode='top_up', max_daily_ppt=1.0, brand_key='tropic_marin_pro'):
+    """
+    How salty a batch of new water needs to be to bring the water you have to a target salinity.
+
+    mode 'top_up' adds the batch on top of the water. 'water_change' first takes the same amount out.
+    It's a volume-weighted average, so it assumes the water is fully mixed and both readings are right.
+    A plan splits the correction so that no day moves the salinity by more than max_daily_ppt.
+    """
+    for number in (current_volume, added, max_daily_ppt):
+        if not math.isfinite(number):
+            raise ValueError('Please enter real numbers.')
+    if current_volume <= 0 or added <= 0:
+        raise ValueError('Both volumes need to be more than 0.')
+    if max_daily_ppt <= 0:
+        raise ValueError('The most change per day needs to be more than 0.')
+    if mode not in ('top_up', 'water_change'):
+        raise ValueError('Pick top up or water change.')
+    if mode == 'water_change' and added > current_volume:
+        raise ValueError("A water change can't take out more water than there is.")
+
+    unit = salinity_unit.lower()
+    now = _salinity_to_ppt(current, unit, 'current')
+    goal = _salinity_to_ppt(target, unit, 'target')
+
+    swapping = mode == 'water_change'
+    kept = current_volume - added if swapping else current_volume
+    total = kept + added
+    needed = (total * goal - kept * now) / added
+    change = goal - now
+
+    result = {
+        'mode': mode, 'volume_unit': volume_unit, 'total_volume': round(total, 2),
+        'current_ppt': round(now, 1), 'target_ppt': round(goal, 1), 'change_ppt': round(abs(change), 1),
+        'at_target': abs(change) < 0.05,
+        'possible': needed >= 0, 'very_strong': False, 'too_strong': needed > MAX_SALINITY_PPT,
+        'needed_ppt': None, 'needed_sg': None, 'salt': None,
+        'closest_ppt': None, 'least_water': None, 'plan': [], 'plan_days': 1, 'plan_too_long': False,
+    }
+    if result['at_target']:
+        return result
+
+    if needed < 0:
+        # Even RO/DI can't bring it down that far with this much water.
+        result['closest_ppt'] = round(kept * now / total, 1)
+        if swapping:
+            result['least_water'] = round(current_volume * (1 - goal / now), 1)
+        elif goal > 0:
+            result['least_water'] = round(current_volume * (now - goal) / goal, 1)
+        return result
+
+    result['needed_ppt'] = round(needed, 1)
+    result['needed_sg'] = _ppt_to_sg(needed)
+    result['very_strong'] = needed > STRONG_BATCH_PPT
+    result['salt'] = _salt_for(added, volume_unit, needed, brand_key)
+
+    if abs(change) > max_daily_ppt + 1e-9 and not result['too_strong']:
+        plan = (_swap_plan(current_volume, added, now, goal, max_daily_ppt, volume_unit, brand_key) if swapping
+                else _top_up_plan(current_volume, added, now, needed, max_daily_ppt))
+        if plan:
+            result['plan'] = plan
+            result['plan_days'] = len(plan)
+        else:
+            result['plan_too_long'] = True
+    return result
+
+
+def _top_up_plan(volume, added, now, strength, max_daily_ppt):
+    """One batch at one strength, poured in over several days. The first pour moves the salinity most."""
+    for days in range(2, SALINITY_PLAN_MAX_DAYS + 1):
+        portion = added / days
+        reading, held, plan, gentle = now, volume, [], True
+        for day in range(1, days + 1):
+            after = (held * reading + portion * strength) / (held + portion)
+            gentle = gentle and abs(after - reading) <= max_daily_ppt + 1e-9
+            reading, held = after, held + portion
+            plan.append({'day': day, 'volume': round(portion, 2), 'reaches_ppt': round(after, 1), 'reaches_sg': _ppt_to_sg(after)})
+        if gentle:
+            return plan
+    return []
+
+
+def _swap_plan(volume, added, now, goal, max_daily_ppt, volume_unit, brand_key):
+    """The same swap each day, each with its own strength, moving the salinity by an even step."""
+    days = math.ceil(abs(goal - now) / max_daily_ppt - 1e-9)
+    if days > SALINITY_PLAN_MAX_DAYS:
+        return []
+    plan, kept = [], volume - added
+    for day in range(1, days + 1):
+        before = now + (goal - now) * (day - 1) / days
+        after = now + (goal - now) * day / days
+        strength = (volume * after - kept * before) / added
+        if strength < 0 or strength > MAX_SALINITY_PPT:
+            return []
+        plan.append({'day': day, 'volume': round(added, 2), 'reaches_ppt': round(after, 1), 'reaches_sg': _ppt_to_sg(after),
+                     'strength_ppt': round(strength, 1), 'strength_sg': _ppt_to_sg(strength),
+                     'salt': _salt_for(added, volume_unit, strength, brand_key)})
+    return plan
+
+
+# ---------------------------------------------------------------------------
 # Light (PAR) at depth
 # ---------------------------------------------------------------------------
 

@@ -24,7 +24,7 @@ from .alerts import compute_alert_state
 from .compatibility import warnings_for_addition
 from .calculators import (
     DOSE_CHEMICALS, DOSE_PARAMETERS, MAX_DAILY_RAISE, PIPE_INSIDE, SALT_MIX_RECIPES,
-    calculate_salt_mix, dose_estimate, estimate_daily_change,
+    calculate_salt_mix, dose_estimate, estimate_daily_change, salinity_fix,
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, unit_choices
 from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
@@ -1246,7 +1246,31 @@ def calculator_context(tank):
                                          target_salinity=1.026, salinity_unit='sg'),
         'salt_brands': SALT_MIX_RECIPES,
         'volume_tank': tank_volume_choices(tank),
+        'salinity_start': _salinity_start(tank),
     }
+
+
+def _salinity_start(tank):
+    """The Salinity Fixer's starting values: the tank's latest reading and the middle of its target range."""
+    start = {'unit': 'ppt', 'current': None, 'target': 35, 'measured_at': None}
+    ptype = ParameterType.objects.in_use().filter(code='salinity').first()
+    if ptype is None or tank is None:
+        return start
+    ptype = ptype.for_system(tank)
+    # The card takes SG or ppt, so anything else (like mS/cm) is shown as ppt.
+    is_sg = ptype.unit.strip().lower() == 'sg'
+    start['unit'] = 'sg' if is_sg else 'ppt'
+
+    def shown(value):
+        value = float(value)
+        return round(value, 3) if is_sg else round(float(convert_value(value, ptype.unit, 'ppt', 'salinity')), 1)
+
+    start['target'] = shown((float(ptype.min_ideal) + float(ptype.max_ideal)) / 2)
+    latest = latest_logs_by_parameter(tank).get(ptype.pk)
+    if latest:
+        start['current'] = shown(latest.value)
+        start['measured_at'] = latest.measured_at
+    return start
 
 
 def dose_calc_api(request):
@@ -1987,6 +2011,25 @@ def water_change_calc_api(request):
         return JsonResponse(result)
     except (TypeError, ValueError) as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+
+def salinity_fix_api(request):
+    """GET /api/calculators/salinity/ - how salty new water needs to be (see calculators.salinity_fix)."""
+    try:
+        return JsonResponse(salinity_fix(
+            current_volume=float(request.GET.get('current_volume', '')),
+            added=float(request.GET.get('added', '')),
+            current=float(request.GET.get('current', '')),
+            target=float(request.GET.get('target', '')),
+            salinity_unit=request.GET.get('salinity_unit', 'ppt'),
+            volume_unit=request.GET.get('volume_unit', 'gal'),
+            mode=request.GET.get('mode', 'top_up'),
+            max_daily_ppt=float(request.GET.get('max_daily') or 1),
+            brand_key=request.GET.get('brand', 'tropic_marin_pro'),
+        ))
+    except ValueError as e:
+        message = str(e)
+        return JsonResponse({'error': 'Fill in all the numbers.' if message.startswith('could not convert') else message}, status=400)
 
 
 def water_change_log_create(request):

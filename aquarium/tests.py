@@ -2917,6 +2917,126 @@ class SaltCalculatorTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
 
+class SalinityFixerTests(TestCase):
+    def fix(self, **params):
+        query = {'current_volume': 30, 'added': 10, 'current': 33, 'target': 35, 'salinity_unit': 'ppt', 'volume_unit': 'gal'}
+        query.update(params)
+        return self.client.get(reverse('salinity_fix_api'), query)
+
+    def test_top_up_adds_on_top(self):
+        data = self.fix(mode='top_up').json()
+        self.assertEqual(data['needed_ppt'], 41.0)
+        self.assertEqual(data['needed_sg'], 1.030)
+        self.assertEqual(data['total_volume'], 40)
+
+    def test_water_change_takes_out_first(self):
+        data = self.fix(mode='water_change').json()
+        self.assertEqual(data['needed_ppt'], 39.0)
+        self.assertEqual(data['needed_sg'], 1.029)
+        self.assertEqual(data['total_volume'], 30)
+
+    def test_mixing_the_answer_lands_on_the_target(self):
+        for mode, kept in (('top_up', 30), ('water_change', 20)):
+            needed = self.fix(mode=mode).json()['needed_ppt']
+            self.assertAlmostEqual((kept * 33 + 10 * needed) / (kept + 10), 35)
+
+    def test_sg_gives_the_same_answer_as_ppt(self):
+        current, target = 1 + 33 / 35 * 0.026, 1.026
+        data = self.fix(current=current, target=target, salinity_unit='sg').json()
+        self.assertEqual(data['needed_ppt'], 41.0)
+
+    def test_liters_give_the_same_strength_and_the_same_salt(self):
+        gal = self.fix().json()
+        liters = self.fix(current_volume=30 * 3.78541, added=10 * 3.78541, volume_unit='L').json()
+        self.assertEqual(liters['needed_ppt'], gal['needed_ppt'])
+        self.assertAlmostEqual(liters['salt']['grams'], gal['salt']['grams'], delta=0.2)
+
+    def test_salt_is_for_the_batch_from_ro_di(self):
+        # Tropic Marin: 148 g per gallon at 35 ppt, scaled to 41 ppt, for 10 gallons.
+        self.assertEqual(self.fix().json()['salt']['grams'], round(148 * 10 * 41 / 35, 1))
+
+    def test_too_far_down_for_ro_di_says_so(self):
+        data = self.fix(current=35, target=20, added=2, mode='top_up').json()
+        self.assertFalse(data['possible'])
+        self.assertIsNone(data['needed_ppt'])
+        self.assertEqual(data['closest_ppt'], 32.8)
+        self.assertEqual(data['least_water'], 22.5)  # 30 gal at 35 ppt + 22.5 gal of RO/DI = 20 ppt
+        swap = self.fix(current=35, target=20, added=2, mode='water_change').json()
+        self.assertEqual(swap['closest_ppt'], 32.7)
+        self.assertEqual(swap['least_water'], 12.9)
+
+    def test_small_batch_is_flagged_as_very_strong(self):
+        self.assertTrue(self.fix(added=4).json()['very_strong'])  # 50 ppt
+        self.assertFalse(self.fix().json()['very_strong'])
+        huge = self.fix(added=0.1, target=40).json()
+        self.assertTrue(huge['too_strong'])
+        self.assertIsNone(huge['salt'])
+        self.assertEqual(huge['plan'], [])
+
+    def test_already_on_target(self):
+        data = self.fix(current=35).json()
+        self.assertTrue(data['at_target'])
+        self.assertIsNone(data['needed_ppt'])
+
+    def test_top_up_plan_stays_within_the_daily_limit_and_lands_on_target(self):
+        data = self.fix(mode='top_up', max_daily=1).json()
+        self.assertEqual(data['plan_days'], 3)
+        reading, held = 33, 30
+        for step in data['plan']:
+            after = (held * reading + step['volume'] * data['needed_ppt']) / (held + step['volume'])
+            self.assertLessEqual(after - reading, 1)
+            reading, held = after, held + step['volume']
+        self.assertAlmostEqual(reading, 35, delta=0.05)
+        self.assertAlmostEqual(held, 40, delta=0.05)
+
+    def test_water_change_plan_gives_each_day_its_own_strength(self):
+        plan = self.fix(mode='water_change', max_daily=1).json()['plan']
+        self.assertEqual([(s['strength_ppt'], s['reaches_ppt']) for s in plan], [(36.0, 34.0), (37.0, 35.0)])
+        self.assertLess(plan[0]['salt']['grams'], plan[1]['salt']['grams'])
+
+    def test_no_plan_when_the_change_is_within_the_limit(self):
+        self.assertEqual(self.fix(max_daily=2).json()['plan'], [])
+        self.assertEqual(self.fix(max_daily=2).json()['plan_days'], 1)
+
+    def test_a_very_slow_plan_is_left_out_and_says_why(self):
+        data = self.fix(max_daily=0.1, mode='water_change').json()
+        self.assertEqual(data['plan'], [])
+        self.assertTrue(data['plan_too_long'])
+
+    def test_lowering_salinity_plans_too(self):
+        plan = self.fix(current=37, target=35, mode='water_change', max_daily=1).json()['plan']
+        self.assertEqual([s['strength_ppt'] for s in plan], [34.0, 33.0])
+
+    def test_bad_input_is_explained(self):
+        for bad in ({'added': 0}, {'current_volume': -1}, {'current': -1}, {'added': 31, 'mode': 'water_change'},
+                    {'mode': 'nope'}, {'max_daily': -1}, {'current': 'salty'}, {'added': ''}, {'current': 'nan'},
+                    {'current': 33, 'salinity_unit': 'sg'}, {'current': 1.026}, {'target': 500}):
+            response = self.fix(**bad)
+            self.assertEqual(response.status_code, 400, bad)
+            self.assertTrue(response.json()['error'], bad)
+
+    def test_tools_page_offers_it_with_the_disclaimer(self):
+        Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        page = self.client.get(reverse('tools'))
+        self.assertContains(page, 'href="#salinity-fixer"')
+        self.assertContains(page, 'id="salinity-fixer"')
+        self.assertContains(page, 'This assumes the water is fully mixed')
+
+    def test_starts_from_the_latest_reading_and_target_range(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        salinity = ParameterType.objects.create(name='Salinity', code='salinity', unit='SG', decimal_places=3, min_ideal=1.025,
+                                                max_ideal=1.027, low_limit=1.02, high_limit=1.03)
+        ParameterLog.objects.create(tank=tank, parameter_type=salinity, value=1.024)
+        start = self.client.get(reverse('tools')).context['salinity_start']
+        self.assertEqual((start['unit'], start['current'], start['target']), ('sg', 1.024, 1.026))
+        self.assertIsNotNone(start['measured_at'])
+
+    def test_start_without_a_tank_or_reading_still_works(self):
+        self.assertEqual(self.client.get(reverse('tools')).status_code, 200)
+        Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        self.assertEqual(self.client.get(reverse('tools')).status_code, 200)
+
+
 class SubstrateTests(TestCase):
     def setUp(self):
         self.tank = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)

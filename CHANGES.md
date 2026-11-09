@@ -1,5 +1,11 @@
 # Nudibranch: change summary
 
+## Round 21 (2026-11-08)
+
+Apply with `docker compose up -d --build`. No database changes.
+
+- **Salinity Fixer**: a new calculator on **Tools**. Give it the water you have, its salinity, the salinity you want and how much new water you're adding, and it works out how salty that water needs to be and the salt for the batch. Choose **Top up** (added on top) or **Water change** (the same amount out first). It starts from the tank's latest reading and target range, splits bigger corrections into a day-by-day plan under a daily limit you can change (1 ppt by default), and says so when even plain RO/DI can't get there.
+
 ## Round 20 (2026-11-08)
 
 Apply with `docker compose up -d --build`; migrations 0032 to 0038 run on start.

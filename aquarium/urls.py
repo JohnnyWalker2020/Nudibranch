@@ -94,6 +94,7 @@ urlpatterns = [
     path('routines/water-change/<int:wc_id>/edit/', views.water_change_edit_view, name='water_change_edit'),
     path('routines/water-change/<int:wc_id>/delete/', views.water_change_delete_view, name='water_change_delete'),
     path('api/calculators/salt-mix/', views.water_change_calc_api, name='water_change_calc_api'),
+    path('api/calculators/salinity/', views.salinity_fix_api, name='salinity_fix_api'),
 
     # Webcams
     path('webcams/', views.webcams_view, name='webcams'),
