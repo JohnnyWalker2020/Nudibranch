@@ -34,6 +34,9 @@ urlpatterns = [
     path('livestock/<int:animal_id>/edit/', views.animal_edit_view, name='animal_edit'),
     path('livestock/<int:animal_id>/photo/', views.animal_upload_photo_view, name='animal_upload_photo'),
     path('livestock/<int:animal_id>/delete/', views.animal_delete_view, name='animal_delete'),
+    path('livestock/silly-name/', views.silly_name_view, name='silly_name'),
+    path('livestock/<int:animal_id>/silly-name/', views.animal_silly_name_view, name='animal_silly_name'),
+    path('livestock/<int:animal_id>/epitaph/', tools.animal_epitaph_view, name='animal_epitaph'),
 
     # Common Species Catalog
     path('species/', views.species_catalog_view, name='species_catalog'),

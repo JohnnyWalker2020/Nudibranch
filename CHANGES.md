@@ -1,5 +1,16 @@
 # Nudibranch: change summary
 
+## Round 22 (2026-11-09)
+
+Apply with `docker compose up -d --build`; migration 0039 runs on start.
+
+- **Sump cards**: the rows under the chamber cards are gone. Each card lists its gear with a ✕ on the right (takes it off the tank; it stays in the equipment list) and has **+ Add device** at the bottom. Gear in a sump with no chamber still shows below the cards.
+- **Lighting cards**: half width on desktop, two to a row.
+- **Names**: livestock can have a name of its own, typed in or from **🎲 Silly name** on the form or **Give it a silly name** on the card. Kept once saved.
+- **Banned to the sump**: a tick on the livestock form puts a ⛓️ tag on the card.
+- **Deceased livestock**: leaves the livestock list, with a small link at the bottom of the page to find them again.
+- **The Graveyard**: see the spoiler in the README.
+
 ## Round 21 (2026-11-08)
 
 Apply with `docker compose up -d --build`. No database changes.

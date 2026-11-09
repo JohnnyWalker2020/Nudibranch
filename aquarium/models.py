@@ -11,6 +11,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.functional import cached_property
 
+from .silly_names import random_epitaph
 from .calculators import (
     estimate_capacity_gallons, estimate_flow_at_head, estimate_flow_gph, gph_to_lph, par_estimate, turnover_summary,
     pipe_volume_gallons, FT_PER_M, LITERS_PER_GAL, PIPE_INSIDE, PIPE_SIZES, PIPE_TYPE_SHORT, PIPE_TYPES,
@@ -309,6 +310,10 @@ class Animal(models.Model):
     quarantine_days = models.PositiveIntegerField(default=30, help_text="Planned quarantine length in days")
     paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
                                help_text="What you paid in total. Added to The Damage automatically")
+    nickname = models.CharField(max_length=120, blank=True, help_text="A name of its own")
+    banned_to_sump = models.BooleanField(default=False, help_text="Shows a tag on its livestock card")
+    died_on = models.DateField(null=True, blank=True, help_text="Filled in with today if left blank")
+    epitaph = models.CharField(max_length=160, blank=True, help_text="Left blank, one gets picked. {date} becomes the date of death")
 
     class Meta:
         ordering = ['status', 'name']
@@ -318,12 +323,29 @@ class Animal(models.Model):
         return f"{self.name}{qty_str}"
 
     def save(self, *args, **kwargs):
+        changed = set()
         if self.status == 'quarantine' and not self.quarantine_started:
             self.quarantine_started = timezone.localdate()
-            update_fields = kwargs.get('update_fields')
-            if update_fields is not None:
-                kwargs['update_fields'] = set(update_fields) | {'quarantine_started'}
+            changed.add('quarantine_started')
+        if self.status == 'deceased':
+            # Older entries already have an epitaph and no known date, and shouldn't get today's date by being saved.
+            if not self.epitaph:
+                self.epitaph = random_epitaph()
+                self.died_on = self.died_on or timezone.localdate()
+                changed |= {'epitaph', 'died_on'}
+        elif self.died_on or self.epitaph:
+            self.died_on, self.epitaph = None, ''  # back from the dead, so a later death gets its own stone
+            changed |= {'epitaph', 'died_on'}
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | changed
         super().save(*args, **kwargs)
+
+    @property
+    def epitaph_text(self):
+        """The tombstone line, with the date of death filled in."""
+        date = self.died_on.strftime('%m-%d-%Y') if self.died_on else 'some sad day'
+        return self.epitaph.replace('{date}', date)
 
     @property
     def quarantine_day(self):

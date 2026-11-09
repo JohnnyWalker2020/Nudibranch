@@ -53,8 +53,19 @@
           <div class="p-4 space-y-3">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
-                <h3 class="text-base font-bold text-white tracking-tight">{% if animal.count > 1 %}<span class="text-cyan-400">{{ animal.count }}×</span> {% endif %}{{ animal.name }}</h3>
+                {% if animal.nickname %}
+                  <h3 class="text-base font-bold text-white tracking-tight">{{ animal.nickname }}</h3>
+                  <p class="text-xs font-semibold text-slate-300">{% if animal.count > 1 %}<span class="text-cyan-400">{{ animal.count }}×</span> {% endif %}{{ animal.name }}</p>
+                {% else %}
+                  <h3 class="text-base font-bold text-white tracking-tight">{% if animal.count > 1 %}<span class="text-cyan-400">{{ animal.count }}×</span> {% endif %}{{ animal.name }}</h3>
+                {% endif %}
                 {% if animal.species %}<p class="text-xs text-slate-400 italic">{{ animal.species }}</p>{% endif %}
+                {% if not animal.nickname %}
+                  <form method="POST" action="{% url 'animal_silly_name' animal.id %}" class="mt-0.5">
+                    {% csrf_token %}
+                    <button class="text-[11px] font-semibold text-cyan-400 hover:underline">🎲 Give it a silly name</button>
+                  </form>
+                {% endif %}
               </div>
               <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md
                 {% if animal.status == 'healthy' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/40
@@ -63,6 +74,7 @@
                 {% else %}bg-slate-500/20 text-slate-400 border border-slate-500/40{% endif %}">{{ animal.get_status_display }}</span>
             </div>
             <div class="flex flex-wrap gap-1.5">
+              {% if animal.banned_to_sump %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-300 border border-rose-500/30">⛓️ Banned to the sump</span>{% endif %}
               {% if costs_enabled and animal.paid is not None %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30">💸 Paid {{ currency_symbol }}{{ animal.paid|floatformat:2 }}</span>{% endif %}
               {% if animal.tank and animal.tank_id != active_tank.id %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">🏛️ {{ animal.tank.name }}</span>{% endif %}
               {% for g in animal.groups.all %}<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 border-l-2" style="border-left-color: {{ g.color }}">{{ g.icon }} {{ g.name }}</span>{% empty %}{% if not animal.tank %}<span class="text-[10px] text-slate-500">No category</span>{% endif %}{% endfor %}
@@ -98,5 +110,10 @@
       </div>
     {% endfor %}
   </div>
+  {% if departed_count and selected_status != 'deceased' %}
+    <p class="text-center text-[11px] text-slate-500"><a href="{% url 'livestock' %}?status=deceased" class="hover:text-slate-300">{{ departed_count }} no longer with us</a></p>
+  {% elif selected_status == 'deceased' %}
+    <p class="text-center text-[11px] text-slate-500"><a href="{% url 'livestock' %}" class="hover:text-slate-300">Back to the living</a></p>
+  {% endif %}
 </div>
 {% endblock %}

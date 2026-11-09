@@ -12,6 +12,8 @@ Small buttons for one piece of equipment. Needs `eq`.
               class="px-1.5 py-0.5 text-[11px] leading-none text-slate-500 hover:text-amber-400 rounded">✕</button>
     </form>
   {% endif %}
+  {% if not no_bin %}
   <a href="{% url 'equipment_delete' eq.id %}?next={{ request.get_full_path|urlencode }}" title="Delete" aria-label="Delete {{ eq.name }}"
      class="px-1.5 py-0.5 text-[11px] leading-none text-slate-500 hover:text-rose-400 rounded">🗑</a>
+  {% endif %}
 </span>

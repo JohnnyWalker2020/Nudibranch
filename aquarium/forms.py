@@ -513,9 +513,14 @@ class AnimalForm(CostGatedMixin, forms.ModelForm):
 
     class Meta:
         model = Animal
-        fields = ['name', 'species', 'tank', 'groups', 'count', 'acquired_date', 'status', 'paid', 'photo', 'notes']
+        fields = ['name', 'nickname', 'species', 'tank', 'groups', 'count', 'acquired_date', 'status', 'banned_to_sump',
+                  'died_on', 'epitaph', 'paid', 'photo', 'notes']
         widgets = {
             'paid': forms.NumberInput(attrs={'class': INPUT, 'min': '0', 'step': '0.01', 'inputmode': 'decimal', 'placeholder': 'Total for all of them'}),
+            'nickname': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Jim "the Bruiser" Snailson'}),
+            'banned_to_sump': forms.CheckboxInput(attrs={'class': 'w-4 h-4 rounded border-slate-700 text-cyan-500 focus:ring-cyan-500 bg-slate-800'}),
+            'died_on': forms.DateInput(format='%Y-%m-%d', attrs={'class': INPUT, 'type': 'date'}),
+            'epitaph': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'Leave blank and one gets picked'}),
             'name': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-base focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'placeholder': 'e.g. Ocellaris Clownfish Pair, Blue Tang, Turbo Snail',

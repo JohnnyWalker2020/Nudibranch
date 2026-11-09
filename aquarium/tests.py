@@ -28,7 +28,7 @@ from . import icons
 from .icons import character_icons
 from .themes import theme_css
 from .schedule import parse_step
-from . import backups, compatibility, events, fill, planner, power, timelapse
+from . import backups, compatibility, events, fill, planner, power, silly_names, timelapse
 from .models import (
     DoseLog, PlumbingRun, SumpChamber,
     QuickTimer,
@@ -2915,6 +2915,174 @@ class SaltCalculatorTests(TestCase):
     def test_bad_start_is_rejected(self):
         response = self.client.get(reverse('water_change_calc_api'), {'start_salinity': 'salty'})
         self.assertEqual(response.status_code, 400)
+
+
+class LivestockNamesAndGraveyardTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        self.snail = Animal.objects.create(name='Turbo Snail', tank=self.tank)
+
+    def form_data(self, **extra):
+        return {'name': 'Turbo Snail', 'tank': self.tank.id, 'count': 1, 'status': 'healthy', **extra}
+
+    def test_silly_names_suit_the_animal(self):
+        self.assertEqual(silly_names.kind_of('Turbo Snail'), 'snail')
+        self.assertEqual(silly_names.kind_of('Amphiprion ocellaris'), 'clown')
+        self.assertEqual(silly_names.kind_of('Mystery thing'), 'fish')
+        names = {silly_names.silly_name('Turbo Snail') for _ in range(200)}
+        self.assertTrue(any('"' in name and any(s in name for s in silly_names.SURNAMES['snail']) for name in names))
+        self.assertTrue(any(name in silly_names.SOLO_NAMES for name in names))
+        self.assertTrue(all(len(name) <= 120 for name in names))
+
+    def test_epitaphs_fit_their_field(self):
+        field = Animal._meta.get_field('epitaph')
+        self.assertTrue(all(len(line) <= field.max_length for line in silly_names.EPITAPHS))
+
+    def test_dice_button_suggests_without_saving(self):
+        name = self.client.get(reverse('silly_name'), {'about': 'Turbo Snail'}).json()['name']
+        self.assertTrue(name)
+        self.snail.refresh_from_db()
+        self.assertEqual(self.snail.nickname, '')
+
+    def test_card_button_saves_a_name_and_keeps_an_existing_one(self):
+        self.assertContains(self.client.get(reverse('livestock')), 'Give it a silly name')
+        url = reverse('animal_silly_name', args=[self.snail.id])
+        self.client.post(url)
+        self.snail.refresh_from_db()
+        first = self.snail.nickname
+        self.assertTrue(first)
+        self.client.post(url)
+        self.snail.refresh_from_db()
+        self.assertEqual(self.snail.nickname, first)
+        page = self.client.get(reverse('livestock'))
+        self.assertNotContains(page, 'Give it a silly name')
+        self.assertContains(page, 'Turbo Snail')
+        self.assertEqual(self.client.get(url).status_code, 405)
+
+    def test_name_and_ban_save_from_the_form(self):
+        self.client.post(reverse('animal_edit', args=[self.snail.id]), self.form_data(nickname='Timothy Tailspot', banned_to_sump='on'))
+        self.snail.refresh_from_db()
+        self.assertEqual(self.snail.nickname, 'Timothy Tailspot')
+        self.assertTrue(self.snail.banned_to_sump)
+        self.assertContains(self.client.get(reverse('livestock')), 'Banned to the sump')
+
+    def test_no_ban_tag_by_default(self):
+        self.assertNotContains(self.client.get(reverse('livestock')), 'Banned to the sump')
+
+    def test_marking_deceased_digs_the_grave(self):
+        self.client.post(reverse('animal_edit', args=[self.snail.id]), self.form_data(status='deceased'))
+        self.snail.refresh_from_db()
+        self.assertEqual(self.snail.died_on, timezone.localdate())
+        self.assertIn(self.snail.epitaph, silly_names.EPITAPHS)
+        self.assertNotIn('{date}', self.snail.epitaph_text)
+
+    def test_form_keeps_a_chosen_date_and_epitaph(self):
+        day = timezone.localdate() - timedelta(days=3)
+        self.client.post(reverse('animal_edit', args=[self.snail.id]), self.form_data(
+            status='deceased', died_on=day.isoformat(), epitaph='Flushed on {date}.'))
+        self.snail.refresh_from_db()
+        self.assertEqual(self.snail.died_on, day)
+        self.assertEqual(self.snail.epitaph_text, f"Flushed on {day.strftime('%m-%d-%Y')}.")
+
+    def test_dead_leave_the_list_but_stay_reachable(self):
+        self.snail.status = 'deceased'
+        self.snail.save()
+        page = self.client.get(reverse('livestock'))
+        self.assertNotContains(page, 'Turbo Snail')
+        self.assertContains(page, '1 no longer with us')
+        self.assertContains(self.client.get(reverse('livestock'), {'status': 'deceased'}), 'Turbo Snail')
+
+    def test_coming_back_clears_the_stone(self):
+        self.snail.status = 'deceased'
+        self.snail.save()
+        self.snail.status = 'healthy'
+        self.snail.save()
+        self.snail.refresh_from_db()
+        self.assertIsNone(self.snail.died_on)
+        self.assertEqual(self.snail.epitaph, '')
+        self.assertNotContains(self.client.get(reverse('the_damage')), 'R.I.P.')
+
+    def test_saving_only_the_status_still_records_the_death(self):
+        self.snail.status = 'deceased'
+        self.snail.save(update_fields=['status'])
+        self.snail.refresh_from_db()
+        self.assertTrue(self.snail.epitaph)
+        self.assertIsNotNone(self.snail.died_on)
+
+    def test_older_grave_keeps_an_unknown_date(self):
+        Animal.objects.filter(pk=self.snail.pk).update(status='deceased', epitaph='Flushed on {date}.')
+        self.snail.refresh_from_db()
+        self.snail.notes = 'x'
+        self.snail.save()
+        self.snail.refresh_from_db()
+        self.assertIsNone(self.snail.died_on)
+        self.assertEqual(self.snail.epitaph_text, 'Flushed on some sad day.')
+
+    def test_graveyard_shows_with_the_fire_on_or_off(self):
+        self.snail.nickname = 'Jim "the Bruiser" Snailson'
+        self.snail.status = 'deceased'
+        self.snail.save()
+        for lit in (False, True):
+            AppSettings.load()
+            AppSettings.objects.filter(pk=1).update(costs_enabled=lit)
+            page = self.client.get(reverse('the_damage'))
+            self.assertContains(page, 'id="graveyard"')
+            self.assertContains(page, 'Jim &quot;the Bruiser&quot; Snailson')
+            self.assertContains(page, self.snail.died_on.strftime('%m-%d-%Y'))
+
+    def test_empty_graveyard(self):
+        self.assertContains(self.client.get(reverse('the_damage')), "Nobody here yet")
+
+    def test_recarve_changes_the_line_and_only_for_the_dead(self):
+        url = reverse('animal_epitaph', args=[self.snail.id])
+        self.assertEqual(self.client.post(url).status_code, 404)
+        self.snail.status = 'deceased'
+        self.snail.save()
+        before = self.snail.epitaph
+        self.assertRedirects(self.client.post(url), reverse('the_damage') + '#graveyard', fetch_redirect_response=False)
+        self.snail.refresh_from_db()
+        self.assertNotEqual(self.snail.epitaph, before)
+
+    def test_export_keeps_names_and_leaves_the_dead_out(self):
+        self.snail.nickname = 'Kevin'
+        self.snail.save()
+        Animal.objects.create(name='Gone Fish', tank=self.tank, status='deceased')
+        text = self.client.get(reverse('tank_export', args=[self.tank.id])).content.decode()
+        self.assertIn('nickname: Kevin', text)
+        self.assertNotIn('Gone Fish', text)
+
+
+class SumpAndLightCardTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=20)
+        self.chamber = SumpChamber.objects.create(sump=self.sump, chamber_type='return', position=1, share_percent=100)
+        self.pump = Equipment.objects.create(name='Skimmer', category='skimmer', tank=self.tank, sump=self.sump, chamber=self.chamber)
+
+    def page(self):
+        return self.client.get(reverse('tank_detail', args=[self.tank.id]))
+
+    def test_chamber_card_lists_gear_with_a_remove_and_add_button(self):
+        page = self.page()
+        self.assertContains(page, '+ Add device')
+        self.assertContains(page, f'value="chamber:{self.chamber.id}"')
+        self.assertContains(page, reverse('equipment_unplace', args=[self.pump.id]))
+        self.assertNotContains(page, 'divide-slate-800/80')
+
+    def test_remove_leaves_it_in_no_chamber_and_in_the_equipment_list(self):
+        self.client.post(reverse('equipment_unplace', args=[self.pump.id]))
+        self.pump.refresh_from_db()
+        self.assertIsNone(self.pump.chamber)
+        self.assertIsNone(self.pump.sump)
+        self.assertIsNone(self.pump.tank)
+
+    def test_gear_with_no_chamber_stays_visible(self):
+        Equipment.objects.create(name='Loose Heater', category='heater', tank=self.tank, sump=self.sump)
+        self.assertContains(self.page(), 'Loose Heater')
+
+    def test_sump_without_chambers_can_still_add_a_device(self):
+        self.chamber.delete()
+        self.assertContains(self.page(), f'value="sump:{self.sump.id}"')
 
 
 class SalinityFixerTests(TestCase):

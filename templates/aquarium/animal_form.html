@@ -75,6 +75,15 @@
     </div>
 
     <div class="space-y-1.5">
+      <label for="id_nickname" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Its name</label>
+      <div class="flex items-stretch gap-2">
+        <div class="flex-1 min-w-0">{{ form.nickname }}</div>
+        <button type="button" id="silly-name" data-url="{% url 'silly_name' %}" class="shrink-0 px-3 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 transition-colors">🎲 Silly name</button>
+      </div>
+      {% if form.nickname.errors %}<p class="text-xs text-rose-400">{{ form.nickname.errors.0 }}</p>{% endif %}
+    </div>
+
+    <div class="space-y-1.5">
       <label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Species / Latin name</label>
       {{ form.species }}
     </div>
@@ -97,6 +106,25 @@
       <div class="space-y-1.5"><label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Health status</label>{{ form.status }}</div>
       <div class="space-y-1.5"><label class="block text-xs font-bold uppercase tracking-wider text-slate-400">Acquired date</label>{{ form.acquired_date }}</div>
     </div>
+
+    <div id="in-memoriam" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-slate-950/60 border border-slate-800 rounded-2xl">
+      <div class="space-y-1.5">
+        <label for="id_died_on" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Date of death</label>
+        {{ form.died_on }}
+        <p class="text-[11px] text-slate-500">{{ form.died_on.help_text }}</p>
+        {% if form.died_on.errors %}<p class="text-xs text-rose-400">{{ form.died_on.errors.0 }}</p>{% endif %}
+      </div>
+      <div class="sm:col-span-2 space-y-1.5">
+        <label for="id_epitaph" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Last words</label>
+        {{ form.epitaph }}
+        <p class="text-[11px] text-slate-500">{{ form.epitaph.help_text }}</p>
+        {% if form.epitaph.errors %}<p class="text-xs text-rose-400">{{ form.epitaph.errors.0 }}</p>{% endif %}
+      </div>
+    </div>
+
+    <label class="flex items-center gap-2 p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-slate-700 cursor-pointer text-xs text-slate-300">
+      {{ form.banned_to_sump }}<span>⛓️ Banned to the sump <span class="text-slate-500">Shows a tag on its card</span></span>
+    </label>
 
     <div class="space-y-3 pt-2 border-t border-slate-800">
       <div>
@@ -190,6 +218,24 @@
     };
     reader.readAsDataURL(file);
   }
+
+  // The date of death and last words only apply to an animal marked deceased.
+  (function () {
+    const status = document.getElementById('id_status');
+    const box = document.getElementById('in-memoriam');
+    const show = () => box.classList.toggle('hidden', status.value !== 'deceased');
+    status.addEventListener('change', show);
+    show();
+  })();
+
+  // Fills the box with a silly name. It's kept when the form is saved, so rolling again is free.
+  document.getElementById('silly-name').addEventListener('click', async e => {
+    const about = document.getElementById('id_name').value + ' ' + document.getElementById('id_species').value;
+    try {
+      const res = await fetch(e.target.dataset.url + '?' + new URLSearchParams({ about }));
+      document.getElementById('id_nickname').value = (await res.json()).name;
+    } catch (err) { console.warn(err); }
+  });
 
   document.addEventListener('DOMContentLoaded', loadSpeciesPresets);
 </script>

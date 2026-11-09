@@ -86,7 +86,7 @@
           {% if sump.notes %}<p class="text-[11px] text-slate-500 mt-0.5">{{ sump.notes }}</p>{% endif %}
         </div>
         <div class="flex items-center gap-2">
-          {% include 'aquarium/partials/equipment_picker.html' with picker=row.picker %}
+          {% if not row.chambers %}{% include 'aquarium/partials/equipment_picker.html' with picker=row.picker label='+ Add device' %}{% endif %}
           <a href="{% url 'sump_edit' sump.id %}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700 transition-colors">Edit sump</a>
         </div>
       </div>
@@ -96,13 +96,19 @@
         <div class="flex items-stretch gap-1 overflow-x-auto no-scrollbar">
           {% for cr in row.chambers %}
             {% with c=cr.chamber %}
-            <div style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0; min-width: 5.5rem;" class="p-2.5 bg-slate-950/70 border border-slate-700 rounded-xl text-center">
-              <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
-              <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
-              <span class="text-[11px] text-cyan-400 block">{{ c.volume_gallons }} gal · {{ c.share_percent|floatformat:"-1" }}%</span>
+            <div style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0; min-width: 10rem;" class="p-2.5 bg-slate-950/70 border border-slate-700 rounded-xl flex flex-col">
+              <div class="text-center">
+                <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
+                <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
+                <span class="text-[11px] text-cyan-400 block">{{ c.volume_gallons }} gal · {{ c.share_percent|floatformat:"-1" }}%</span>
+              </div>
               {% for eq in cr.equipment %}
-                <span class="mt-1 block text-[10px] leading-tight px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 truncate {% if eq.status == 'offline' %}line-through opacity-60{% endif %}" title="{{ eq.name }}">⚙️ {{ eq.name }}</span>
+                <div class="mt-1 flex items-center justify-between gap-1 pl-1.5 rounded bg-slate-800 {% if eq.status == 'offline' %}opacity-60{% endif %}">
+                  <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" title="{{ eq.name }}" class="min-w-0 truncate text-[10px] leading-tight text-slate-300 hover:text-cyan-400 {% if eq.status == 'offline' %}line-through{% endif %}">⚙️ {{ eq.name }}</a>
+                  {% include 'aquarium/partials/equipment_actions.html' with unplace=True no_bin=True %}
+                </div>
               {% endfor %}
+              <div class="mt-auto pt-2 text-center">{% include 'aquarium/partials/equipment_picker.html' with picker=cr.picker label='+ Add device' %}</div>
             </div>
             {% endwith %}
           {% endfor %}
@@ -112,30 +118,6 @@
         {% endif %}
       {% else %}
         <p class="text-xs text-slate-500">This sump isn't split into chambers yet. You can split it under <a href="{% url 'sump_edit' sump.id %}#chambers" class="text-cyan-400 hover:underline">Edit sump</a>.</p>
-      {% endif %}
-
-
-      {% if row.chambers %}
-        <div class="divide-y divide-slate-800/80">
-          {% for cr in row.chambers %}
-            {% with c=cr.chamber %}
-            <div class="py-2 space-y-1.5 text-xs">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-slate-300"><span class="text-slate-500">#{{ c.position }}</span> {{ c.get_chamber_type_display }}{% if c.name %} · {{ c.name }}{% endif %}</span>
-                <span class="flex items-center gap-3">
-                  <span class="text-slate-400">{{ c.volume_gallons }} gal</span>
-                  {% include 'aquarium/partials/equipment_picker.html' with picker=cr.picker %}
-                </span>
-              </div>
-              {% if cr.equipment %}
-                <div class="flex flex-wrap gap-1.5">
-                  {% for eq in cr.equipment %}{% include 'aquarium/partials/equipment_chip.html' with unplace=True %}{% endfor %}
-                </div>
-              {% endif %}
-            </div>
-            {% endwith %}
-          {% endfor %}
-        </div>
       {% endif %}
 
       {% if row.equipment %}
@@ -220,7 +202,7 @@
       {% include 'aquarium/partials/equipment_picker.html' with picker=light_picker label='+ Add more sun' %}
     </div>
     {% if lights %}
-      <div class="space-y-2">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
         {% for eq in lights %}
           <div class="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-1.5 {% if eq.status == 'offline' %}opacity-50{% endif %}">
             <div class="flex items-start justify-between gap-2">
@@ -230,7 +212,7 @@
               </div>
               {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
             </div>
-            <div class="max-w-sm">{% include 'aquarium/partials/power_slider_form.html' %}</div>
+            {% include 'aquarium/partials/power_slider_form.html' %}
             {% for r in eq.schedules %}
               {% include 'aquarium/partials/light_schedule.html' %}
             {% empty %}

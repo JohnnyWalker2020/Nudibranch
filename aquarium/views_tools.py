@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.forms import UserCreationForm
-from django.db.models import Count
+from django.db.models import Count, F
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -27,6 +27,7 @@ from .forms_tools import (
     WishlistLivestockForm,
 )
 from .forms import QuickTimerForm
+from .silly_names import random_epitaph
 from .models import (
     Animal, AnimalPhoto, AppSettings, CostEntry, currency_choices, MaintenanceRoutine, PlanProject, DosingReservoir, FillTimer, ParameterType, PlannedItem, PlannedSystem,
     QuarantineEntry, QuickTimer, ROSystem, SpeciesCatalog, Tank, WebcamFeed, WebhookDelivery, WebhookEndpoint,
@@ -193,11 +194,27 @@ def _spending_points(entries, start, end):
     return points
 
 
+def _graveyard():
+    """Everyone marked deceased, most recent first. Those with no known date go last."""
+    return (Animal.objects.filter(status='deceased').select_related('tank').prefetch_related('groups')
+            .order_by(F('died_on').desc(nulls_last=True), 'nickname', 'name'))
+
+
+@require_POST
+def animal_epitaph_view(request, animal_id):
+    """Carves a different line on a tombstone."""
+    animal = get_object_or_404(Animal, id=animal_id, status='deceased')
+    animal.epitaph = random_epitaph(not_this=animal.epitaph)
+    animal.save(update_fields=['epitaph'])
+    return redirect(reverse('the_damage') + '#graveyard')
+
+
 def the_damage_view(request):
     active = get_active_tank(request)
     if not AppSettings.load().costs_enabled:
         return render(request, 'aquarium/the_damage.html', {
             'saved_values': CostEntry.objects.count(),
+            'graveyard': _graveyard(),
         })
 
     # ?tank=all or ?tank=<id>, defaulting to the selected system.
@@ -257,6 +274,7 @@ def the_damage_view(request):
         ('All time', {}),
     ]
     return render(request, 'aquarium/the_damage.html', {
+        'graveyard': _graveyard(),
         'entries': sorted(entries, key=lambda e: (e.spent_on, e.pk), reverse=True)[:100],
         'total': total,
         'verdict': _damage_verdict(total),

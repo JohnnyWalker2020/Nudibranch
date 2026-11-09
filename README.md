@@ -128,6 +128,9 @@ Pick a tank from the **Tank** menu at the top of any page (beside the logo on a 
 - Browse **240+ built-in species** with care level, diet, reef safety, minimum tank size, adult size and temperament. Add one with a single tap.
 - **Categories** work like tags, and an animal can be in several. Corals from the catalog go into **SPS Corals**, **LPS Corals** or **Soft Corals** (using the usual hobby labels) and also stay in **Corals**. Anemones get their own **Anemones** category.
 - **Edit categories** (top of the Livestock page) manages them all on one page: rename, change the icon, colour and description, reorder with ↑ and ↓, **Merge into** another category (its animals move over and it goes away), or delete one (its animals are kept). The colour shows as a stripe on the category filters and badges.
+- **Names:** give an animal a name of its own on its form, or tap **🎲 Silly name** there or **Give it a silly name** on its card. The name is kept once saved.
+- **Banned to the sump:** tick it on the animal's form to put a ⛓️ tag on its card.
+- **Deceased:** an animal marked deceased leaves the list. A small link at the bottom of the page shows them, so you can fix a mistake.
 - See **compatibility warnings** when an animal may be too big for the tank, may fight, isn't reef safe, or would push the fish load too high.
 - **Quarantine tracker:** day counter and medication and observation log. When the planned days are up, you get a notification and the quarantine ends, marking the animal healthy.
 - **Growth timeline:** dated photos of each animal with a before and after slider.
@@ -194,6 +197,7 @@ Touch the nudibranch (the app icon) three times quickly, and it stings you with 
 - Planner and Wishlist prices are always visible, and only reach the ledger when an item moves into an active tank.
 - Filter by tank and dates.
 - **Put out the fire** to hide your spending again. Your values aren't erased.
+- **The Graveyard** sits at the bottom, fire or no fire: a tombstone for each animal marked deceased, with its name, last words and a tiny copy of its photo. **🎲 Recarve** picks new last words, and **Edit** changes them or brings it back.
 
 </details>
 

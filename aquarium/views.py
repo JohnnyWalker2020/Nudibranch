@@ -28,6 +28,7 @@ from .calculators import (
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, unit_choices
 from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
+from .silly_names import silly_name
 from .tank_presets import TANK_PRESETS
 from .forms import (
     AnimalForm, AnimalGroupForm, AnimalPhotoUploadForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
@@ -838,14 +839,16 @@ def livestock_view(request):
     animals = in_system(Animal.objects.select_related('tank').prefetch_related('groups'), tank)
     if group_id:
         animals = animals.filter(groups__id=group_id)
-    if status_filter:
-        animals = animals.filter(status=status_filter)
+    departed_count = animals.filter(status='deceased').count()
+    # The dead aren't listed with the living, but you can still reach them to fix a mistake.
+    animals = animals.filter(status=status_filter) if status_filter else animals.exclude(status='deceased')
 
     groups = _groups_with_counts(tank)
     form = AnimalForm()
 
     return render(request, 'aquarium/livestock.html', {
         'animals': animals,
+        'departed_count': departed_count,
         'groups': groups,
         'selected_group': group_id,
         'selected_status': status_filter,
@@ -989,6 +992,22 @@ def animal_upload_photo_view(request, animal_id):
         else:
             _flash_form_errors(request, form)
     return redirect('livestock')
+
+
+def silly_name_view(request):
+    """GET: a silly name for the animal form's dice button. Nothing is saved until the form is."""
+    return JsonResponse({'name': silly_name(request.GET.get('about', ''))})
+
+
+@require_POST
+def animal_silly_name_view(request, animal_id):
+    """Names an unnamed animal from its livestock card, and saves it. A name it already has is left alone."""
+    animal = get_object_or_404(Animal, id=animal_id)
+    if not animal.nickname:
+        animal.nickname = silly_name(f"{animal.name} {animal.species}")
+        animal.save(update_fields=['nickname'])
+        messages.success(request, f"{animal.name} shall henceforth be known as {animal.nickname}.")
+    return redirect(_safe_next(request, 'livestock'))
 
 
 def animal_delete_view(request, animal_id):
