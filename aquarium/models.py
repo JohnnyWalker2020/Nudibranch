@@ -53,8 +53,14 @@ RANGE_FIELDS = ('low_limit', 'min_ideal', 'max_ideal', 'high_limit')
 
 class ParameterTypeQuerySet(models.QuerySet):
     def in_use(self):
-        """Every parameter, or only the regular ones while ICP elements are switched off in Settings."""
-        return self if AppSettings.load().icp_enabled else self.filter(is_trace=False)
+        """Every parameter, or while ICP elements are switched off in Settings, the regular ones plus any ICP
+        elements picked one at a time."""
+        return self if AppSettings.load().icp_enabled else self.filter(visible_q())
+
+
+def visible_q(prefix=''):
+    """The Q that keeps a parameter in sight while ICP is switched off. prefix='parameter_type__' for logs."""
+    return models.Q(**{f'{prefix}is_trace': False}) | models.Q(**{f'{prefix}icp_picked': True})
 
 
 class ParameterType(models.Model):
@@ -77,6 +83,8 @@ class ParameterType(models.Model):
         help_text="Alert if no reading arrives for this many hours (for probes; blank = never)")
     is_trace = models.BooleanField(default=False, help_text='An ICP or trace element: left off the All chart and listed after the others')
     show_on_dashboard = models.BooleanField(default=True, help_text='Show a card for it on the dashboard')
+    icp_picked = models.BooleanField(
+        default=False, help_text='An ICP element added on its own, so it shows even while ICP elements are switched off')
 
     class Meta:
         ordering = ['display_order', 'name']

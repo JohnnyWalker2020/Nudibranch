@@ -3294,6 +3294,7 @@ class RoDiDilutionTests(TestCase):
         Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
         page = self.client.get(reverse('tools'))
         self.assertContains(page, 'data-fix-find="ro_di"')
+        self.assertContains(page, 'id="fix-max-daily-unit" data-units="ppt,sg"')
         self.assertContains(page, 'Dilute with RO/DI')
 
 
@@ -4570,6 +4571,72 @@ class IcpElementTests(TestCase):
         self.assertContains(self.client.get(reverse('app_settings')), 'Enable ICP elements')
 
 
+class IcpPickOneTests(TestCase):
+    """ICP elements added one at a time while the whole ICP list stays switched off."""
+    def setUp(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'icp_enabled': False})
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.iodine = ParameterType.objects.get(code='iodine')
+        self.copper = ParameterType.objects.get(code='copper')
+
+    def test_add_page_lists_the_icp_elements_to_tick(self):
+        page = self.client.get(reverse('parameter_type_create'))
+        self.assertContains(page, 'From an ICP test')
+        self.assertContains(page, f'name="icp" value="{self.iodine.pk}"')
+        self.assertContains(page, 'Or make your own')
+        self.assertContains(self.client.get(reverse('parameters')), f'href="{reverse("parameter_type_create")}"')
+
+    def test_ticking_adds_just_those(self):
+        response = self.client.post(reverse('parameter_icp_add'), {'icp': [self.iodine.pk, self.copper.pk]})
+        self.assertRedirects(response, '/parameters/?param=copper', fetch_redirect_response=False)
+        visible = set(ParameterType.objects.in_use().filter(is_trace=True).values_list('code', flat=True))
+        self.assertEqual(visible, {'iodine', 'copper'})
+        from .forms import QuickParameterLogForm
+        self.assertIn(self.iodine, list(QuickParameterLogForm().fields['parameter_type'].queryset))
+        self.assertNotContains(self.client.get(reverse('parameter_type_create')), f'name="icp" value="{self.iodine.pk}"')
+
+    def test_picked_tests_show_in_the_csv_and_water_page(self):
+        self.client.post(reverse('parameter_icp_add'), {'icp': [self.iodine.pk]})
+        ParameterLog.objects.create(parameter_type=self.iodine, tank=self.tank, value=Decimal('0.06'))
+        ParameterLog.objects.create(parameter_type=self.copper, tank=self.tank, value=Decimal('1'))
+        csv = self.client.get(reverse('export_tests')).content.decode('utf-8-sig')
+        self.assertIn('Iodine', csv)
+        self.assertNotIn('Copper', csv)
+        self.assertContains(self.client.get(reverse('parameters')), 'ICP ▾')
+
+    def test_nothing_ticked_says_so(self):
+        response = self.client.post(reverse('parameter_icp_add'), {})
+        self.assertRedirects(response, reverse('parameter_type_create'), fetch_redirect_response=False)
+        self.assertFalse(ParameterType.objects.filter(icp_picked=True).exists())
+
+    def test_regular_parameters_cannot_be_picked(self):
+        alk = ParameterType.objects.create(name='Alk test', code='alk-test', unit='dKH', min_ideal=8, max_ideal=9)
+        self.client.post(reverse('parameter_icp_add'), {'icp': [alk.pk]})
+        alk.refresh_from_db()
+        self.assertFalse(alk.icp_picked)
+
+    def test_take_off_my_list_keeps_the_tests(self):
+        self.client.post(reverse('parameter_icp_add'), {'icp': [self.iodine.pk]})
+        ParameterLog.objects.create(parameter_type=self.iodine, tank=self.tank, value=Decimal('0.06'))
+        settings_page = self.client.get(reverse('parameter_settings', args=[self.iodine.pk]))
+        self.assertContains(settings_page, 'Take off my list')
+        self.client.post(reverse('parameter_icp_remove', args=[self.iodine.pk]))
+        self.assertNotIn(self.iodine, list(ParameterType.objects.in_use()))
+        self.assertEqual(self.iodine.logs.count(), 1)
+        self.client.post(reverse('parameter_icp_add'), {'icp': [self.iodine.pk]})
+        self.assertIn(self.iodine, list(ParameterType.objects.in_use()))
+
+    def test_remove_needs_post(self):
+        self.assertEqual(self.client.get(reverse('parameter_icp_remove', args=[self.iodine.pk])).status_code, 405)
+        self.assertEqual(self.client.get(reverse('parameter_icp_add')).status_code, 405)
+
+    def test_with_icp_switched_on_the_picker_says_so(self):
+        AppSettings.objects.filter(pk=1).update(icp_enabled=True)
+        page = self.client.get(reverse('parameter_type_create'))
+        self.assertContains(page, "they're already on your list")
+        self.assertNotContains(page, 'name="icp"')
+
+
 class FinalReviewTests(TestCase):
     def setUp(self):
         self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
@@ -4586,7 +4653,7 @@ class FinalReviewTests(TestCase):
         form = ParameterTypeForm(data={'name': 'Iodine', 'code': 'my-iodine', 'unit': 'ppm', 'decimal_places': 3,
                                        'min_ideal': 0.05, 'max_ideal': 0.07, 'color': '#000000', 'display_order': 9})
         self.assertFalse(form.is_valid())
-        self.assertIn('Enable ICP elements', form.errors['name'][0])
+        self.assertIn('From an ICP test', form.errors['name'][0])
 
     def test_csv_leaves_out_icp_while_off(self):
         copper = ParameterType.objects.get(code='copper')
@@ -5213,6 +5280,43 @@ class WaterQualityRatingTests(TestCase):
         self.assertEqual(q['score'], 75)
         self.assertEqual(q['dragging'][0]['parameter'].pk, self.alk.pk)
         self.assertEqual([pt.pk for pt in q['stale']], [old.pk])
+
+    def test_freshness_fades_after_a_week(self):
+        from .water_quality import _freshness
+        self.assertEqual(_freshness(0), 1)
+        self.assertEqual(_freshness(7), 1)
+        self.assertAlmostEqual(_freshness(18.5), 0.5)
+        self.assertEqual(_freshness(30), 0)
+        self.assertEqual(_freshness(90), 0)
+
+    def test_old_tests_lower_confidence_but_not_the_score(self):
+        from .views import _water_quality
+        ParameterLog.objects.all().delete()
+        self._log(self.alk, 8.2)
+        fresh = _water_quality(self.tank)
+        self.assertEqual((fresh['confidence'], fresh['confidence_level'], fresh['oldest']), (100, 'High', []))
+        ParameterLog.objects.all().delete()
+        self._log(self.alk, 8.2, days_ago=18.5)
+        aged = _water_quality(self.tank)
+        self.assertEqual(aged['score'], 100)
+        self.assertEqual((aged['confidence'], aged['confidence_level']), (50, 'Medium'))
+        self.assertEqual([(r['parameter'].pk, r['age_days']) for r in aged['oldest']], [(self.alk.pk, 18)])
+
+    def test_tests_too_old_to_count_pull_confidence_down(self):
+        from .views import _water_quality
+        ParameterLog.objects.all().delete()
+        self._log(self.alk, 8.2)  # core, counts double
+        old = ParameterType.objects.create(name='Iodine x', code='iodine_x', unit='ppb', min_ideal=50, max_ideal=70)
+        self._log(old, 60, days_ago=60)
+        q = _water_quality(self.tank)
+        self.assertEqual((q['confidence'], q['confidence_level']), (67, 'Medium'))
+
+    def test_card_shows_confidence_and_oldest(self):
+        ParameterLog.objects.all().delete()
+        self._log(self.alk, 8.2, days_ago=25)
+        page = self.client.get(reverse('parameters'))
+        self.assertContains(page, 'Confidence: Low (22%)')
+        self.assertContains(page, 'Oldest: Alkalinity 25 days')
 
     def test_no_recent_tests_means_no_rating(self):
         from .views import _water_quality

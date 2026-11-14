@@ -174,6 +174,13 @@
       </button>
     </div>
   </form>
+  {% if parameter.is_trace and parameter.icp_picked %}
+    <form method="POST" action="{% url 'parameter_icp_remove' parameter.id %}" class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-slate-900 border border-slate-800 rounded-2xl">
+      {% csrf_token %}
+      <span class="text-xs text-slate-400">🧪 Added from the ICP list.{% if not icp_on %} Taking it off hides it again{% if logs_count %} and keeps its {{ logs_count }} logged test{{ logs_count|pluralize }}{% endif %}.{% endif %}</span>
+      <button type="submit" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800 border border-slate-700 hover:text-white transition-colors">Take off my list</button>
+    </form>
+  {% endif %}
   <form id="reset-targets" method="POST" action="{% url 'parameter_targets_reset' parameter.id %}" class="hidden">{% csrf_token %}</form>
 
 </div>

@@ -32,6 +32,7 @@
         {% for pt in trace_types %}<option value="{{ pt.code }}" {% if selected_code == pt.code %}selected{% endif %}>{{ pt.name }}</option>{% endfor %}
       </select>
       {% endif %}
+    <a href="{% url 'parameter_type_create' %}" class="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-cyan-500/50 transition-colors" title="Add something else you test, or elements from an ICP test">+ Add a test</a>
   </div>
 
   <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">

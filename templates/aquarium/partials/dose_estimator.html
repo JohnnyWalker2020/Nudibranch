@@ -12,8 +12,8 @@
         <select id="est-parameter" class="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm"></select>
       </div>
       <div class="col-span-2">
-        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
-          <label for="est-gallons" class="block text-[11px] font-bold uppercase text-slate-400">Volume to treat</label>
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <label for="est-gallons" class="block shrink-0 text-[11px] font-bold uppercase text-slate-400">Volume to treat</label>
           {% include 'aquarium/partials/volume_picker.html' with prefix='est' %}
         </div>
         <div class="unit-field"><input id="est-gallons" type="number" step="0.1" min="0"><button type="button" id="est-gallons-unit" data-units="gal,L" data-name="Volume unit" value="gal" class="unit-btn">gal</button></div>

@@ -60,6 +60,20 @@
       salinityUnit = unit;
       recalculate();
     }
+    // The daily limit is kept in ppt, and the box only shows it in the unit picked, so switching back and forth
+    // doesn't round it away. A change in SG is tiny: 1 ppt is about 0.00074 SG.
+    const SG_PER_PPT = 0.026 / 35;
+    let maxDailyPpt = parseFloat(el('fix-max-daily').value);
+    el('fix-max-daily').addEventListener('input', () => {
+      const v = parseFloat(el('fix-max-daily').value);
+      maxDailyPpt = isNaN(v) ? NaN : el('fix-max-daily-unit').value === 'sg' ? v / SG_PER_PPT : v;
+    });
+    el('fix-max-daily-unit').addEventListener('change', e => {
+      const sgUnit = e.target.value === 'sg';
+      el('fix-max-daily').step = sgUnit ? '0.0001' : '0.1';
+      if (!isNaN(maxDailyPpt)) el('fix-max-daily').value = sgUnit ? Number((maxDailyPpt * SG_PER_PPT).toFixed(5)) : Number(maxDailyPpt.toFixed(2));
+    });
+
     el('fix-current-unit').addEventListener('change', e => setSalinityUnit(e.target.value, el('fix-target-unit')));
     el('fix-target-unit').addEventListener('change', e => setSalinityUnit(e.target.value, el('fix-current-unit')));
 
@@ -184,7 +198,7 @@
       const q = new URLSearchParams({
         current_volume: el('fix-volume').value, added: el('fix-added').value, volume_unit: volumeUnit,
         current: el('fix-current').value, target: el('fix-target').value, salinity_unit: salinityUnit,
-        mode, max_daily: el('fix-max-daily').value, brand: el('fix-brand').value, find: asked,
+        mode, max_daily: isNaN(maxDailyPpt) ? '' : maxDailyPpt, brand: el('fix-brand').value, find: asked,
       });
       try {
         const res = await fetch('{% url "salinity_fix_api" %}?' + q.toString());

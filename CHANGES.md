@@ -2,9 +2,13 @@
 
 ## Round 23 (2026-11-13)
 
-Apply with `docker compose up -d --build`. No database changes.
+Apply with `docker compose up -d --build`; migration 0040 runs on start.
 
 - **Dilute with RO/DI**: a new switch on the **Salinity Fixer** (Tools). Give it the water you have, its salinity and the salinity you want, and it works out how much 0 ppt RO/DI to add on top (**Top up**) or to swap in (**Water change**). Drops bigger than your daily limit get a day-by-day plan, and it points you to **Mix a batch** if the target is higher than your water.
+- **Water quality confidence**: the rating shows a confidence level under the grade, from how old the tests behind it are. Tests up to 7 days old count fully, and confidence drops gradually until 30 days. The score itself doesn't change, and it names the oldest tests.
+- **Most change per day** (Salinity Fixer): the unit is now a real ppt ⇄ SG switch.
+- **Pick single ICP elements**: **+ Add a test** on the Water page has a **From an ICP test** box. Tick the elements you test and they're added with their units and target ranges, without switching on the whole ICP list. **Take off my list** on an element's settings page hides it again and keeps its tests. Migration 0040 runs on start.
+- **Calculator layout**: the volume dropdown sits on one line beside its label, so the boxes in the Salt Mixing Calculator, Dose Estimator, Salinity Fixer and fill timer line up again. Its corners now match the other boxes.
 
 ## Round 22 (2026-11-09)
 

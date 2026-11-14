@@ -1,6 +1,6 @@
-<!-- Volume choice shared by the calculators, sitting on the volume field's label row. The tank comes from the selector at the top of every page. -->
-<span id="{{ prefix }}-picker" class="min-w-0">
-  <select id="{{ prefix }}-scope" aria-label="Use the volume of" title="Change the tank at the top of the page" class="max-w-[12rem] truncate py-0.5 pl-2 pr-7 bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-cyan-400">
+<!-- Volume choice shared by the calculators, sitting on the volume field's label row. The -my-1 keeps that row as tall as a plain label, so the boxes below line up with their neighbours. The tank comes from the selector at the top of every page. -->
+<span id="{{ prefix }}-picker" class="min-w-0 flex justify-end">
+  <select id="{{ prefix }}-scope" aria-label="Use the volume of" title="Change the tank at the top of the page" class="max-w-full truncate -my-1 py-0.5 pl-2 pr-7 bg-slate-800 border border-slate-700 rounded-xl text-[11px] font-semibold text-cyan-400">
     <option value="system">All water (tank + sump)</option>
     <option value="display">Display only</option>
     <option value="sump">Sump only</option>

@@ -39,6 +39,7 @@ from .models import (
     Animal, AnimalGroup, AppSettings, DoseLog, DosingReservoir, Equipment, FillTimer, MaintenanceRoutine, ParameterLog,
     ParameterType, QuickTimer, SpeciesCatalog, Sump, SumpChamber, Tank, WaterChangeLog, WebcamFeed,
     ParameterTarget, PlumbingRun, RANGE_FIELDS, in_system, latest_logs_by_parameter, not_retired, reef2reef_search, trend,
+    visible_q,
 )
 
 
@@ -148,7 +149,7 @@ def _logs_for_list(tank):
     """Logs ready to show their status, without a query per row to look up that system's targets."""
     logs = in_system(ParameterLog.objects.select_related('parameter_type').prefetch_related('parameter_type__targets'), tank)
     if not AppSettings.load().icp_enabled:  # ICP readings stay out of sight while ICP is switched off
-        logs = logs.filter(parameter_type__is_trace=False)
+        logs = logs.filter(visible_q('parameter_type__'))
     return logs
 
 
@@ -427,6 +428,7 @@ def parameter_settings_view(request, param_id):
 
     return render(request, 'aquarium/parameter_settings.html', {
         'parameter': old,
+        'icp_on': AppSettings.load().icp_enabled,
         'form': form,
         'suggestions': suggestions,
         'logs_count': logs_count,
@@ -477,11 +479,44 @@ def parameter_type_create_view(request):
             return redirect(f"/parameters/?param={pt.code}")
     else:
         form = ParameterTypeForm(initial={'unit': 'ppm', 'decimal_places': 2})
+    icp_on = AppSettings.load().icp_enabled
     return render(request, 'aquarium/generic_form.html', {
         'form': form, 'title': 'Add Custom Parameter',
         'subtitle': 'Track anything else you test: nitrite, ammonia, ORP...',
         'back_url': '/parameters/',
+        'before_form': 'aquarium/partials/icp_picker.html',
+        'icp_on': icp_on,
+        'icp_choices': [] if icp_on else ParameterType.objects.filter(is_trace=True, icp_picked=False).order_by('name'),
+        'icp_any': ParameterType.objects.filter(is_trace=True).exists(),
     })
+
+
+@require_POST
+def parameter_icp_add_view(request):
+    """Adds the ticked ICP elements one by one, without switching on the whole ICP list."""
+    ids = [_to_int(v, None) for v in request.POST.getlist('icp')]
+    picked = ParameterType.objects.filter(is_trace=True, icp_picked=False, pk__in=[i for i in ids if i])
+    names = list(picked.order_by('name').values_list('name', flat=True))
+    picked.update(icp_picked=True)
+    if not names:
+        messages.error(request, 'Tick at least one element to add.')
+        return redirect('parameter_type_create')
+    messages.success(request, f"Added {', '.join(names)}. Units and target ranges are built in; change them under each one's settings.")
+    first = ParameterType.objects.filter(name=names[0]).first()
+    return redirect(f"/parameters/?param={first.code}" if first else '/parameters/')
+
+
+@require_POST
+def parameter_icp_remove_view(request, param_id):
+    """Hides an ICP element added on its own again. Its tests are kept for if it comes back."""
+    pt = get_object_or_404(ParameterType, id=param_id, is_trace=True)
+    pt.icp_picked = False
+    pt.save(update_fields=['icp_picked'])
+    if AppSettings.load().icp_enabled:
+        messages.success(request, f"{pt.name} is off your own list, but it still shows while all ICP elements are switched on.")
+    else:
+        messages.success(request, f"{pt.name} is off your list. Its {pt.logs.count()} logged tests are kept, and come back if you add it again.")
+    return redirect('/parameters/')
 
 
 def parameter_type_delete_view(request, param_id):

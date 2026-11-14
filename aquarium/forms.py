@@ -403,10 +403,10 @@ class ParameterTypeForm(forms.ModelForm):
         cleaned = super().clean()
         # An ICP element can be hidden (switched off in Settings), so say why its name is taken.
         name, code = cleaned.get('name') or '', cleaned.get('code') or ''
-        hidden = ParameterType.objects.filter(is_trace=True).filter(models.Q(name__iexact=name) | models.Q(code=code)).exclude(pk=self.instance.pk).first()
+        hidden = ParameterType.objects.filter(is_trace=True, icp_picked=False).filter(models.Q(name__iexact=name) | models.Q(code=code)).exclude(pk=self.instance.pk).first()
         if hidden and not AppSettings.load().icp_enabled:
-            self.add_error('name', f"{hidden.name} is one of the ICP elements. Turn on Enable ICP elements under "
-                                   "Tools > Settings to use it.")
+            self.add_error('name', f"{hidden.name} is one of the ICP elements, already set up for you. Tick it "
+                                   "under From an ICP test above to add it.")
         validate_parameter_ranges(self, cleaned)
         if cleaned.get('decimal_places') is not None and cleaned['decimal_places'] > 4:
             self.add_error('decimal_places', "Use between 0 and 4 decimal places.")

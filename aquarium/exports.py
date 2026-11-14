@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from .active import get_active_tank
-from .models import AppSettings, DoseLog, ParameterLog, WaterChangeLog, in_system
+from .models import AppSettings, DoseLog, ParameterLog, WaterChangeLog, in_system, visible_q
 
 LITERS_PER_GAL = 3.78541
 
@@ -54,7 +54,7 @@ def export_tests(request):
     def rows(tank):
         logs = _scoped(ParameterLog.objects.select_related('tank', 'parameter_type'), tank).order_by('measured_at')
         if not AppSettings.load().icp_enabled:  # ICP readings stay out of sight while ICP is off
-            logs = logs.filter(parameter_type__is_trace=False)
+            logs = logs.filter(visible_q('parameter_type__'))
         for log in logs.iterator():
             yield [log.tank.name if log.tank else '', log.parameter_type.name, log.parameter_type.format_value(log.value), log.parameter_type.unit,
                    _when(log.measured_at), log.notes]

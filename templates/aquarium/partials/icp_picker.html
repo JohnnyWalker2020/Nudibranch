@@ -1,0 +1,41 @@
+{% comment %}On Add Custom Parameter: tick ICP elements to add them one by one. Needs icp_on, icp_choices and icp_any.{% endcomment %}
+{% if icp_any %}
+<section class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4 shadow-xl">
+  <div>
+    <h2 class="text-base font-bold text-white">🧪 From an ICP test</h2>
+    <p class="text-xs text-slate-400">The elements a lab (ICP) water test measures, already set up with units and target ranges. Tick the ones you test.</p>
+  </div>
+  {% if icp_on %}
+    <p class="text-xs text-slate-300">All ICP elements are switched on under Tools &gt; Settings, so they're already on your list.</p>
+  {% elif icp_choices %}
+    <form method="POST" action="{% url 'parameter_icp_add' %}" class="space-y-4" id="icp-picker">
+      {% csrf_token %}
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2">
+        {% for pt in icp_choices %}
+          <label class="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+            <input type="checkbox" name="icp" value="{{ pt.id }}" class="w-4 h-4 rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500">
+            <span class="min-w-0 truncate">{{ pt.name }} <span class="text-[10px] text-slate-500">{{ pt.unit }}</span></span>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="flex justify-end pt-4 border-t border-slate-800">
+        <button type="submit" disabled class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-sm rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100">Add these</button>
+      </div>
+    </form>
+    <script>
+      (function () {
+        const form = document.getElementById('icp-picker');
+        const button = form.querySelector('button[type=submit]');
+        form.addEventListener('change', () => {
+          const n = form.querySelectorAll('input[name=icp]:checked').length;
+          button.disabled = !n;
+          button.textContent = n ? `Add these (${n})` : 'Add these';
+        });
+      })();
+    </script>
+  {% else %}
+    <p class="text-xs text-slate-300">You've added every ICP element. 🎉 Take one off from its settings page.</p>
+  {% endif %}
+</section>
+<h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 text-center">Or make your own</h2>
+{% endif %}

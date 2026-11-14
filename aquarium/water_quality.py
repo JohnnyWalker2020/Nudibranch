@@ -7,12 +7,18 @@ scored against the ranges you set (or the shared defaults).
 - Between the ideal range and the alarm limit: slides from 100 down to 50.
 - Past the limit: from 40 down to 0 as it gets further out.
 - The core reef parameters count double.
+
+Confidence is separate from the score: it says how much to trust it, from how old the tests behind it are. A test
+up to FRESH_DAYS old counts fully, then fades in a straight line to nothing at RECENT_DAYS. Parameters too old to
+count (but tested at some point) pull confidence down too, since the score can't see them.
 """
 from datetime import timedelta
 
 from django.utils import timezone
 
 RECENT_DAYS = 30
+FRESH_DAYS = 7
+CONFIDENCE_LEVELS = [(80, 'High'), (50, 'Medium'), (0, 'Low')]  # (lowest %, level)
 CORE_CODES = {'salinity', 'temperature', 'alkalinity', 'calcium', 'magnesium', 'nitrate', 'phosphate', 'ph'}
 
 GRADES = [  # (lowest score, grade, a few words)
@@ -41,30 +47,47 @@ def _score(value, low_ideal, high_ideal, low_limit, high_limit):
     return max(0.0, 40.0 * (1 - beyond))
 
 
+def _freshness(age_days):
+    """1 for a test up to FRESH_DAYS old, fading to 0 at RECENT_DAYS."""
+    if age_days <= FRESH_DAYS:
+        return 1.0
+    return max(0.0, 1 - (age_days - FRESH_DAYS) / (RECENT_DAYS - FRESH_DAYS))
+
+
+def _weight(pt):
+    return 2.0 if (pt.code or '').lower() in CORE_CODES else 1.0
+
+
 def rate(parameter_types, latest_logs, now=None):
     """The rating for one tank. `parameter_types` must already carry that tank's ranges (ParameterType.for_system)
     and `latest_logs` is {parameter id: newest log}. Returns None when nothing recent has been logged."""
     now = now or timezone.now()
     cutoff = now - timedelta(days=RECENT_DAYS)
     rows, stale, total, weights = [], [], 0.0, 0.0
+    fresh_total, fresh_weights = 0.0, 0.0
     for pt in parameter_types:
         log = latest_logs.get(pt.pk)
         if log is None:
             continue
+        fresh_weights += _weight(pt)
         if log.measured_at < cutoff:
             stale.append(pt)
             continue
+        age_days = (now - log.measured_at).total_seconds() / 86400
+        fresh_total += _freshness(age_days) * _weight(pt)
         low_limit = float(pt.low_limit) if pt.low_limit is not None else None
         high_limit = float(pt.high_limit) if pt.high_limit is not None else None
         score = _score(float(log.value), float(pt.min_ideal), float(pt.max_ideal), low_limit, high_limit)
-        weight = 2.0 if (pt.code or '').lower() in CORE_CODES else 1.0
-        rows.append({'parameter': pt, 'log': log, 'score': round(score)})
+        weight = _weight(pt)
+        rows.append({'parameter': pt, 'log': log, 'score': round(score), 'age_days': int(age_days)})
         total += score * weight
         weights += weight
     if not rows:
         return None
     overall = round(total / weights)
     grade, blurb = next((g, b) for floor, g, b in GRADES if overall >= floor)
+    confidence = round(100 * fresh_total / fresh_weights)
+    oldest = sorted((r for r in rows if r['age_days'] > FRESH_DAYS), key=lambda r: -r['age_days'])[:3]
     rows.sort(key=lambda r: r['score'])
     return {
         'score': overall,
@@ -75,4 +98,8 @@ def rate(parameter_types, latest_logs, now=None):
         'dragging': [r for r in rows if r['score'] < 100][:4],
         'stale': stale,
         'days': RECENT_DAYS,
+        'confidence': confidence,
+        'confidence_level': next(level for floor, level in CONFIDENCE_LEVELS if confidence >= floor),
+        'oldest': oldest,
+        'fresh_days': FRESH_DAYS,
     }

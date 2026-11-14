@@ -15,6 +15,13 @@
         <div class="min-w-0">
           <h3 class="text-base font-bold {% if q.tone == 'good' %}text-emerald-400{% elif q.tone == 'fair' %}text-amber-400{% else %}text-rose-400{% endif %}">💎 {{ q.grade }}</h3>
           <p class="text-xs text-slate-300">{{ q.blurb }}</p>
+          <p class="mt-1 text-[11px] font-semibold {% if q.confidence_level == 'High' %}text-emerald-300{% elif q.confidence_level == 'Medium' %}text-amber-300{% else %}text-rose-300{% endif %}"
+             title="How much to trust the score, from how old the tests behind it are. Tests up to {{ q.fresh_days }} days old count fully.">
+            Confidence: {{ q.confidence_level }} ({{ q.confidence }}%)
+          </p>
+          {% if q.oldest %}
+            <p class="text-[10px] text-slate-500">Oldest: {% for r in q.oldest %}{{ r.parameter.name }} {{ r.age_days }} day{{ r.age_days|pluralize }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+          {% endif %}
         </div>
       </div>
       <div class="flex-1 min-w-0 space-y-2">
@@ -36,7 +43,7 @@
         {% endif %}
       </div>
     </div>
-    <p class="mt-3 text-[10px] text-slate-500">From your latest test of each of {{ q.counted }} parameter{{ q.counted|pluralize }} in the last {{ q.days }} days, against this tank's target ranges. Core parameters count double. It's a summary of your own tests, not a lab result.</p>
+    <p class="mt-3 text-[10px] text-slate-500">From your latest test of each of {{ q.counted }} parameter{{ q.counted|pluralize }} in the last {{ q.days }} days, against this tank's target ranges. Core parameters count double. Confidence drops as tests get older than {{ q.fresh_days }} days. It's a summary of your own tests, not a lab result.</p>
   {% else %}
     <h3 class="text-base font-bold text-white flex items-center gap-2"><span>💎</span> Water quality</h3>
     <p class="mt-1 text-xs text-slate-400">No tests in the last 30 days yet. Log a few and your rating shows up here.</p>
