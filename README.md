@@ -40,16 +40,19 @@ Built with **Python**, **Django 5**, **SQLite**, **Tailwind CSS**, **HTMX** and 
 
 You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose. New to Docker? Skip to [step by step](#-new-to-docker-step-by-step) below.
 
-1. Copy `.env.example` to `.env`, then fill in `DJANGO_SECRET_KEY` and `API_SECRET_KEY` with long random values. The file explains how. Git ignores `.env`, so it stays private.
-2. From the project folder, run:
+Nudibranch is published as a ready-built image, for normal PCs and 64-bit Raspberry Pi OS, so you don't need the source code.
+
+1. Make a folder for it, and save two files into it: [`docker-compose.yml`](https://raw.githubusercontent.com/JohnnyWalker2020/Nudibranch/main/docker-compose.yml) and [`.env.example`](https://raw.githubusercontent.com/JohnnyWalker2020/Nudibranch/main/.env.example).
+2. Copy `.env.example` to `.env`, then fill in `DJANGO_SECRET_KEY` and `API_SECRET_KEY` with long random values. The file explains how.
+3. From that folder, run:
 
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 
-3. Open **[http://localhost:8000](http://localhost:8000)** on the same computer. If there are no accounts yet, you'll be asked to create one.
+4. Open **[http://localhost:8000](http://localhost:8000)** on the same computer. If there are no accounts yet, you'll be asked to create one.
 
-Run the same command to apply updates. Database changes are applied on startup, and your data stays in the `data` folder.
+To update, run `docker compose pull`, then `docker compose up -d`. Database changes are applied on startup, and your data stays in the `data` folder. To stay on one version, set `NUDIBRANCH_VERSION` in `.env`, such as `1.0.0`.
 
 Keep a private copy of your `.env` file, such as in a password manager. It isn't included in the app's backups.
 
@@ -86,9 +89,37 @@ If you see "command not found" or "cannot connect to the Docker daemon", make su
 
 **3. Get Nudibranch**
 
-On the project's GitHub page, click the green **Code** button, then **Download ZIP**. Unzip it somewhere easy to find, such as your Documents folder. (If you already use Git, `git clone` works too, and makes updating easier.)
+You only need two small files. The app itself downloads by itself in step 5. Make a folder for it and go into it:
 
-Now point the terminal at that folder. Type `cd` and a space, drag the unzipped folder onto the terminal window, then press Enter. On Windows you can also right-click the folder in File Explorer and choose **Open in Terminal**.
+```bash
+mkdir Nudibranch
+```
+
+```bash
+cd Nudibranch
+```
+
+A new terminal starts in your home folder, so that's where this folder goes, which is a fine place for it. Now download the two files. On Windows (PowerShell):
+
+```powershell
+curl.exe -fsSL -o docker-compose.yml https://raw.githubusercontent.com/JohnnyWalker2020/Nudibranch/main/docker-compose.yml
+```
+
+```powershell
+curl.exe -fsSL -o .env.example https://raw.githubusercontent.com/JohnnyWalker2020/Nudibranch/main/.env.example
+```
+
+On Mac or Linux:
+
+```bash
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/JohnnyWalker2020/Nudibranch/main/docker-compose.yml
+```
+
+```bash
+curl -fsSL -o .env.example https://raw.githubusercontent.com/JohnnyWalker2020/Nudibranch/main/.env.example
+```
+
+Next time you open a terminal, go back to this folder with `cd Nudibranch` before running any of the commands below.
 
 **4. Make your private settings file**
 
@@ -121,16 +152,16 @@ Files starting with a dot are hidden in the Mac Finder. Press Cmd + Shift + . to
 **5. Start it**
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
-The first time takes a few minutes while Docker downloads and builds everything. Later starts take seconds. `-d` means it keeps running in the background after you close the terminal, and `--build` uses the latest copy of the code.
+The first time takes a few minutes while Docker downloads the app. Later starts take seconds. `-d` means it keeps running in the background after you close the terminal.
 
 **6. Open it**
 
 Go to **[http://localhost:8000](http://localhost:8000)** in a browser on the same computer and create your account. To use it from your phone, at home or away, see [Reaching it from your phone](#-reaching-it-from-your-phone) next.
 
-**Everyday commands** (run them in the project folder):
+**Everyday commands** (run them in your Nudibranch folder):
 
 | To... | Run |
 |---|---|
@@ -138,9 +169,9 @@ Go to **[http://localhost:8000](http://localhost:8000)** in a browser on the sam
 | Watch what it's doing (Ctrl + C stops watching, not the app) | `docker compose logs -f web` |
 | Stop it | `docker compose down` |
 | Start it again | `docker compose up -d` |
-| Update it | Get the new code (see below), then `docker compose up -d --build` |
+| Update it | `docker compose pull`, then `docker compose up -d` |
 
-**Updating from a ZIP:** unzip the new download over your existing folder, replacing the old files, so your `data` folder and `.env` stay where they are. If you unzip it somewhere new instead, copy `data` and `.env` across before starting it. With Git, `git pull` in the folder does all of this for you.
+**Updating:** `docker compose pull` downloads the newest version, and `docker compose up -d` switches to it. Take a backup first (**Tools > Backups**). If an update misbehaves, set `NUDIBRANCH_VERSION` in `.env` to the version you had before and run `docker compose up -d` again, restoring your backup if the update changed the database. The releases are listed on the project's GitHub page.
 
 Stopping, updating or restarting your computer doesn't touch your tanks, tests and photos. They live in the `data` folder, so never delete that folder, and keep backups (**Tools > Backups**). The app starts again by itself whenever Docker Desktop is running.
 
@@ -148,6 +179,7 @@ Stopping, updating or restarting your computer doesn't touch your tanks, tests a
 
 - **"Copy .env.example to .env and set DJANGO_SECRET_KEY":** the `.env` file is missing, or the key is empty. Go back to step 4.
 - **"port is already allocated":** another program is using port 8000. Close it, or restart your computer, and try again.
+- **"manifest unknown" or "pull access denied":** the version in `NUDIBRANCH_VERSION` doesn't exist, or there's a typo in it. Check the releases on GitHub, or leave it blank for the newest.
 - **The page won't load:** give it a minute after starting, then check `docker compose ps` says it's running. `docker compose logs web` shows any error.
 - **A form says it was rejected (CSRF):** the address in your browser isn't listed in `CSRF_TRUSTED_ORIGINS` in `.env`. Add it, then run `docker compose up -d`.
 
@@ -155,7 +187,7 @@ Stopping, updating or restarting your computer doesn't touch your tanks, tests a
 
 Every page, photo and backup needs a sign-in. You stay signed in for 30 days on each device, and **Sign out** is on the **Tools** page.
 
-Forgot your password? Reset it from the project folder, replacing `YOUR-USERNAME`:
+Forgot your password? Reset it from your Nudibranch folder, replacing `YOUR-USERNAME`:
 
 ```bash
 docker compose exec web python manage.py changepassword YOUR-USERNAME
@@ -540,6 +572,12 @@ curl -H "Authorization: Bearer YOUR-API-KEY" ...
 
 ## 🧑‍💻 Development
 
+To work on the code, clone the repository and copy `docker-compose.dev.yml` to `docker-compose.override.yml`. Docker Compose merges that file in automatically (and Git ignores it), so it builds the app from your folder instead of pulling the published image, and mounts the code into the container so template and Python edits show after a restart:
+
+```bash
+docker compose up -d --build
+```
+
 Run the tests against a temporary data folder, so your real data isn't touched:
 
 ```bash
@@ -553,12 +591,37 @@ docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python 
 - `static/css/tailwind.css` and `static/vendor/`: the styling and libraries, served from the app so it works without internet. The app doesn't need Node. If you change the classes used in a template, rebuild the CSS (below).
 - `static/fonts/`: the Press Start 2P pixel font used by the 8-bit style, by The Press Start 2P Project Authors under the SIL Open Font License (its licence is beside it).
 - [CHANGES.md](CHANGES.md): what changed in each round.
+- `.github/workflows/docker-image.yml`: runs the tests and builds the image on GitHub (see below).
 
 Rebuild the CSS after changing templates, or add `&& npm run vendor` to update the libraries as well:
 
 ```bash
 docker run --rm -v "$PWD:/app" -v /app/node_modules -w /app node:22-alpine sh -c "npm ci && npm run css"
 ```
+
+### Publishing a release
+
+The image is built and published by GitHub Actions, not by hand. Pushing a version tag does it:
+
+```bash
+git tag v1.0.0
+```
+
+```bash
+git push origin v1.0.0
+```
+
+The workflow runs the tests, then builds for normal PCs and Raspberry Pi and publishes `ghcr.io/johnnywalker2020/nudibranch` as `1.0.0`, `1.0` and `latest`. Its progress is on the repository's **Actions** tab. **Run workflow** there publishes the current main branch as `edge`, for trying something before a release. Pull requests are built and tested but not published.
+
+The first time, the published image is private. Make it public once under your GitHub profile > **Packages** > **nudibranch** > **Package settings** > **Change visibility**, or nobody else can download it.
+
+---
+
+## 📜 Licence
+
+Nudibranch is free software under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). You can use, change and share it. If you share a changed version, or run one as a website for other people, you must make your changed source code available under the same licence.
+
+The character icons were generated with ChatGPT. The Press Start 2P font has its own licence, the SIL Open Font License, which is beside it in `static/fonts/`.
 
 ---
 

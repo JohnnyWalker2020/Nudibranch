@@ -1,16 +1,16 @@
 name: Nudibranch
 services:
   web:
-    build: .
+    # The ready-built app from GitHub. Set NUDIBRANCH_VERSION in .env (like 1.0.0) to stay on one release;
+    # otherwise "latest". Working on the code itself? See docker-compose.dev.yml.
+    image: ghcr.io/johnnywalker2020/nudibranch:${NUDIBRANCH_VERSION:-latest}
     container_name: nudibranch_app
     restart: unless-stopped
     ports:
       # This computer only by default. See BIND_ADDRESS in .env.example.
       - "${BIND_ADDRESS:-127.0.0.1}:8000:8000"
     volumes:
-      # Live-mount project code so templates & Python edits update immediately
-      - .:/app
-      # Mounts the persistent directory for both SQLite DB and uploaded livestock photos
+      # Your database, photos and backups. Everything else comes from the image.
       - ./data:/app/data
     environment:
       - DEBUG=0

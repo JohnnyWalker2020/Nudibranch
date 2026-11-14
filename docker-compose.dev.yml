@@ -1,0 +1,11 @@
+# For working on Nudibranch's code. Copy this file to docker-compose.override.yml (Git ignores that name), and
+# Docker Compose merges it into docker-compose.yml automatically, so the usual commands work unchanged:
+#   docker compose up -d --build
+# It builds the app from this folder instead of pulling the published image, and mounts the code into the
+# container so template and Python edits show after a restart, without a rebuild.
+services:
+  web:
+    build: .
+    image: nudibranch-web  # a local name, so a local build is never mistaken for a published release
+    volumes:
+      - .:/app

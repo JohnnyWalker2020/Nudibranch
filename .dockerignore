@@ -18,3 +18,9 @@ media/
 .idea
 README.md
 node_modules/
+staticfiles/
+static/icons/nudibranch/thumbs/
+.github/
+.claude/
+docker-compose*.yml
+CHANGES.md

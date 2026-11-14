@@ -1,0 +1,76 @@
+# Builds the Docker image and publishes it to GitHub's container registry (the repo's Packages).
+#
+# - A version tag like v1.2.0 publishes ghcr.io/johnnywalker2020/nudibranch:1.2.0, :1.2 and :latest.
+# - "Run workflow" on the Actions tab builds the current main branch and publishes it as :edge, for testing.
+# - Pull requests only build it, to check nothing is broken. Nothing is published.
+name: Docker image
+
+on:
+  push:
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/johnnywalker2020/nudibranch
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Static files collect cleanly
+        run: python manage.py collectstatic --noinput
+        env:
+          DJANGO_SECRET_KEY: ci-only-not-secret
+          DATA_DIR: /tmp/data
+      - name: Tests
+        run: timeout 1200 python manage.py test aquarium
+        env:
+          DJANGO_SECRET_KEY: ci-only-not-secret
+          DATA_DIR: /tmp/data
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3      # lets it build for Raspberry Pi (arm64) too
+      - uses: docker/setup-buildx-action@v3
+      - name: Sign in to GitHub's registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Work out the tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=ref,event=pr
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -29,3 +29,6 @@ node_modules/
 
 # Docker
 .docker/
+
+# Your own local Compose changes (see docker-compose.dev.yml)
+docker-compose.override.yml
