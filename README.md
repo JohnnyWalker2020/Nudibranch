@@ -4,7 +4,7 @@ A self-hosted, mobile-friendly app for saltwater aquarium keepers. Track water c
 
 Built with **Python**, **Django 5**, **SQLite**, **Tailwind CSS**, **HTMX** and **Chart.js**, and installable on your phone as a **Progressive Web App**.
 
-> **Keep it private.** Everything requires a sign-in, but this app isn't hardened for the public internet. Don't forward port 8000 on your router or use Tailscale Funnel. Use [Tailscale](#-reaching-it-from-your-phone) to reach it from elsewhere.
+> **Keep it private.** Everything requires a sign-in, but this app isn't hardened for the public internet. Use [Tailscale](#-reaching-it-from-your-phone) to reach it from anywhere: it keeps the app private to your own devices. Just don't turn on Tailscale **Funnel**, which would put it on the public internet, and don't forward port 8000 on your router.
 
 ![The dashboard](docs/screenshots/dashboard.png)
 
