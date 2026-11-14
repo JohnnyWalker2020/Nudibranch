@@ -10,7 +10,7 @@
 
   <div>
     <div class="flex items-center justify-between text-xs mb-1">
-      <span class="text-slate-300 font-semibold">{{ res.current_level|floatformat:"-2" }} / {{ res.capacity|floatformat:"-2" }} {{ res.unit }}</span>
+      <span class="text-slate-300 font-semibold" {% if res.counts_down %}title="Estimated: counted down from {{ res.current_level|floatformat:'-2' }} {{ res.unit }} on {{ res.level_set_at|date:'M j' }} at {{ res.daily_consumption|floatformat:'-2' }} {{ res.unit }} a day"{% endif %}>{% if res.counts_down %}~{% endif %}{{ res.level_now|floatformat:"-2" }} / {{ res.capacity|floatformat:"-2" }} {{ res.unit }}</span>
       <span class="text-slate-400">{{ res.percent_remaining }}%</span>
     </div>
     <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -20,8 +20,9 @@
 
   <p class="text-[11px] text-slate-400">
     {{ res.daily_consumption|floatformat:"-2" }} {{ res.unit }} a day
-    {% if res.days_remaining is not None %}· runs out in <span class="font-bold text-white">~{{ res.days_remaining|floatformat:"-1" }} d</span> ({{ res.estimated_empty_date|date:"M j" }}){% endif %}
+    {% if res.days_remaining is not None %}· runs out in <span class="font-bold text-white">~{{ res.days_remaining|floatformat:"-1" }} d</span> ({{ res.estimated_empty_date|date:"M j" }}){% else %}· set a daily use to count down{% endif %}
   </p>
+  {% if res.counts_down %}<p class="text-[10px] text-slate-500">Estimated from daily use since {{ res.level_set_at|date:"M j" }}. Correct it under Edit when you check.</p>{% endif %}
 
   <div class="pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2">
     <form method="POST" action="{% url 'refill_reservoir' res.id %}">

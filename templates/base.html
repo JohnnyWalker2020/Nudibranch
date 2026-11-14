@@ -78,7 +78,7 @@
         <a href="{% url 'routines' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'routines' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Routines</a>
         <a href="{% url 'webcams' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'webcams' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Webcams</a>
         <a href="{% url 'planner' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'planner' or current == 'plan_detail' or current == 'plan_track' or current == 'wishlist' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Planner</a>
-        <a href="{% url 'tools' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'tools' or current == 'power' or current == 'timers' or current == 'integrations' or current == 'backups' or current == 'quarantine_list' or current == 'quarantine_detail' or current == 'app_settings' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Tools</a>
+        <a href="{% url 'tools' %}" class="px-2.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap {% if current == 'tools' or current == 'power' or current == 'timers' or current == 'integrations' or current == 'backups' or current == 'quarantine_list' or current == 'quarantine_detail' or current == 'app_settings' or current == 'prices_settings' %}bg-slate-800 text-cyan-400{% else %}text-slate-400 hover:text-white hover:bg-slate-800/50{% endif %} transition-colors">Tools</a>
       </nav>
       {% endwith %}
 
@@ -94,7 +94,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
           <span class="hidden sm:inline">Log Test</span>
         </button>
-        <a href="/admin/" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title="Django Admin">
+        <a href="{% url 'app_settings' %}?next={{ request.get_full_path|urlencode }}" class="p-2 rounded-xl {% if request.resolver_match.url_name == 'app_settings' or request.resolver_match.url_name == 'prices_settings' %}text-cyan-400 bg-slate-800{% else %}text-slate-400 hover:text-white hover:bg-slate-800{% endif %} transition-colors" title="Settings" aria-label="Settings">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="2"/></svg>
         </a>
       </div>
@@ -182,7 +182,7 @@
         <span class="text-[10px] font-semibold">Tanks</span>
       </a>
       <!-- Tools hub: calculators, timers, PAR, webcams, alerts setup, backups -->
-      <a href="{% url 'tools' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'tools' or current == 'power' or current == 'timers' or current == 'integrations' or current == 'backups' or current == 'quarantine_list' or current == 'quarantine_detail' or current == 'app_settings' or current == 'webcams' or current == 'timelapse' %}text-cyan-400{% else %}text-slate-400{% endif %}">
+      <a href="{% url 'tools' %}" class="flex flex-col items-center justify-center gap-1 {% if current == 'tools' or current == 'power' or current == 'timers' or current == 'integrations' or current == 'backups' or current == 'quarantine_list' or current == 'quarantine_detail' or current == 'app_settings' or current == 'prices_settings' or current == 'webcams' or current == 'timelapse' %}text-cyan-400{% else %}text-slate-400{% endif %}">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"/></svg>
         <span class="text-[10px] font-semibold">Tools</span>
       </a>

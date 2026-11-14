@@ -1045,6 +1045,17 @@ class DosingReservoirForm(forms.ModelForm):
         shown = self['unit'].value() or units[0]
         for name in ('current_level', 'daily_consumption'):
             self.fields[name].widget.unit_value = shown
+        # The level counts down by itself, so start from today's estimate. Saving sets it as of now.
+        if self.instance.pk and not self.is_bound:
+            self.initial['current_level'] = self.instance.level_now_decimal()
+        self.fields['current_level'].help_text = ("What's in it now. With a daily use set, it counts down by itself, "
+                                                  "so correct it whenever you check the container.")
+        self.fields['daily_consumption'].help_text = ("How much it uses a day: the doser's daily amount, or the ATO's "
+                                                      "evaporation top-off. Leave at 0 to not count down.")
+
+    def save(self, commit=True):
+        self.instance.level_set_at = timezone.now()
+        return super().save(commit)
 
     def clean_unit(self):
         return (self.cleaned_data.get('unit') or '').strip() or (self.instance.unit if self.instance.pk else 'ml')

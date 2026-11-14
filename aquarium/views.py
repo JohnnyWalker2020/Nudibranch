@@ -1368,6 +1368,7 @@ def refill_reservoir_view(request, res_id):
             reservoir.current_level = reservoir.capacity
 
         reservoir.last_refilled_date = timezone.localdate()
+        reservoir.level_set_at = timezone.now()  # it counts down again from this new level
         reservoir.save()
     return redirect('dosing')
 

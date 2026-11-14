@@ -4637,6 +4637,139 @@ class IcpPickOneTests(TestCase):
         self.assertNotContains(page, 'name="icp"')
 
 
+class ReservoirCountdownTests(TestCase):
+    """Containers with a daily use count down by themselves from when their level was last set."""
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.ato = DosingReservoir.objects.create(tank=self.tank, name='ATO', reservoir_type='ato_freshwater',
+                                                  capacity=7, current_level=7, unit='gal', daily_consumption=Decimal('0.8'))
+
+    def set_days_ago(self, res, days):
+        DosingReservoir.objects.filter(pk=res.pk).update(level_set_at=timezone.now() - timedelta(days=days))
+        res.refresh_from_db()
+
+    def test_level_drops_with_daily_use(self):
+        self.set_days_ago(self.ato, 6)
+        self.assertAlmostEqual(self.ato.level_now, 2.2, places=2)
+        self.assertEqual(self.ato.percent_remaining, 31)
+        self.assertEqual(self.ato.days_remaining, 2.8)
+        self.assertTrue(self.ato.is_low)
+
+    def test_empty_date_stays_put(self):
+        self.set_days_ago(self.ato, 6)
+        empty = self.ato.estimated_empty_date
+        self.assertEqual(empty, timezone.localdate(self.ato.level_set_at + timedelta(days=8.75)))
+        self.set_days_ago(self.ato, 7)
+        self.assertEqual(self.ato.estimated_empty_date, empty - timedelta(days=1))
+
+    def test_never_below_empty(self):
+        self.set_days_ago(self.ato, 30)
+        self.assertEqual((self.ato.level_now, self.ato.percent_remaining, self.ato.days_remaining), (0, 0, 0))
+
+    def test_no_daily_use_means_no_countdown(self):
+        bottle = DosingReservoir.objects.create(tank=self.tank, name='Alk', capacity=1000, current_level=500, daily_consumption=0)
+        self.set_days_ago(bottle, 10)
+        self.assertEqual(bottle.level_now, 500)
+        self.assertFalse(bottle.counts_down)
+        self.assertIsNone(bottle.days_remaining)
+        self.assertIsNone(bottle.estimated_empty_date)
+
+    def test_dosing_container_with_daily_use_counts_down(self):
+        bottle = DosingReservoir.objects.create(tank=self.tank, name='Alk', capacity=1000, current_level=500, daily_consumption=25)
+        self.set_days_ago(bottle, 4)
+        self.assertAlmostEqual(bottle.level_now, 400, places=1)
+
+    def test_refill_restarts_the_count(self):
+        self.set_days_ago(self.ato, 6)
+        self.client.post(reverse('refill_reservoir', args=[self.ato.pk]))
+        self.ato.refresh_from_db()
+        self.assertAlmostEqual(self.ato.level_now, 7, places=2)
+        self.assertEqual(self.ato.last_refilled_date, timezone.localdate())
+
+    def test_edit_form_starts_from_the_estimate_and_saving_restarts_it(self):
+        from .forms import DosingReservoirForm
+        self.set_days_ago(self.ato, 6)
+        self.assertEqual(DosingReservoirForm(instance=self.ato).initial['current_level'], Decimal('2.2'))
+        data = {'tank': self.tank.pk, 'name': 'ATO', 'reservoir_type': 'ato_freshwater', 'capacity': 7,
+                'current_level': 3, 'unit': 'gal', 'daily_consumption': '0.8', 'color': '#06b6d4'}
+        self.client.post(reverse('dosing_edit', args=[self.ato.pk]), data)
+        self.ato.refresh_from_db()
+        self.assertAlmostEqual(self.ato.level_now, 3, places=2)
+        self.assertLess(timezone.now() - self.ato.level_set_at, timedelta(minutes=1))
+
+    def test_logged_dose_comes_off_todays_level(self):
+        bottle = DosingReservoir.objects.create(tank=self.tank, name='Alk', capacity=1000, current_level=500, unit='ml',
+                                                daily_consumption=25)
+        self.set_days_ago(bottle, 4)
+        log = DoseLog.objects.create(tank=self.tank, product='Alk', amount=50, unit='ml', reservoir=bottle)
+        bottle.refresh_from_db()
+        self.assertEqual(bottle.current_level, Decimal('350'))  # 500 - 4 days of 25 - 50
+        log.delete()
+        bottle.refresh_from_db()
+        self.assertAlmostEqual(bottle.level_now, 400, places=1)
+
+    def test_low_alert_fires_once_it_has_run_down(self):
+        from .alerts import compute_alert_state
+        self.assertNotIn(self.ato, compute_alert_state()['low_reservoirs'])
+        self.set_days_ago(self.ato, 6)
+        self.assertIn(self.ato, compute_alert_state()['low_reservoirs'])
+
+    def test_card_shows_the_estimate(self):
+        self.set_days_ago(self.ato, 6)
+        page = self.client.get(reverse('dosing'))
+        self.assertContains(page, '~2.20 / 7 gal')
+        self.assertContains(page, 'Estimated from daily use')
+
+    def test_tank_file_exports_todays_level(self):
+        from .tank_files import export_tank
+        self.set_days_ago(self.ato, 6)
+        data = export_tank(self.tank)
+        self.assertAlmostEqual(data['reservoirs'][0]['current_level'], 2.2, places=2)
+
+
+class SettingsLayoutTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+
+    def test_gear_opens_settings_not_django_admin(self):
+        page = self.client.get(reverse('dashboard'))
+        self.assertContains(page, f'href="{reverse("app_settings")}?next=')
+        self.assertNotContains(page, 'href="/admin/"')
+
+    def test_settings_page_has_sections_and_an_admin_link(self):
+        page = self.client.get(reverse('app_settings'))
+        for anchor in ('prices', 'backups', 'alerts', 'icons', 'water-tests', 'advanced'):
+            self.assertContains(page, f'id="{anchor}"')
+        self.assertContains(page, 'href="/admin/"')
+        self.assertContains(page, 'edits the database directly')
+
+    def test_saving_settings_goes_back_where_you_came_from(self):
+        data = {'currency_symbol': '$', 'electricity_rate': '0.20', 'auto_backup_days': 7, 'auto_backup_keep': 4,
+                'resolved_alert_days': 7, 'next': reverse('backups')}
+        response = self.client.post(reverse('app_settings'), data)
+        self.assertRedirects(response, reverse('backups'), fetch_redirect_response=False)
+        self.assertEqual(AppSettings.load().electricity_rate, Decimal('0.2'))
+
+    def test_prices_page_only_has_prices(self):
+        page = self.client.get(reverse('prices_settings'))
+        self.assertContains(page, 'name="currency_symbol"')
+        self.assertContains(page, 'name="electricity_rate"')
+        self.assertNotContains(page, 'name="auto_backup_days"')
+        self.assertNotContains(page, 'name="icp_enabled"')
+
+    def test_prices_page_saves_without_touching_the_rest(self):
+        AppSettings.objects.update_or_create(pk=1, defaults={'auto_backup_days': 3, 'icp_enabled': True})
+        response = self.client.post(reverse('prices_settings'), {'currency_symbol': '€', 'electricity_rate': '0.31',
+                                                                 'next': reverse('power')})
+        self.assertRedirects(response, reverse('power'), fetch_redirect_response=False)
+        saved = AppSettings.objects.get(pk=1)
+        self.assertEqual((saved.currency_symbol, saved.electricity_rate, saved.auto_backup_days, saved.icp_enabled),
+                         ('€', Decimal('0.31'), 3, True))
+
+    def test_power_page_links_to_prices(self):
+        self.assertContains(self.client.get(reverse('power')), f'href="{reverse("prices_settings")}?next=')
+
+
 class FinalReviewTests(TestCase):
     def setUp(self):
         self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)

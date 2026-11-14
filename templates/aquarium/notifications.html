@@ -94,7 +94,7 @@
               </div>
               <div class="mt-3 space-y-1">
                 <div class="flex justify-between text-xs text-slate-300 font-semibold">
-                  <span>{{ res.current_level|floatformat:"-2" }} / {{ res.capacity|floatformat:"-2" }} {{ res.unit }}</span>
+                  <span>{% if res.counts_down %}~{% endif %}{{ res.level_now|floatformat:"-2" }} / {{ res.capacity|floatformat:"-2" }} {{ res.unit }}</span>
                   <span class="text-rose-400">{{ res.percent_remaining }}%</span>
                 </div>
                 <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
@@ -193,7 +193,7 @@
   <div class="space-y-4">
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
       <h2 class="text-base font-bold text-white">✅ Resolved ({{ history.resolved_count }})</h2>
-      <p class="text-[11px] text-slate-500">Kept for {{ history.days }} day{{ history.days|pluralize }}. <a href="{% url 'app_settings' %}" class="text-cyan-400 hover:underline">Change this in Settings</a></p>
+      <p class="text-[11px] text-slate-500">Kept for {{ history.days }} day{{ history.days|pluralize }}. <a href="{% url 'app_settings' %}?next={% url 'notifications' %}#alerts" class="text-cyan-400 hover:underline">Change this in Settings</a></p>
     </div>
 
     <div class="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">

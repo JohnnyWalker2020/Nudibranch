@@ -22,6 +22,7 @@ from .active import COOKIE_MAX_AGE, COOKIE_NAME, get_active_tank
 from .icons import character_icons, default_stem, url_for_stem, young_version
 from .themes import THEMES
 from .forms_tools import (
+    PricesSettingsForm,
     AnimalPhotoForm, AppSettingsForm, CostEntryForm, PlanProjectForm, PlannedEquipmentForm, PlannedLivestockForm, PlannedSystemForm,
     QuarantineEntryForm, QuarantinePlanForm, ROSystemForm, SystemThemeForm, WebhookEndpointForm, WishlistEquipmentForm,
     WishlistLivestockForm,
@@ -369,10 +370,40 @@ def tools_view(request):
     })
 
 
+# Which App Settings fields go in which section, in order: (anchor, title, blurb, fields).
+SETTINGS_SECTIONS = [
+    ('prices', '💲 Prices & currency', 'Used by The Damage, the power estimate and anywhere a price shows.',
+     ['currency_symbol', 'electricity_rate']),
+    ('backups', '💾 Backups', 'Automatic copies of your database and photos.', ['auto_backup_days', 'auto_backup_keep']),
+    ('alerts', '🔔 Alerts', 'How long the Alerts page remembers things that are fixed.', ['resolved_alert_days']),
+    ('icons', '🎨 Icons', 'How the tank characters behave.', ['disable_icon_aging', 'enable_old_version_icons', 'enable_random_icons']),
+    ('water-tests', '🧪 Water tests', 'Extra parameters from lab tests.', ['icp_enabled']),
+]
+
+
 def app_settings_view(request):
+    """All the app's settings, in sections. The gear at the top of every page opens it."""
     obj = AppSettings.load()
-    return _edit_object(request, AppSettings, AppSettingsForm, obj.pk, title='App Settings',
-                        subtitle='Electricity price, automatic backups, icons and alert history', back_url=reverse('tools'))
+    back_url = _safe_next(request, reverse('tools'))
+    if request.method == 'POST':
+        form = AppSettingsForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Settings saved.')
+            return redirect(back_url)
+    else:
+        form = AppSettingsForm(instance=obj)
+    sections = [{'anchor': a, 'title': t, 'blurb': b, 'fields': [form[name] for name in names]}
+                for a, t, b, names in SETTINGS_SECTIONS]
+    return render(request, 'aquarium/app_settings.html', {'form': form, 'sections': sections, 'back_url': back_url})
+
+
+def prices_settings_view(request):
+    """Only the currency and electricity price, so changing a price doesn't mean wading through every setting."""
+    obj = AppSettings.load()
+    return _edit_object(request, AppSettings, PricesSettingsForm, obj.pk, title='Prices & currency',
+                        subtitle='The currency symbol and your electricity price. Everything else is under the ⚙️ gear.',
+                        back_url=reverse('power'))
 
 
 # ==========================================
@@ -698,7 +729,7 @@ def timers_view(request):
     for res in in_system(DosingReservoir.objects.select_related('tank'), active_tank):
         reservoirs.append({
             'id': res.pk, 'name': res.name,
-            'gallons_to_full': round(max(0.0, fill.to_gallons(float(res.capacity) - float(res.current_level), res.unit)), 3),
+            'gallons_to_full': round(max(0.0, fill.to_gallons(float(res.capacity) - res.level_now, res.unit)), 3),
             'capacity_gallons': round(fill.to_gallons(res.capacity, res.unit), 3),
             'is_ato': res.reservoir_type == 'ato_freshwater',
         })

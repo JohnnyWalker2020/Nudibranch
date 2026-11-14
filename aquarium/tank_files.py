@@ -116,7 +116,7 @@ def export_tank(tank, prices=False):
                     for t in tank.parameter_targets.select_related('parameter_type')],
         'routines': [{**_dump_obj(r, prices), 'equipment': [e.name for e in r.equipment.all()]}
                      for r in tank.routines.prefetch_related('equipment')],
-        'reservoirs': [_dump_obj(r, prices) for r in tank.reservoirs.all()],
+        'reservoirs': [{**_dump_obj(r, prices), 'current_level': r.level_now} for r in tank.reservoirs.all()],  # what's in it today
     }
     # Leave empty sections out.
     return {k: v for k, v in data.items() if v not in ([], None)}

@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-6">
+  <div class="flex items-center gap-3">
+    <a href="{{ back_url }}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">⚙️ Settings</h1>
+      <p class="text-xs text-slate-400">For the whole app. Each tank's own look is under Tools &gt; Tank Look.</p>
+    </div>
+  </div>
+
+  <nav class="flex flex-wrap gap-2" aria-label="Settings sections">
+    {% for section in sections %}
+      <a href="#{{ section.anchor }}" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">{{ section.title }}</a>
+    {% endfor %}
+    <a href="#advanced" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">🛠️ Advanced</a>
+  </nav>
+
+  <form method="POST" class="space-y-4">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ back_url }}">
+
+    {% if form.non_field_errors %}
+      <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    {% for section in sections %}
+      <section id="{{ section.anchor }}" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+        <div>
+          <h2 class="text-base font-bold text-white">{{ section.title }}</h2>
+          <p class="text-[11px] text-slate-500">{{ section.blurb }}</p>
+        </div>
+        {% for field in section.fields %}
+          <div class="space-y-1.5">
+            {% if field.field.widget.input_type == 'checkbox' %}
+              <label class="flex items-start gap-3 cursor-pointer">
+                <span class="mt-0.5">{{ field }}</span>
+                <span>
+                  <span class="text-sm font-semibold text-white block">{{ field.label }}</span>
+                  {% if field.help_text %}<span class="text-[11px] text-slate-500">{{ field.help_text }}</span>{% endif %}
+                </span>
+              </label>
+            {% else %}
+              <label for="{{ field.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<p class="text-[11px] text-slate-500">{{ field.help_text }}</p>{% endif %}
+            {% endif %}
+            {% for err in field.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
+          </div>
+        {% endfor %}
+      </section>
+    {% endfor %}
+
+    <div class="sticky bottom-20 md:bottom-4 flex items-center justify-end gap-3 p-3 bg-slate-950/90 backdrop-blur border border-slate-800 rounded-2xl">
+      <a href="{{ back_url }}" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors">Cancel</a>
+      <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">Save settings</button>
+    </div>
+  </form>
+
+  <section id="advanced" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3 shadow-xl">
+    <div>
+      <h2 class="text-base font-bold text-white">🛠️ Advanced</h2>
+      <p class="text-[11px] text-slate-500">Rarely needed.</p>
+    </div>
+    <a href="/admin/" class="inline-flex px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors">Open Django admin</a>
+    <p class="text-[11px] text-amber-300">Django admin edits the database directly and skips the checks the app's own pages make, so a mistake there can break things. Take a backup first (Tools &gt; Backups), and use the app's pages for anything they can do.</p>
+  </section>
+</div>
+{% endblock %}

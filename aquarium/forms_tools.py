@@ -196,6 +196,19 @@ class AppSettingsForm(StyledFormMixin, forms.ModelForm):
                   'icp_enabled']
 
 
+class PricesSettingsForm(StyledFormMixin, forms.ModelForm):
+    """Just the currency and electricity price, for the pages that link to them."""
+    currency_symbol = forms.ChoiceField(label='Currency', help_text="Only changes the symbol shown. Amounts aren't converted.")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['currency_symbol'].choices = currency_choices(self.instance.currency_symbol)
+
+    class Meta:
+        model = AppSettings
+        fields = ['currency_symbol', 'electricity_rate']
+
+
 class WebhookEndpointForm(StyledFormMixin, forms.ModelForm):
     event_types = forms.MultipleChoiceField(
         choices=EVENT_TYPES, required=False, widget=forms.CheckboxSelectMultiple,

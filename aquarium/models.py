@@ -1109,32 +1109,57 @@ class DosingReservoir(models.Model):
     daily_consumption = models.DecimalField(max_digits=8, decimal_places=2, help_text="Daily dose (ml/day) or evaporation (gal/day)")
     color = models.CharField(max_length=20, default="#06b6d4")
     last_refilled_date = models.DateField(default=timezone.localdate)
+    # current_level is what was in it at this moment. With a daily use set, it counts down from here by itself.
+    level_set_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:
         ordering = ['reservoir_type', 'name']
 
     def __str__(self):
-        return f"{self.name} ({self.current_level}/{self.capacity} {self.unit})"
+        return f"{self.name} ({self.level_now}/{self.capacity} {self.unit})"
+
+    @property
+    def counts_down(self):
+        """True when it has a daily use, so the level is an estimate that drops by itself."""
+        return bool(self.daily_consumption and self.daily_consumption > 0)
+
+    def level_at(self, when=None):
+        """The estimated level at `when` (default now): the last level set, less the daily use since then."""
+        level = float(self.current_level)
+        if not self.counts_down or not self.level_set_at:
+            return level
+        days = max(0.0, ((when or timezone.now()) - self.level_set_at).total_seconds() / 86400)
+        return max(0.0, level - float(self.daily_consumption) * days)
+
+    @property
+    def level_now(self):
+        return round(self.level_at(), 2)
+
+    def level_now_decimal(self, when=None):
+        """level_at as a 2-place Decimal, ready to save back as current_level."""
+        return Decimal(str(round(self.level_at(when), 2)))
 
     @property
     def percent_remaining(self):
         if not self.capacity or self.capacity <= 0:
             return 0
-        pct = (float(self.current_level) / float(self.capacity)) * 100
+        pct = (self.level_now / float(self.capacity)) * 100
         return max(0, min(100, round(pct)))
 
     @property
     def days_remaining(self):
-        if not self.daily_consumption or self.daily_consumption <= 0:
+        if not self.counts_down:
             return None
-        return max(0.0, round(float(self.current_level) / float(self.daily_consumption), 1))
+        return max(0.0, round(self.level_now / float(self.daily_consumption), 1))
 
     @property
     def estimated_empty_date(self):
-        days = self.days_remaining
-        if days is None:
+        """The day it runs out. Fixed from when the level was set, so it doesn't slide later each day."""
+        if not self.counts_down:
             return None
-        return timezone.localdate() + timedelta(days=int(days))
+        start = self.level_set_at or timezone.now()
+        empty_at = start + timedelta(days=float(self.current_level) / float(self.daily_consumption))
+        return timezone.localdate(empty_at)
 
     @property
     def is_low(self):
@@ -1688,8 +1713,10 @@ class DoseLog(models.Model):
                 reservoir = DosingReservoir.objects.select_for_update().get(pk=self.reservoir_id)
                 take = self.amount_in(reservoir.unit)
                 if take is not None:
-                    taken = min(take, reservoir.current_level)
-                    DosingReservoir.objects.filter(pk=reservoir.pk).update(current_level=reservoir.current_level - taken)
+                    now = timezone.now()
+                    level = reservoir.level_now_decimal(now)  # what's in it now, after its daily use
+                    taken = min(take, level)
+                    DosingReservoir.objects.filter(pk=reservoir.pk).update(current_level=level - taken, level_set_at=now)
                     self.taken = taken
             super().save(*args, **kwargs)
 
@@ -1703,8 +1730,9 @@ class DoseLog(models.Model):
         if self.reservoir_id and self.taken:
             reservoir = DosingReservoir.objects.select_for_update().filter(pk=self.reservoir_id).first()
             if reservoir:
-                level = min(reservoir.capacity, reservoir.current_level + self.taken)
-                DosingReservoir.objects.filter(pk=reservoir.pk).update(current_level=level)
+                now = timezone.now()
+                level = min(reservoir.capacity, reservoir.level_now_decimal(now) + self.taken)
+                DosingReservoir.objects.filter(pk=reservoir.pk).update(current_level=level, level_set_at=now)
 
 
 class QuickTimer(models.Model):

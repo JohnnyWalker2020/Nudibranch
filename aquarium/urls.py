@@ -126,6 +126,7 @@ urlpatterns = [
     # Tools hub
     path('tools/', tools.tools_view, name='tools'),
     path('tools/settings/', tools.app_settings_view, name='app_settings'),
+    path('tools/settings/prices/', tools.prices_settings_view, name='prices_settings'),
     path('tools/power/', tools.power_view, name='power'),
 
     # System planner

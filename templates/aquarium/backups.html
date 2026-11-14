@@ -9,7 +9,7 @@
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
       <h1 class="text-2xl font-black text-white tracking-tight">Backups</h1>
-      <p class="text-xs text-slate-400 mt-0.5">{% if settings_obj.auto_backup_days %}Automatic backup every {{ settings_obj.auto_backup_days }} day{{ settings_obj.auto_backup_days|pluralize }}, keeping {{ settings_obj.auto_backup_keep }}{% else %}Automatic backups are off{% endif %} · <a href="{% url 'app_settings' %}?next={% url 'backups' %}" class="text-cyan-400 hover:underline">change</a></p>
+      <p class="text-xs text-slate-400 mt-0.5">{% if settings_obj.auto_backup_days %}Automatic backup every {{ settings_obj.auto_backup_days }} day{{ settings_obj.auto_backup_days|pluralize }}, keeping {{ settings_obj.auto_backup_keep }}{% else %}Automatic backups are off{% endif %} · <a href="{% url 'app_settings' %}?next={% url 'backups' %}#backups" class="text-cyan-400 hover:underline">change</a></p>
     </div>
     <form method="POST" action="{% url 'backup_create' %}" class="flex items-center gap-3">
       {% csrf_token %}
