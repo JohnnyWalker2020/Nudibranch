@@ -1,5 +1,11 @@
 # Nudibranch: change summary
 
+## Round 23 (2026-11-13)
+
+Apply with `docker compose up -d --build`. No database changes.
+
+- **Dilute with RO/DI**: a new switch on the **Salinity Fixer** (Tools). Give it the water you have, its salinity and the salinity you want, and it works out how much 0 ppt RO/DI to add on top (**Top up**) or to swap in (**Water change**). Drops bigger than your daily limit get a day-by-day plan, and it points you to **Mix a batch** if the target is higher than your water.
+
 ## Round 22 (2026-11-09)
 
 Apply with `docker compose up -d --build`; migration 0039 runs on start.

@@ -279,6 +279,74 @@ def _swap_plan(volume, added, now, goal, max_daily_ppt, volume_unit, brand_key):
     return plan
 
 
+def ro_di_dilution(current_volume, current, target, salinity_unit='ppt', volume_unit='gal',
+                   mode='top_up', max_daily_ppt=1.0):
+    """
+    How much 0 ppt RO/DI brings the water you have down to a target salinity.
+
+    mode 'top_up' adds the RO/DI on top: volume * now = (volume + ro_di) * goal.
+    'water_change' takes the same amount out first: volume * now - ro_di * now = volume * goal.
+    Like salinity_fix it's a volume-weighted average, so it assumes the water is fully mixed and both
+    readings are right. RO/DI can only lower salinity, so a higher target comes back as raising=True.
+    """
+    for number in (current_volume, max_daily_ppt):
+        if not math.isfinite(number):
+            raise ValueError('Please enter real numbers.')
+    if current_volume <= 0:
+        raise ValueError('The water you have needs to be more than 0.')
+    if max_daily_ppt <= 0:
+        raise ValueError('The most change per day needs to be more than 0.')
+    if mode not in ('top_up', 'water_change'):
+        raise ValueError('Pick top up or water change.')
+
+    unit = salinity_unit.lower()
+    now = _salinity_to_ppt(current, unit, 'current')
+    goal = _salinity_to_ppt(target, unit, 'target')
+    if goal <= 0:
+        raise ValueError('The salinity you want needs to be more than 0.')
+
+    change = goal - now
+    result = {
+        'mode': mode, 'volume_unit': volume_unit, 'ro_di': None, 'total_volume': None,
+        'current_ppt': round(now, 1), 'target_ppt': round(goal, 1), 'change_ppt': round(abs(change), 1),
+        'at_target': abs(change) < 0.05, 'raising': change > 0,
+        'plan': [], 'plan_days': 1, 'plan_ro_di': None, 'plan_too_long': False,
+    }
+    if result['at_target'] or result['raising']:
+        return result
+
+    swapping = mode == 'water_change'
+    ro_di = current_volume * (1 - goal / now) if swapping else current_volume * (now / goal - 1)
+    result['ro_di'] = round(ro_di, 2)
+    result['total_volume'] = round(current_volume if swapping else current_volume + ro_di, 2)
+
+    if abs(change) > max_daily_ppt + 1e-9:
+        plan = (_ro_di_swap_plan(current_volume, now, goal, max_daily_ppt) if swapping
+                else _top_up_plan(current_volume, ro_di, now, 0.0, max_daily_ppt))
+        if plan:
+            result['plan'] = plan
+            result['plan_days'] = len(plan)
+            result['plan_ro_di'] = round(sum(step['volume'] for step in plan), 2)
+        else:
+            result['plan_too_long'] = True
+    return result
+
+
+def _ro_di_swap_plan(volume, now, goal, max_daily_ppt):
+    """
+    The same RO/DI swap each day. Each swap keeps the same share of the salt, so the first day drops
+    the most, and the days add up to more RO/DI than one big swap.
+    """
+    for days in range(2, SALINITY_PLAN_MAX_DAYS + 1):
+        kept_share = (goal / now) ** (1 / days)
+        if now * (1 - kept_share) > max_daily_ppt + 1e-9:
+            continue
+        swap = volume * (1 - kept_share)
+        return [{'day': day, 'volume': round(swap, 2), 'reaches_ppt': round(now * kept_share ** day, 1),
+                 'reaches_sg': _ppt_to_sg(now * kept_share ** day)} for day in range(1, days + 1)]
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Light (PAR) at depth
 # ---------------------------------------------------------------------------

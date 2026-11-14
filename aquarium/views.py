@@ -24,7 +24,7 @@ from .alerts import compute_alert_state
 from .compatibility import warnings_for_addition
 from .calculators import (
     DOSE_CHEMICALS, DOSE_PARAMETERS, MAX_DAILY_RAISE, PIPE_INSIDE, SALT_MIX_RECIPES,
-    calculate_salt_mix, dose_estimate, estimate_daily_change, salinity_fix,
+    calculate_salt_mix, dose_estimate, estimate_daily_change, ro_di_dilution, salinity_fix,
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, unit_choices
 from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
@@ -2033,8 +2033,21 @@ def water_change_calc_api(request):
 
 
 def salinity_fix_api(request):
-    """GET /api/calculators/salinity/ - how salty new water needs to be (see calculators.salinity_fix)."""
+    """
+    GET /api/calculators/salinity/ - how salty new water needs to be (see calculators.salinity_fix),
+    or with find=ro_di, how much RO/DI brings the salinity down (see calculators.ro_di_dilution).
+    """
     try:
+        if request.GET.get('find') == 'ro_di':
+            return JsonResponse(ro_di_dilution(
+                current_volume=float(request.GET.get('current_volume', '')),
+                current=float(request.GET.get('current', '')),
+                target=float(request.GET.get('target', '')),
+                salinity_unit=request.GET.get('salinity_unit', 'ppt'),
+                volume_unit=request.GET.get('volume_unit', 'gal'),
+                mode=request.GET.get('mode', 'top_up'),
+                max_daily_ppt=float(request.GET.get('max_daily') or 1),
+            ))
         return JsonResponse(salinity_fix(
             current_volume=float(request.GET.get('current_volume', '')),
             added=float(request.GET.get('added', '')),

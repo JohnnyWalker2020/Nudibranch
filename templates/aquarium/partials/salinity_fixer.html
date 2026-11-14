@@ -2,7 +2,12 @@
   <section id="salinity-fixer" data-unit="{{ salinity_start.unit }}" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
     <div>
       <h2 class="text-lg font-bold text-white">🌊 Salinity Fixer</h2>
-      <p class="text-xs text-slate-400">How salty the new water needs to be to land your water on target. Tap a unit to switch it.</p>
+      <p class="text-xs text-slate-400">Land your water on target: mix a batch at the right strength, or work out how much plain RO/DI brings it down. Tap a unit to switch it.</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2" role="group" aria-label="What to work out">
+      <button type="button" data-fix-find="strength" aria-pressed="true" class="px-3 py-2.5 border rounded-xl text-xs font-bold transition-colors">🧂 Mix a batch</button>
+      <button type="button" data-fix-find="ro_di" aria-pressed="false" class="px-3 py-2.5 border rounded-xl text-xs font-bold transition-colors">💧 Dilute with RO/DI</button>
     </div>
 
     <div class="grid grid-cols-2 gap-2" role="group" aria-label="How the new water goes in">
@@ -21,14 +26,14 @@
           <button type="button" id="fix-volume-unit" data-units="gal,L" data-name="Volume unit" value="gal" class="unit-btn">gal</button>
         </div>
       </div>
-      <div class="col-span-2 lg:col-span-1 lg:self-end">
+      <div id="fix-added-box" class="col-span-2 lg:col-span-1 lg:self-end">
         <label id="fix-added-label" for="fix-added" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">New water to add</label>
         <div class="unit-field">
           <input type="number" id="fix-added" value="10" min="0" step="any">
           <button type="button" id="fix-added-unit" data-units="gal,L" data-name="Volume unit" value="gal" class="unit-btn">gal</button>
         </div>
       </div>
-      <div class="col-span-2 lg:col-span-1 lg:self-end">
+      <div id="fix-brand-box" class="col-span-2 lg:col-span-1 lg:self-end">
         <label for="fix-brand" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Salt brand</label>
         <select id="fix-brand" class="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
           {% for b_key, b in salt_brands.items %}<option value="{{ b_key }}">{{ b.name }}</option>{% endfor %}
@@ -64,7 +69,7 @@
 
     <div id="fix-answer" class="hidden space-y-2">
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 bg-slate-950/80 border border-slate-800 rounded-2xl">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">New water needs to be</span>
+        <span id="fix-needed-label" class="text-xs font-bold uppercase tracking-wider text-slate-400">New water needs to be</span>
         <span class="flex items-baseline gap-2">
           <span id="fix-needed" class="text-3xl font-black text-cyan-400">-</span>
           <span id="fix-needed-sg" class="text-xs font-semibold text-slate-400"></span>
@@ -89,5 +94,5 @@
       <p class="text-[11px] text-slate-500">Test before each day's water, and work it out again if the reading isn't where this expects.</p>
     </div>
 
-    <p class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300"><strong>Estimate only.</strong> This assumes the water is fully mixed and your readings are right. Please confirm it independently, check the batch with a calibrated refractometer or salinity meter before it goes in (they're usually calibrated at 35 ppt, so readings far from that are less exact), and test again after it has mixed. With livestock in the tank, add strong water slowly into high flow.</p>
+    <p class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300"><strong>Estimate only.</strong> This assumes the water is fully mixed and your readings are right. Please confirm it independently, check any salt batch with a calibrated refractometer or salinity meter before it goes in (they're usually calibrated at 35 ppt, so readings far from that are less exact), and test again after it has mixed. With livestock in the tank, add strong water slowly into high flow.</p>
   </section>

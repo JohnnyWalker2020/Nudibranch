@@ -5,24 +5,35 @@
     const ACTIVE = ['bg-cyan-500/15', 'text-cyan-300', 'border-cyan-500/40'];
     const IDLE = ['bg-slate-800', 'text-slate-400', 'border-slate-700'];
     const modeButtons = document.querySelectorAll('[data-fix-mode]');
+    const findButtons = document.querySelectorAll('[data-fix-find]');
     const SALINITY_BOXES = ['fix-current', 'fix-target'];
 
     let mode = 'top_up';
+    let find = 'strength';  // 'strength' mixes a batch, 'ro_di' works out plain RO/DI
     let volumeUnit = 'gal';
     let salinityUnit = el('salinity-fixer').dataset.unit;
     let result = null;
     let latestRequest = 0;
 
-    function showMode() {
-      modeButtons.forEach(btn => {
-        const on = btn.dataset.fixMode === mode;
+    function press(buttons, isOn) {
+      buttons.forEach(btn => {
+        const on = isOn(btn);
         btn.setAttribute('aria-pressed', on);
         btn.classList.remove(...(on ? IDLE : ACTIVE));
         btn.classList.add(...(on ? ACTIVE : IDLE));
       });
+    }
+
+    function showMode() {
+      press(modeButtons, btn => btn.dataset.fixMode === mode);
+      press(findButtons, btn => btn.dataset.fixFind === find);
       el('fix-added-label').textContent = mode === 'top_up' ? 'New water to add' : 'Water to swap';
+      // RO/DI mode works out the amount itself, and plain RO/DI needs no salt.
+      el('fix-added-box').classList.toggle('hidden', find === 'ro_di');
+      el('fix-brand-box').classList.toggle('hidden', find === 'ro_di');
     }
     modeButtons.forEach(btn => btn.addEventListener('click', () => { mode = btn.dataset.fixMode; showMode(); recalculate(); }));
+    findButtons.forEach(btn => btn.addEventListener('click', () => { find = btn.dataset.fixFind; showMode(); recalculate(); }));
 
     // Each pair of unit buttons stays together, so both boxes always read in the same unit.
     function setVolumeUnit(unit, other) {
@@ -59,13 +70,23 @@
     const ppt = value => Number(value).toFixed(1) + ' ppt';
     const sg = value => Number(value).toFixed(3) + ' SG';
     const amount = value => Number(value) + ' ' + volumeUnit;
+    // The same amount in the other volume unit, so a jug in either unit can be used.
+    const otherAmount = value => volumeUnit === 'gal'
+      ? Number((value * 3.78541).toFixed(1)) + ' L'
+      : Number((value / 3.78541).toFixed(2)) + ' gal';
 
     function showPlan(data) {
       const days = el('fix-plan-days');
       days.textContent = '';
       el('fix-plan').classList.toggle('hidden', !data.plan.length);
       if (!data.plan.length) return;
-      if (data.mode === 'top_up') {
+      if (data.find === 'ro_di' && data.mode === 'top_up') {
+        el('fix-plan-title').textContent = `Gentler: add it over ${data.plan_days} days`;
+        el('fix-plan-intro').textContent = 'Add one part of the RO/DI a day. The first day drops the salinity the most.';
+      } else if (data.find === 'ro_di') {
+        el('fix-plan-title').textContent = `Gentler: swap water on ${data.plan_days} days`;
+        el('fix-plan-intro').textContent = `Swap the same amount for RO/DI each day. In steps it takes ${amount(data.plan_ro_di)} of RO/DI in all, a little more than in one go.`;
+      } else if (data.mode === 'top_up') {
         el('fix-plan-title').textContent = `Gentler: add it over ${data.plan_days} days`;
         el('fix-plan-intro').textContent = 'Mix the whole batch once at the strength above, keep it covered and stirred, and add one part a day.';
       } else {
@@ -79,14 +100,28 @@
         start.textContent = `Day ${step.day}: `;
         row.append(start);
         const batch = data.mode === 'top_up'
-          ? `add ${amount(step.volume)}`
+          ? `add ${amount(step.volume)}${data.find === 'ro_di' ? ' of RO/DI' : ''}`
+          : data.find === 'ro_di'
+          ? `swap ${amount(step.volume)} for RO/DI`
           : `swap ${amount(step.volume)} at ${ppt(step.strength_ppt)} (${sg(step.strength_sg)}), using ${saltText(step.salt)} of salt`;
         row.append(`${batch}, reaching about ${ppt(step.reaches_ppt)} (${sg(step.reaches_sg)})`);
         days.append(row);
       });
     }
 
+    function roDiNoteFor(data) {
+      if (data.at_target) return "Your water is already at that salinity, so there's nothing to fix.";
+      if (data.raising) return 'RO/DI can only bring salinity down. To raise it, switch to Mix a batch.';
+      const parts = [];
+      if (data.plan.length || data.plan_too_long) {
+        parts.push(`That's a ${ppt(data.change_ppt)} drop, more than your daily limit. A quick change can stress corals and invertebrates, so with livestock in the tank go slowly.`);
+      }
+      if (data.plan_too_long) parts.push('Staying within your limit would take more than 14 days this way, so there\'s no day-by-day plan.');
+      return parts.join(' ');
+    }
+
     function noteFor(data) {
+      if (data.find === 'ro_di') return roDiNoteFor(data);
       if (data.at_target) return "Your water is already at that salinity, so there's nothing to fix.";
       if (!data.possible) {
         const least = data.least_water === null ? '' : ` You'd need at least ${amount(data.least_water)} of RO/DI.`;
@@ -104,13 +139,26 @@
 
     function show() {
       const data = result;
-      const answer = data && !data.at_target && data.possible;
+      const roDi = data && data.find === 'ro_di';
+      const answer = data && !data.at_target && (roDi ? !data.raising : data.possible);
       el('fix-answer').classList.toggle('hidden', !answer);
       const note = data ? noteFor(data) : '';
       el('fix-note').textContent = note;
       el('fix-note').classList.toggle('hidden', !note);
       showPlan(data && answer ? data : { plan: [] });
       if (!answer) return;
+      if (roDi) {
+        const swap = data.mode === 'water_change';
+        el('fix-needed-label').textContent = swap ? 'RO/DI to swap in' : 'RO/DI to add';
+        el('fix-needed').textContent = amount(data.ro_di);
+        el('fix-needed-sg').textContent = `about ${otherAmount(data.ro_di)}`;
+        el('fix-salt-row').classList.add('hidden');
+        el('fix-summary').textContent = swap
+          ? `Take ${amount(data.ro_di)} out first, then add the RO/DI. All in one go, you end up with ${amount(data.total_volume)} at about ${ppt(data.target_ppt)}.`
+          : `All in one go, you end up with ${amount(data.total_volume)} at about ${ppt(data.target_ppt)}, so make sure there's room for it.`;
+        return;
+      }
+      el('fix-needed-label').textContent = 'New water needs to be';
       el('fix-needed').textContent = ppt(data.needed_ppt);
       el('fix-needed-sg').textContent = `about ${sg(data.needed_sg)}`;
       el('fix-salt-row').classList.toggle('hidden', !data.salt);
@@ -130,19 +178,20 @@
 
     async function recalculate() {
       const request = ++latestRequest;
-      const fields = ['fix-volume', 'fix-added', 'fix-current', 'fix-target'];
+      const asked = find;
+      const fields = asked === 'ro_di' ? ['fix-volume', 'fix-current', 'fix-target'] : ['fix-volume', 'fix-added', 'fix-current', 'fix-target'];
       if (fields.some(id => el(id).value === '')) { clearResult(); return; }
       const q = new URLSearchParams({
         current_volume: el('fix-volume').value, added: el('fix-added').value, volume_unit: volumeUnit,
         current: el('fix-current').value, target: el('fix-target').value, salinity_unit: salinityUnit,
-        mode, max_daily: el('fix-max-daily').value, brand: el('fix-brand').value,
+        mode, max_daily: el('fix-max-daily').value, brand: el('fix-brand').value, find: asked,
       });
       try {
         const res = await fetch('{% url "salinity_fix_api" %}?' + q.toString());
         const data = await res.json();
         if (request !== latestRequest) return;  // a newer answer is on its way
         if (data.error) { clearResult(data.error); return; }
-        result = data;
+        result = Object.assign(data, { find: asked });
         el('fix-error').classList.add('hidden');
         show();
       } catch (err) { console.warn(err); }

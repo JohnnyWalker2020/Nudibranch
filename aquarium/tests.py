@@ -3205,6 +3205,98 @@ class SalinityFixerTests(TestCase):
         self.assertEqual(self.client.get(reverse('tools')).status_code, 200)
 
 
+class RoDiDilutionTests(TestCase):
+    def dilute(self, **params):
+        query = {'find': 'ro_di', 'current_volume': 30, 'current': 37, 'target': 35, 'salinity_unit': 'ppt',
+                 'volume_unit': 'gal', 'max_daily': 5}
+        query.update(params)
+        return self.client.get(reverse('salinity_fix_api'), query)
+
+    def test_top_up_adds_ro_di_on_top(self):
+        data = self.dilute(mode='top_up').json()
+        self.assertEqual(data['ro_di'], 1.71)  # 30 * 37 / 35 - 30
+        self.assertEqual(data['total_volume'], 31.71)
+
+    def test_water_change_swaps_ro_di_in(self):
+        data = self.dilute(mode='water_change').json()
+        self.assertEqual(data['ro_di'], 1.62)  # 30 * (1 - 35 / 37)
+        self.assertEqual(data['total_volume'], 30)
+
+    def test_mixing_the_answer_lands_on_the_target(self):
+        top = self.dilute(mode='top_up', current=40, target=33).json()['ro_di']
+        self.assertAlmostEqual(30 * 40 / (30 + top), 33, delta=0.01)
+        swap = self.dilute(mode='water_change', current=40, target=33).json()['ro_di']
+        self.assertAlmostEqual((30 - swap) * 40 / 30, 33, delta=0.01)
+
+    def test_does_not_need_the_new_water_box(self):
+        response = self.dilute(added='')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['ro_di'], 1.71)
+
+    def test_sg_and_liters_give_the_same_answer(self):
+        sg = self.dilute(current=1 + 37 / 35 * 0.026, target=1.026, salinity_unit='sg').json()
+        self.assertEqual(sg['ro_di'], 1.71)
+        liters = self.dilute(current_volume=30 * 3.78541, volume_unit='L').json()
+        self.assertAlmostEqual(liters['ro_di'], 30 * 3.78541 * 2 / 35, delta=0.01)
+
+    def test_raising_says_ro_di_cannot(self):
+        data = self.dilute(current=33, target=35).json()
+        self.assertTrue(data['raising'])
+        self.assertIsNone(data['ro_di'])
+
+    def test_already_on_target(self):
+        data = self.dilute(current=35).json()
+        self.assertTrue(data['at_target'])
+        self.assertIsNone(data['ro_di'])
+
+    def test_top_up_plan_stays_within_the_daily_limit_and_lands_on_target(self):
+        data = self.dilute(mode='top_up', current=38, max_daily=1).json()
+        self.assertGreater(data['plan_days'], 1)
+        reading, held = 38, 30
+        for step in data['plan']:
+            after = held * reading / (held + step['volume'])
+            self.assertLessEqual(reading - after, 1 + 1e-6)
+            reading, held = after, held + step['volume']
+        self.assertAlmostEqual(reading, 35, delta=0.05)
+        self.assertAlmostEqual(data['plan_ro_di'], data['ro_di'], delta=0.05)
+
+    def test_swap_plan_stays_within_the_daily_limit_and_lands_on_target(self):
+        data = self.dilute(mode='water_change', current=38, max_daily=1).json()
+        self.assertEqual(data['plan_days'], 4)  # 3 even-share swaps would drop 1.03 ppt on day 1
+        reading = 38
+        for step in data['plan']:
+            after = (30 - step['volume']) * reading / 30
+            self.assertLessEqual(reading - after, 1 + 1e-6)
+            self.assertAlmostEqual(after, step['reaches_ppt'], delta=0.05)
+            reading = after
+        self.assertAlmostEqual(reading, 35, delta=0.05)
+        self.assertGreater(data['plan_ro_di'], data['ro_di'])  # steps cost a little more RO/DI
+
+    def test_no_plan_when_the_drop_is_within_the_limit(self):
+        data = self.dilute(max_daily=2).json()
+        self.assertEqual(data['plan'], [])
+        self.assertFalse(data['plan_too_long'])
+
+    def test_a_very_slow_plan_is_left_out_and_says_why(self):
+        data = self.dilute(current=60, target=30, max_daily=0.5).json()
+        self.assertEqual(data['plan'], [])
+        self.assertTrue(data['plan_too_long'])
+        self.assertIsNotNone(data['ro_di'])
+
+    def test_bad_input_is_explained(self):
+        for bad in ({'current_volume': 0}, {'current': -1}, {'target': 0}, {'mode': 'nope'}, {'max_daily': -1},
+                    {'current': 'salty'}, {'current': 37, 'salinity_unit': 'sg'}, {'target': 1.026}):
+            response = self.dilute(**bad)
+            self.assertEqual(response.status_code, 400, bad)
+            self.assertTrue(response.json()['error'], bad)
+
+    def test_tools_page_offers_the_switch(self):
+        Tank.objects.create(name='Main', volume_gallons=75, is_primary=True)
+        page = self.client.get(reverse('tools'))
+        self.assertContains(page, 'data-fix-find="ro_di"')
+        self.assertContains(page, 'Dilute with RO/DI')
+
+
 class SubstrateTests(TestCase):
     def setUp(self):
         self.tank = Tank.objects.create(name='Main', volume_gallons=75, capacity_is_manual=True, is_primary=True)
