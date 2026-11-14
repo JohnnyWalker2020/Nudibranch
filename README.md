@@ -38,7 +38,7 @@ Built with **Python**, **Django 5**, **SQLite**, **Tailwind CSS**, **HTMX** and 
 
 ## 🚀 Getting started
 
-You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose.
+You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose. New to Docker? Skip to [step by step](#-new-to-docker-step-by-step) below.
 
 1. Copy `.env.example` to `.env`, then fill in `DJANGO_SECRET_KEY` and `API_SECRET_KEY` with long random values. The file explains how. Git ignores `.env`, so it stays private.
 2. From the project folder, run:
@@ -52,6 +52,104 @@ You need [Docker](https://www.docker.com/products/docker-desktop/) with Docker C
 Run the same command to apply updates. Database changes are applied on startup, and your data stays in the `data` folder.
 
 Keep a private copy of your `.env` file, such as in a password manager. It isn't included in the app's backups.
+
+### 🐣 New to Docker? Step by step
+
+Docker runs Nudibranch in its own sealed box (a *container*) with everything it needs already inside, so you don't install Python or anything else yourself. Docker Compose is the part that reads `docker-compose.yml` and starts that box for you. You only need a handful of commands, and they're all below.
+
+**1. Install Docker**
+
+- **Windows 10 or 11:** download [Docker Desktop](https://www.docker.com/products/docker-desktop/) and run the installer. Keep the **WSL 2** option ticked if it asks, and restart your computer when it's done.
+- **Mac:** download [Docker Desktop](https://www.docker.com/products/docker-desktop/). Pick **Apple silicon** for M1 or newer Macs, or **Intel** for older ones (Apple menu > About This Mac tells you which). Drag it to Applications and open it.
+- **Linux:** install [Docker Engine](https://docs.docker.com/engine/install/) for your distribution, which includes the Compose plugin.
+
+Open Docker Desktop once and wait until it says it's running. Leave it running whenever you want to use Nudibranch. To have it start by itself, tick **Start Docker Desktop when you sign in to your computer** in Docker Desktop's settings (the ⚙️ icon, then **General**).
+
+**2. Open a terminal**
+
+A terminal is a window where you type commands. Every command in this guide goes there, typed (or pasted) and then Enter.
+
+- **Windows:** open the Start menu and type **Terminal** (or **PowerShell**).
+- **Mac:** press Cmd + Space and type **Terminal**.
+
+Check Docker is ready. Each command should print a version number:
+
+```bash
+docker --version
+```
+
+```bash
+docker compose version
+```
+
+If you see "command not found" or "cannot connect to the Docker daemon", make sure Docker Desktop is open and running, then close the terminal and open a new one.
+
+**3. Get Nudibranch**
+
+On the project's GitHub page, click the green **Code** button, then **Download ZIP**. Unzip it somewhere easy to find, such as your Documents folder. (If you already use Git, `git clone` works too, and makes updating easier.)
+
+Now point the terminal at that folder. Type `cd` and a space, drag the unzipped folder onto the terminal window, then press Enter. On Windows you can also right-click the folder in File Explorer and choose **Open in Terminal**.
+
+**4. Make your private settings file**
+
+The app's settings live in a file called `.env`. Make it from the example. On Windows (PowerShell):
+
+```powershell
+Copy-Item .env.example .env
+```
+
+On Mac or Linux:
+
+```bash
+cp .env.example .env
+```
+
+The app needs two long random passwords (keys) in that file. This command makes one, using Docker, so you don't need anything else installed. Run it twice, and keep both results for the next step:
+
+```bash
+docker run --rm python:3.12-alpine python -c "import secrets; print(secrets.token_urlsafe(50))"
+```
+
+Open `.env` to edit it, with `notepad .env` on Windows or `open -e .env` on a Mac. Then:
+
+- Paste the first key after `DJANGO_SECRET_KEY=` and the second after `API_SECRET_KEY=`, with no spaces or quotes.
+- Remove the `#` in front of `TIME_ZONE` and set your own, such as `TIME_ZONE=America/New_York` ([list of time zones](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones), in the "TZ identifier" column).
+- Save and close it.
+
+Files starting with a dot are hidden in the Mac Finder. Press Cmd + Shift + . to show them. The `notepad` and `open -e` commands work either way.
+
+**5. Start it**
+
+```bash
+docker compose up -d --build
+```
+
+The first time takes a few minutes while Docker downloads and builds everything. Later starts take seconds. `-d` means it keeps running in the background after you close the terminal, and `--build` uses the latest copy of the code.
+
+**6. Open it**
+
+Go to **[http://localhost:8000](http://localhost:8000)** in a browser on the same computer and create your account. To use it from your phone, at home or away, see [Reaching it from your phone](#-reaching-it-from-your-phone) next.
+
+**Everyday commands** (run them in the project folder):
+
+| To... | Run |
+|---|---|
+| See if it's running | `docker compose ps` |
+| Watch what it's doing (Ctrl + C stops watching, not the app) | `docker compose logs -f web` |
+| Stop it | `docker compose down` |
+| Start it again | `docker compose up -d` |
+| Update it | Get the new code (see below), then `docker compose up -d --build` |
+
+**Updating from a ZIP:** unzip the new download over your existing folder, replacing the old files, so your `data` folder and `.env` stay where they are. If you unzip it somewhere new instead, copy `data` and `.env` across before starting it. With Git, `git pull` in the folder does all of this for you.
+
+Stopping, updating or restarting your computer doesn't touch your tanks, tests and photos. They live in the `data` folder, so never delete that folder, and keep backups (**Tools > Backups**). The app starts again by itself whenever Docker Desktop is running.
+
+**If something goes wrong**
+
+- **"Copy .env.example to .env and set DJANGO_SECRET_KEY":** the `.env` file is missing, or the key is empty. Go back to step 4.
+- **"port is already allocated":** another program is using port 8000. Close it, or restart your computer, and try again.
+- **The page won't load:** give it a minute after starting, then check `docker compose ps` says it's running. `docker compose logs web` shows any error.
+- **A form says it was rejected (CSRF):** the address in your browser isn't listed in `CSRF_TRUSTED_ORIGINS` in `.env`. Add it, then run `docker compose up -d`.
 
 ### Accounts
 
@@ -77,7 +175,32 @@ Set these in your `.env` file.
 
 ### 📱 Reaching it from your phone
 
-The safest setup is [Tailscale](https://tailscale.com) with its Serve feature, which gives you a private HTTPS address that only your own devices can reach. Install Tailscale on both devices, turn on **HTTPS** in the Tailscale admin console, and leave **Funnel** off. Then, on the computer running Nudibranch:
+There are two ways, and you can use both:
+
+- **At home, on the same Wi-Fi:** a quick settings change, below. Your phone only reaches it while it's on your home network.
+- **Anywhere, including away from home:** [Tailscale](#away-from-home-tailscale), below. It's also the only way to install Nudibranch on your phone as an app, because that needs HTTPS.
+
+Out of the box, Nudibranch only answers on the computer it runs on, so neither works until you set one up.
+
+#### At home: your local network
+
+1. Find the computer's address on your network. On Windows, run `ipconfig` and look for **IPv4 Address**, such as `192.168.1.50`. On a Mac, it's under System Settings > Wi-Fi > **Details** next to your network, listed as **IP address**.
+2. In `.env`, change `BIND_ADDRESS=127.0.0.1` to `BIND_ADDRESS=0.0.0.0`, and add that address to the end of `CSRF_TRUSTED_ORIGINS`, with `http://` and `:8000` around it:
+
+   ```
+   CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000,http://192.168.1.50:8000
+   ```
+
+3. Run `docker compose up -d` to apply it.
+4. On your phone, connected to the same Wi-Fi, open `http://192.168.1.50:8000` (with your own address) and sign in. Add it to your home screen as a bookmark if you like.
+
+- **If it won't load:** the first time, Windows may ask whether to allow Docker through the firewall. Allow it on **private** networks. Also check your phone is on the home Wi-Fi, not mobile data or a guest network.
+- **If the address changes:** your router can hand the computer a new address now and then, and the bookmark stops working. Most routers can reserve an address for one computer (often called a *DHCP reservation* or *static lease*).
+- **Who else can reach it:** everything on your network can now reach the sign-in page, including guests and smart devices. Everything still needs your password, but if you'd rather not open it up, use Tailscale only and keep `BIND_ADDRESS=127.0.0.1`.
+
+#### Away from home: Tailscale
+
+To reach it from outside your home network, use [Tailscale](https://tailscale.com) rather than opening a port on your router. It's free for personal use, and its Serve feature gives you a private HTTPS address that only your own devices can reach. Install Tailscale on both devices, turn on **HTTPS** in the Tailscale admin console, and leave **Funnel** off. Then, on the computer running Nudibranch:
 
 ```bash
 tailscale serve --bg 8000
@@ -86,7 +209,7 @@ tailscale serve --bg 8000
 Tailscale may ask you to approve Serve the first time. Add the `https://` address it shows to `CSRF_TRUSTED_ORIGINS` in `.env`, then run `docker compose up -d` again.
 
 - **Install it on your phone:** open that address and use your browser's install or add to home screen option. Installing needs HTTPS, which this provides.
-- **Keep Tailscale connected:** with the default `BIND_ADDRESS`, your phone needs Tailscale on even at home. A device using your phone's hotspot needs Tailscale too.
+- **Keep Tailscale connected:** with the default `BIND_ADDRESS`, your phone needs Tailscale on even at home. If you've also set up the home network way above, you can use that address at home instead. A device using your phone's hotspot needs Tailscale too.
 - **If it can't connect:** the app shows **Can't reach Nudibranch** with a **Try again** button, rather than an old saved copy of the page. That usually means Tailscale is off.
 - **App icon:** the browser tab and the installed app use your main tank's icon. Browsers fetch the new icon the next time they load a page. On an iPhone, an icon already on the home screen keeps its old picture until you remove it and add it again.
 - **Webcams:** cameras with local network addresses won't load away from home unless they're also reachable through Tailscale.
