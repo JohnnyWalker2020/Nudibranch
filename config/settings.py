@@ -89,6 +89,8 @@ TEMPLATES = [
                 'aquarium.context_processors.alerts_processor',
                 'aquarium.context_processors.system_processor',
             ],
+            # {% icon %}, {% act %} and {% card_order %} work in every template without a {% load %}.
+            'builtins': ['aquarium.templatetags.nudi'],
         },
     },
 ]

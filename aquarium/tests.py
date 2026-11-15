@@ -3064,7 +3064,7 @@ class SumpAndLightCardTests(TestCase):
 
     def test_chamber_card_lists_gear_with_a_remove_and_add_button(self):
         page = self.page()
-        self.assertContains(page, '+ Add device')
+        self.assertContains(page, '>Add device</option>')
         self.assertContains(page, f'value="chamber:{self.chamber.id}"')
         self.assertContains(page, reverse('equipment_unplace', args=[self.pump.id]))
         self.assertNotContains(page, 'divide-slate-800/80')
@@ -4046,9 +4046,10 @@ class TankOrderTopBarAndParTests(TestCase):
         self.assertEqual(self.client.get(reverse('tools')).context['light_tank'], self.a)
         self.assertNotContains(self.client.get(reverse('tank_detail', args=[self.a.pk])), 'id="light"')
 
-    def test_sumps_come_before_flow_on_the_tank_page(self):
+    def test_flow_comes_before_sumps_on_the_tank_page(self):
+        # The owner's default order: display tank, flow (with plumbing), sump, lighting, filters
         page = self.client.get(reverse('tank_detail', args=[self.a.pk])).content.decode()
-        self.assertLess(page.index('No sump on this tank'), page.index('Flow &amp; Water Turnover'))
+        self.assertLess(page.index('Flow &amp; Water Turnover'), page.index('No sump on this tank'))
 
 
 class WaterChangeUnitsAndChamberTests(TestCase):
@@ -4841,8 +4842,8 @@ class TankPageEquipmentLightsAndPresetTests(TestCase):
         self.assertIn(reverse('equipment_place'), page)
         self.assertIn('<option value="%d">Spare pump</option>' % self.spare.pk, page)
         self.assertIn('QT wave (QT · Display tank)', page)
-        self.assertIn('+ Add some flow', page)
-        self.assertIn('+ Add more sun', page)
+        self.assertIn('>Add some flow</option>', page)
+        self.assertIn('>Add more sun</option>', page)
         self.assertIn('category=lighting', page)
 
     def test_place_into_sump_and_take_off(self):
@@ -4973,7 +4974,7 @@ class HeadHeightAndFilterTests(TestCase):
     def test_filters_section(self):
         sock = Equipment.objects.create(tank=self.tank, sump=self.sump, name='Filter sock', category='filter')
         page = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
-        self.assertContains(page, '+ Catch more gunk')
+        self.assertContains(page, '>Catch more gunk</option>')
         self.assertContains(page, 'Filter sock')
         self.assertContains(page, reverse('service_equipment', args=[sock.pk]))
         self.assertIn(f'sump:{self.sump.pk}&category=filter', page.content.decode())
@@ -4993,7 +4994,7 @@ class EditCategoriesTests(TestCase):
 
     def test_livestock_page_links_to_edit_categories(self):
         page = self.client.get(reverse('livestock'))
-        self.assertContains(page, '✏️ Edit categories')
+        self.assertContains(page, '<span>Edit categories</span>')
         self.assertContains(page, reverse('groups_manage'))
         self.assertNotContains(page, 'New Group')
 
@@ -5371,8 +5372,8 @@ class OutletPickerAndFlowGroupTests(TestCase):
         groups = page.context['flow_groups']
         self.assertEqual([g['title'] for g in groups], ['Return pumps', 'Wavemakers & powerheads'])
         self.assertEqual([[e.name for e in g['items']] for g in groups], [['Return'], ['MP40']])
-        self.assertContains(page, '+ Add a return pump')
-        self.assertContains(page, '+ Add some flow')
+        self.assertContains(page, '>Add a return pump</option>')
+        self.assertContains(page, '>Add some flow</option>')
 
 
 class WaterQualityRatingTests(TestCase):
@@ -5589,3 +5590,142 @@ class EquipmentCatalogAndNavTests(TestCase):
         tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
         page = self.client.get(reverse('tank_detail', args=[tank.pk])).content.decode()
         self.assertIn('<div class="md:hidden flex flex-wrap items-center gap-1.5', page)
+
+
+class TankPageLayoutAndLivestockPlacesTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', width=30, depth=14, height=16, dimension_unit='in', fill_percent=60)
+
+    def test_sump_level_sets_fill_and_volume(self):
+        before = float(Sump.objects.get().volume_gallons)
+        data = self.client.post(reverse('sump_level', args=[self.sump.pk]), {'fill_percent': '30'}).json()
+        sump = Sump.objects.get()
+        self.assertEqual(float(sump.fill_percent), 30.0)
+        self.assertAlmostEqual(float(sump.volume_gallons), before / 2, delta=0.2)
+        self.assertTrue(data['moves_volume'])
+        self.assertEqual(data['total_gallons'], Tank.objects.get().total_system_gallons)
+        # Out of range is clamped, rubbish refused
+        self.client.post(reverse('sump_level', args=[self.sump.pk]), {'fill_percent': '250'})
+        self.assertEqual(float(Sump.objects.get().fill_percent), 100.0)
+        self.assertEqual(self.client.post(reverse('sump_level', args=[self.sump.pk]), {'fill_percent': 'lots'}).status_code, 400)
+
+    def test_sump_level_leaves_a_typed_volume_alone(self):
+        self.sump.capacity_is_manual = True
+        self.sump.volume_gallons = 12
+        self.sump.save()
+        data = self.client.post(reverse('sump_level', args=[self.sump.pk]), {'fill_percent': '40'}).json()
+        self.assertFalse(data['moves_volume'])
+        self.assertEqual(float(Sump.objects.get().volume_gallons), 12.0)
+
+    def test_animal_in_a_sump_takes_its_tank(self):
+        other = Tank.objects.create(name='Frag', volume_gallons=10)
+        a = Animal.objects.create(name='Copepods', tank=other, sump=self.sump)
+        self.assertEqual(a.tank_id, self.tank.id)
+        self.assertEqual(a.place_label, 'Sump')
+
+    def test_form_rejects_a_sump_from_another_tank(self):
+        other = Tank.objects.create(name='Frag', volume_gallons=10)
+        res = self.client.post(reverse('animal_create'), {'name': 'Pods', 'tank': other.pk, 'sump': self.sump.pk, 'count': 1, 'status': 'healthy'})
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Animal.objects.exists())
+        res = self.client.post(reverse('animal_create'), {'name': 'Pods', 'tank': self.tank.pk, 'sump': self.sump.pk, 'count': 1,
+                                                          'status': 'healthy', 'next': f'/tanks/{self.tank.pk}/'})
+        self.assertRedirects(res, f'/tanks/{self.tank.pk}/', fetch_redirect_response=False)
+        self.assertEqual(Animal.objects.get().sump, self.sump)
+
+    def test_tank_page_sections_and_order(self):
+        coral, _ = AnimalGroup.objects.get_or_create(name='LPS Corals')
+        cuc, _ = AnimalGroup.objects.get_or_create(name='Cleanup Crew')
+        Animal.objects.create(name='Clownfish', tank=self.tank)
+        Animal.objects.create(name='Hammer', tank=self.tank).groups.add(coral)
+        Animal.objects.create(name='Turbo snail', tank=self.tank).groups.add(cuc)
+        Animal.objects.create(name='Pods', tank=self.tank, sump=self.sump)
+        Animal.objects.create(name='Old tang', tank=self.tank, status='deceased')
+        res = self.client.get(reverse('tank_detail', args=[self.tank.pk]))
+        sections = {s['key']: [a.name for a in s['items']] for s in res.context['livestock_sections']}
+        self.assertEqual(sections, {'fish': ['Clownfish'], 'cuc': ['Turbo snail'], 'coral': ['Hammer']})
+        self.assertEqual([a.name for a in res.context['sump_rows'][0]['animals']], ['Pods'])
+        page = res.content.decode()
+        order = [page.index(f'data-card="{k}"') for k in ('display', 'flow', 'sumps', 'lighting', 'filters')]
+        self.assertEqual(order, sorted(order))
+        self.assertLess(page.index('data-card="flow"'), page.index('Plumbing'))
+        self.assertLess(page.index('Plumbing'), page.index('data-card="sumps"'))
+        self.assertNotIn('>+ Equipment<', page)
+        self.assertNotIn('Old tang', page)
+        self.assertContains(res, 'Show deceased (1)')
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk]) + '?deceased=1'), 'Old tang')
+
+    def test_card_order_is_saved_and_merged(self):
+        url = reverse('card_order')
+        self.client.post(url, {'page': 'livestock', 'order': json.dumps(['a1', 'a2', 'a3', 'a4'])})
+        # A filtered page sends only what it showed; the others keep their places
+        self.client.post(url, {'page': 'livestock', 'order': json.dumps(['a4', 'a2'])})
+        self.assertEqual(AppSettings.load().card_order['livestock'], ['a1', 'a4', 'a3', 'a2'])
+        self.assertEqual(self.client.post(url, {'page': 'nope', 'order': '[]'}).status_code, 400)
+        self.assertEqual(self.client.post(url, {'page': 'tank', 'order': '{"x": 1}'}).status_code, 400)
+        self.client.post(url, {'page': 'tank', 'order': json.dumps(['sumps', 'display'])})
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.tank.pk])), '["sumps", "display"]')
+        self.client.post(url, {'page': 'livestock', 'order': '[]'})
+        self.assertNotIn('livestock', AppSettings.load().card_order)
+
+
+class LivestockHerdAndFlushTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+
+    def test_flush_marks_deceased_and_keeps_it(self):
+        a = Animal.objects.create(name='Blue tang', tank=self.tank)
+        res = self.client.post(reverse('animal_flush', args=[a.pk]), {'next': f'/tanks/{self.tank.pk}/'})
+        self.assertRedirects(res, f'/tanks/{self.tank.pk}/', fetch_redirect_response=False)
+        a.refresh_from_db()
+        self.assertEqual(a.status, 'deceased')
+        self.assertTrue(a.epitaph)
+        self.assertIsNotNone(a.died_on)
+
+    def test_card_has_flush_not_delete(self):
+        a = Animal.objects.create(name='Blue tang', tank=self.tank)
+        page = self.client.get(reverse('livestock')).content.decode()
+        self.assertIn(reverse('animal_flush', args=[a.pk]), page)
+        self.assertNotIn(reverse('animal_delete', args=[a.pk]), page)
+        # Deleting for good is on the edit page
+        self.assertContains(self.client.get(reverse('animal_edit', args=[a.pk])), 'Delete for good')
+
+    def test_split_makes_individuals_on_one_card(self):
+        group, _ = AnimalGroup.objects.get_or_create(name='School')
+        a = Animal.objects.create(name='Chromis', tank=self.tank, count=3, paid=Decimal('10.00'))
+        a.groups.add(group)
+        self.client.post(reverse('animal_split', args=[a.pk]))
+        herd = list(Animal.objects.order_by('id'))
+        self.assertEqual(len(herd), 3)
+        self.assertEqual({x.count for x in herd}, {1})
+        self.assertEqual(len({x.herd for x in herd}), 1)
+        self.assertIsNotNone(herd[0].herd)
+        self.assertEqual(sum(x.paid for x in herd), Decimal('10.00'))
+        self.assertTrue(all(list(x.groups.all()) == [group] for x in herd))
+        res = self.client.get(reverse('livestock'))
+        self.assertEqual(len(res.context['cards']), 1)
+        self.assertContains(res, '3×</span> Chromis')
+
+    def test_add_another_joins_the_card_and_flushing_one_keeps_the_rest(self):
+        a = Animal.objects.create(name='Clownfish', nickname='Nemo', tank=self.tank)
+        res = self.client.post(reverse('animal_add_another', args=[a.pk]), {'next': '/livestock/'})
+        twin = Animal.objects.exclude(pk=a.pk).get()
+        self.assertTrue(res['Location'].startswith(reverse('animal_edit', args=[twin.pk])))
+        a.refresh_from_db()
+        self.assertEqual(twin.herd, a.herd)
+        self.assertEqual(twin.nickname, '')
+        self.client.post(reverse('animal_flush', args=[twin.pk]))
+        cards = self.client.get(reverse('livestock')).context['cards']
+        self.assertEqual([c['lead'].nickname for c in cards], ['Nemo'])
+
+
+class ActionButtonTests(TestCase):
+    def test_act_tag_and_icons(self):
+        from django.template import Context, Template
+        html = Template("{% act 'edit' '/x/' %}{% act 'flush' button=True compact=True %}{% icon 'headstone' %}").render(Context())
+        self.assertIn('href="/x/"', html)
+        self.assertIn('act-edit', html)
+        self.assertIn('<button type="submit"', html)
+        self.assertIn('class="sr-only">Flush', html)
+        self.assertEqual(html.count('<svg'), 3)

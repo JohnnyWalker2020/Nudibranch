@@ -307,6 +307,10 @@ class Animal(models.Model):
     name = models.CharField(max_length=120, help_text="Common name or pet name (e.g. 'Ocellaris Clown Pair')")
     species = models.CharField(max_length=150, blank=True, help_text="Scientific or species name (optional)")
     tank = models.ForeignKey('Tank', on_delete=models.SET_NULL, null=True, blank=True, related_name='animals', help_text="Assigned tank")
+    sump = models.ForeignKey('Sump', on_delete=models.SET_NULL, null=True, blank=True, related_name='animals',
+                             help_text="Sump or refugium it lives in (blank = the display tank)")
+    herd = models.UUIDField(null=True, blank=True, editable=False, db_index=True,
+                            help_text="Individuals of the same kind share this and are shown on one card")
     groups = models.ManyToManyField(AnimalGroup, blank=True, related_name="animals")
     count = models.PositiveIntegerField(default=1, help_text="Quantity (e.g. 10 snails or 5 chromis)")
     acquired_date = models.DateField(null=True, blank=True)
@@ -332,6 +336,9 @@ class Animal(models.Model):
 
     def save(self, *args, **kwargs):
         changed = set()
+        if self.sump_id and self.sump.tank_id != self.tank_id:
+            self.tank_id = self.sump.tank_id  # a sump implies its tank
+            changed.add('tank')
         if self.status == 'quarantine' and not self.quarantine_started:
             self.quarantine_started = timezone.localdate()
             changed.add('quarantine_started')
@@ -348,6 +355,24 @@ class Animal(models.Model):
         if update_fields is not None:
             kwargs['update_fields'] = set(update_fields) | changed
         super().save(*args, **kwargs)
+
+    @property
+    def place_label(self):
+        """Where it lives, e.g. 'Display tank' or 'Sump'."""
+        if self.sump_id:
+            return self.sump.name
+        return "Display tank" if self.tank_id else ""
+
+    @property
+    def tank_section(self):
+        """Which part of a tank card it's listed under: 'coral', 'cuc' (cleanup crew) or 'fish'.
+        Worked out from its livestock groups, so it follows the user's own groups."""
+        names = [g.name.lower() for g in self.groups.all()]
+        if any('coral' in n or 'anemone' in n for n in names):
+            return 'coral'
+        if any('clean' in n or 'invert' in n or 'snail' in n or 'crab' in n or 'shrimp' in n for n in names):
+            return 'cuc'
+        return 'fish'
 
     @property
     def epitaph_text(self):
@@ -834,6 +859,16 @@ class Sump(DimensionedVessel):
 
     def __str__(self):
         return f"{self.name} ({self.volume_gallons} gal)"
+
+    @property
+    def level_moves_volume(self):
+        """The water level slider sets the fill %, which only changes the volume when it's worked out from the size."""
+        return self.has_dimensions and not self.capacity_is_manual
+
+    @property
+    def box_gallons(self):
+        """The whole box, filled to the rim (None without dimensions)."""
+        return estimate_capacity_gallons(self.width, self.depth, self.height, self.dimension_unit, 100) if self.has_dimensions else None
 
     @property
     def chamber_share_total(self):
@@ -1399,6 +1434,8 @@ class AppSettings(models.Model):
     last_schedule_check = models.DateTimeField(null=True, blank=True, editable=False)
     events_baselined = models.BooleanField(default=False, editable=False)
     last_auto_backup = models.DateTimeField(null=True, blank=True, editable=False)
+    card_order = models.JSONField(default=dict, blank=True, editable=False,
+                                  help_text="Card order chosen with Arrange, by page: {page: [card, ...]}")
 
     class Meta:
         verbose_name_plural = 'App settings'

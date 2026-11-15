@@ -36,6 +36,9 @@ urlpatterns = [
     path('livestock/<int:animal_id>/edit/', views.animal_edit_view, name='animal_edit'),
     path('livestock/<int:animal_id>/photo/', views.animal_upload_photo_view, name='animal_upload_photo'),
     path('livestock/<int:animal_id>/delete/', views.animal_delete_view, name='animal_delete'),
+    path('livestock/<int:animal_id>/flush/', views.animal_flush_view, name='animal_flush'),
+    path('livestock/<int:animal_id>/split/', views.animal_split_view, name='animal_split'),
+    path('livestock/<int:animal_id>/another/', views.animal_add_another_view, name='animal_add_another'),
     path('livestock/silly-name/', views.silly_name_view, name='silly_name'),
     path('livestock/<int:animal_id>/silly-name/', views.animal_silly_name_view, name='animal_silly_name'),
     path('livestock/<int:animal_id>/epitaph/', tools.animal_epitaph_view, name='animal_epitaph'),
@@ -70,6 +73,7 @@ urlpatterns = [
     path('tanks/import/', views.tank_import_view, name='tank_import'),
     path('tanks/<int:tank_id>/sumps/add/', views.sump_create_view, name='sump_create'),
     path('sumps/<int:sump_id>/edit/', views.sump_edit_view, name='sump_edit'),
+    path('sumps/<int:sump_id>/level/', views.sump_level_view, name='sump_level'),
     path('sumps/<int:sump_id>/delete/', views.sump_delete_view, name='sump_delete'),
     path('sumps/<int:sump_id>/chambers/split/', views.sump_split_view, name='sump_split'),
     path('chambers/<int:chamber_id>/edit/', views.chamber_edit_view, name='chamber_edit'),
@@ -127,6 +131,7 @@ urlpatterns = [
     path('tools/', tools.tools_view, name='tools'),
     path('tools/settings/', tools.app_settings_view, name='app_settings'),
     path('tools/settings/prices/', tools.prices_settings_view, name='prices_settings'),
+    path('tools/settings/card-order/', tools.card_order_view, name='card_order'),
     path('tools/power/', tools.power_view, name='power'),
 
     # System planner

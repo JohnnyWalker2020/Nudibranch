@@ -25,6 +25,7 @@ module.exports = {
     './templates/**/*.html',
     './static/js/*.js',
     './aquarium/*.py',
+    './aquarium/templatetags/*.py',
     '!./aquarium/tests.py',
   ],
   theme: {

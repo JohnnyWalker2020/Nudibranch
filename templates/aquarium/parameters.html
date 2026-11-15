@@ -13,6 +13,7 @@
       {% if selected_param %}
         <a href="{% url 'parameter_settings' selected_param.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors" title="Change units, decimals and ideal range">⚙️ {{ selected_param.name }} settings</a>
       {% endif %}
+      {% include 'aquarium/partials/arrange_button.html' with page='parameters' %}
       <button type="button" onclick="openQuickLogModal({% if selected_param and selected_code %}{{ selected_param.id }}{% endif %})" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Log Test</button>
     </div>
   </div>
@@ -32,10 +33,11 @@
         {% for pt in trace_types %}<option value="{{ pt.code }}" {% if selected_code == pt.code %}selected{% endif %}>{{ pt.name }}</option>{% endfor %}
       </select>
       {% endif %}
-    <a href="{% url 'parameter_type_create' %}" class="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-cyan-500/50 transition-colors" title="Add something else you test, or elements from an ICP test">+ Add a test</a>
+    <a href="{% url 'parameter_type_create' %}" title="Add something else you test, or elements from an ICP test" class="act act-add shrink-0">{% icon 'box' 'w-4 h-4' %}<span>Add a test</span></a>
   </div>
 
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
+  <div data-arrange="parameters" class="space-y-6">
+  <div data-card="chart" data-card-title="Chart" class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
       <div>
         <h2 id="chart-title" class="text-base font-bold text-white">Trend Analysis</h2>
@@ -51,7 +53,7 @@
     <div class="relative h-72 sm:h-96 w-full mt-4"><canvas id="detailedChart"></canvas></div>
   </div>
 
-  <div class="space-y-2">
+  <div data-card="history" data-card-title="Log history" class="space-y-2">
     <div class="flex items-center justify-between px-1">
       <h3 class="text-base font-bold text-white">Log History</h3>
       <span class="flex items-center gap-3 text-xs">
@@ -68,6 +70,8 @@
       {% if next_offset %}{% include 'aquarium/partials/parameter_log_page.html' with recent_logs=None %}{% endif %}
     </div>
   </div>
+  </div>
+  {% include 'aquarium/partials/arrange_apply.html' with page='parameters' %}
 </div>
 {% endblock %}
 
@@ -118,3 +122,4 @@
   document.body.addEventListener('logDeleted', fetchAndRender);
 </script>
 {% endblock %}
+

@@ -1,0 +1,23 @@
+{% comment %}
+Puts the saved Arrange order in place. Include it straight after the data-arrange="{{ page }}" box closes,
+so the cards move before the page is drawn. Cards the saved order doesn't know (new ones) keep their place
+after the card they normally follow.
+{% endcomment %}
+<script>
+(function () {
+  var box = document.querySelector('[data-arrange="{{ page }}"]');
+  var saved = {% card_order page %};
+  if (!box || !saved.length) return;
+  var normal = Array.prototype.filter.call(box.children, function (el) { return el.hasAttribute('data-card'); });
+  var byKey = {};
+  normal.forEach(function (c) { byKey[c.getAttribute('data-card')] = c; });
+  var order = saved.filter(function (k) { return byKey[k]; }).map(function (k) { return byKey[k]; });
+  normal.forEach(function (c, i) {
+    if (order.indexOf(c) !== -1) return;
+    var before = i ? order.indexOf(normal[i - 1]) : -1;
+    order.splice(before + 1, 0, c);
+  });
+  var anchor = normal[0].previousSibling;
+  order.forEach(function (c) { box.insertBefore(c, anchor ? anchor.nextSibling : box.firstChild); anchor = c; });
+})();
+</script>

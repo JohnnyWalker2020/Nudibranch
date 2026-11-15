@@ -61,7 +61,7 @@
         <p class="text-sm font-semibold text-white">{{ entry.get_kind_display }}{% if entry.medication %}: {{ entry.medication }}{% endif %}{% if entry.dose %} ({{ entry.dose }}){% endif %}</p>
         <p class="text-[11px] text-slate-500">{{ entry.logged_on|date:"M j, Y" }}{% if entry.notes %} · {{ entry.notes }}{% endif %}</p>
       </div>
-      <form method="POST" action="{% url 'quarantine_entry_delete' entry.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Delete</button></form>
+      <form method="POST" action="{% url 'quarantine_entry_delete' entry.id %}">{% csrf_token %}<button title="Delete" class="act act-delete">{% icon 'bin' 'w-4 h-4' %}<span>Delete</span></button></form>
     </div>
     {% empty %}
     <p class="p-6 text-center text-xs text-slate-500">Nothing logged yet.</p>

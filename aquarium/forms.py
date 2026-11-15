@@ -513,7 +513,7 @@ class AnimalForm(CostGatedMixin, forms.ModelForm):
 
     class Meta:
         model = Animal
-        fields = ['name', 'nickname', 'species', 'tank', 'groups', 'count', 'acquired_date', 'status', 'banned_to_sump',
+        fields = ['name', 'nickname', 'species', 'tank', 'sump', 'groups', 'count', 'acquired_date', 'status', 'banned_to_sump',
                   'died_on', 'epitaph', 'paid', 'photo', 'notes']
         widgets = {
             'paid': forms.NumberInput(attrs={'class': INPUT, 'min': '0', 'step': '0.01', 'inputmode': 'decimal', 'placeholder': 'Total for all of them'}),
@@ -531,6 +531,9 @@ class AnimalForm(CostGatedMixin, forms.ModelForm):
                 'placeholder': 'e.g. Amphiprion ocellaris (optional)'
             }),
             'tank': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
+            }),
+            'sump': forms.Select(attrs={
                 'class': 'w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500'
             }),
             'groups': forms.CheckboxSelectMultiple(attrs={
@@ -557,6 +560,23 @@ class AnimalForm(CostGatedMixin, forms.ModelForm):
                 'placeholder': 'Diet notes, coral placement (low/high flow), source store, quarantine history...'
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        sump = self.fields['sump']
+        sump.label = 'Lives in'
+        sump.empty_label = 'The display tank'
+        sump.queryset = Sump.objects.select_related('tank').order_by('tank__name', 'name')
+        sump.label_from_instance = lambda s: f"{s.tank.name} › {s.name}"
+
+    def clean(self):
+        data = super().clean()
+        tank, sump = data.get('tank'), data.get('sump')
+        if sump and tank and sump.tank_id != tank.id:
+            self.add_error('sump', f"{sump.name} belongs to {sump.tank.name}. Pick that tank, or one of {tank.name}'s sumps.")
+        elif sump and not tank:
+            data['tank'] = sump.tank
+        return data
 
     def save(self, commit=True):
         # Leaving quarantine ends that stay, so a later one starts counting from its own first day.

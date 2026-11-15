@@ -1,0 +1,31 @@
+{% comment %}
+Water level slider on the right of a sump card. Needs `sump`. Drag the water to where it sits in the sump.
+The level is the sump's fill %, so its volume follows when it's worked out from the sump's size (sump_level_view).
+{% endcomment %}
+<div class="sm:w-32 shrink-0 flex sm:flex-col items-center gap-3 sm:gap-2 sm:pl-5 sm:border-l border-slate-800"
+     data-sump-level data-url="{% url 'sump_level' sump.id %}" data-sump="{{ sump.id }}"
+     data-height="{{ sump.height|default_if_none:''|stringformat:'s' }}" data-dim-unit="{{ sump.dimension_unit }}"
+     data-box-gallons="{{ sump.box_gallons|default_if_none:'' }}" data-moves="{{ sump.level_moves_volume|yesno:'1,0' }}">
+  <span class="hidden sm:block text-[10px] uppercase font-semibold text-slate-500">Water level</span>
+  <div class="relative w-14 h-36 sm:h-40 shrink-0 rounded-b-xl border-2 border-t-0 border-slate-500/70 bg-slate-950/70 overflow-hidden focus-within:ring-2 focus-within:ring-cyan-500">
+    <div class="absolute inset-x-0 top-0 h-px border-t border-dashed border-slate-600" style="top: 10%" title="Near the rim"></div>
+    <div data-water class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-blue-600/80 to-cyan-400/60" style="height: {{ sump.fill_percent|floatformat:0 }}%">
+      <div class="h-0.5 bg-cyan-100/80"></div>
+    </div>
+    <input type="range" min="1" max="100" step="1" value="{{ sump.fill_percent|floatformat:0 }}"
+           aria-label="Water level in {{ sump.name }}, as a percent of its height"
+           class="sump-range absolute inset-0 w-full h-full opacity-0 cursor-ns-resize">
+  </div>
+  <div class="flex flex-col items-center gap-1 text-center">
+    <span class="sm:hidden text-[10px] uppercase font-semibold text-slate-500">Water level</span>
+    <span class="inline-flex items-center gap-1">
+      <span data-level-text class="text-lg font-black text-white">{{ sump.fill_percent|floatformat:0 }}</span>
+      <button type="button" data-units="{% if sump.height %}%,cm,in{% else %}%{% endif %}" data-name="Water level unit" data-remember="sump-level" value="%" class="unit-btn unit-inline" {% if not sump.height %}disabled title="Add the sump's height (Edit sump) to see the level in cm or inches"{% endif %}>%</button>
+    </span>
+    <span data-level-gal class="text-[11px] text-cyan-400">{% if sump.level_moves_volume %}≈ {{ sump.volume_gallons }} gal{% endif %}</span>
+    <span data-level-status class="text-[10px] text-slate-500 h-3" aria-live="polite"></span>
+    <p class="text-[10px] leading-snug text-slate-500 max-w-[9rem]">
+      {% if sump.level_moves_volume %}Sets the sump's volume. A rough guide: baffles keep some chambers higher than others.{% elif sump.has_dimensions %}Saved, but the volume stays as you typed it in Edit sump.{% else %}Saved, but add the sump's size in Edit sump for it to change the volume.{% endif %}
+    </p>
+  </div>
+</div>

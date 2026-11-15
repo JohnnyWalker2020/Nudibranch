@@ -1,5 +1,17 @@
 # Nudibranch: change summary
 
+## Round 24 (2026-11-15)
+
+Apply with `docker compose up -d --build` (or a restart when running from source); migration 0042 runs on start.
+
+- **Sump water level**: each sump card has a slider on its right. Drag the water to where it sits; the ⇄ button shows it in %, cm or inches. The level is the sump's fill %, so when its volume comes from its size, the volume and the system total (used for dosing) follow. It treats the whole sump as one level, so with baffles it's a rough guide. A typed-in volume is left alone.
+- **Tank system page**: cards now go In the display tank, Flow & water turnover (with Plumbing inside it), Sump, Lighting, Filters. The display tank card is split into Gear, Fish, Clean up Crew and Coral, sorted by each animal's livestock categories. The overview strip lost its + Equipment button. **Show deceased** lists the departed with headstones.
+- **Livestock in a sump**: livestock has a **Lives in** choice (the display tank or one of its sumps), and each sump card lists who lives there.
+- **Arrange**: the tank system, livestock, equipment, dosing, routines, tools, water and tanks pages have an **Arrange** button. Move cards with ▲ ▼ and tap Done; the order is saved for the app. **Back to normal** undoes it. (The dashboard keeps its own Customize.)
+- **Buttons**: add, edit and delete look the same everywhere, with drawn icons: a parcel to add, a fish in a bag to add livestock, a tube of superglue to edit, a bin to delete, an unplugged plug to take equipment off a tank, and a toilet to flush livestock. Plumbing and sumps got their own icons too.
+- **Flush**: livestock cards have a quick Flush. It marks the animal deceased and gives it a headstone. Deleting for good is only on its edit page now.
+- **Several of one kind**: a card like "3× Clownfish" has a **Split** button that makes each one its own entry (own name, photo, status), kept together on one card with their photos to scroll through. **Add another** adds one more to the card. Flushing one leaves the rest.
+
 ## Round 23 (2026-11-13)
 
 Apply with `docker compose up -d --build`; migrations 0040 and 0041 run on start.

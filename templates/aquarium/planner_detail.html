@@ -14,7 +14,7 @@
     </div>
     <div class="flex items-center gap-2">
       <form method="POST" action="{% url 'plan_duplicate' plan.id %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Copy</button></form>
-      <a href="{% url 'plan_edit' plan.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Edit plan</a>
+      <a href="{% url 'plan_edit' plan.id %}" title="Edit plan" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit plan</span></a>
       {% if a.untracked_count or not plan.tracked_tank %}
       <a href="{% url 'plan_track' plan.id %}" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-bold text-xs rounded-xl">{% if plan.existing_tank or plan.tracked_tank %}Add to tracking{% else %}Start tracking this tank{% endif %}</a>
       {% endif %}
@@ -57,7 +57,7 @@
           </div>
           <div class="flex items-center gap-3 shrink-0">
             {% if item.unit_cost %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
-            {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Remove</button></form>{% endif %}
+            {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button title="Remove" class="act act-delete">{% icon 'bin' 'w-4 h-4' %}<span>Remove</span></button></form>{% endif %}
           </div>
         </div>
         {% empty %}
@@ -83,7 +83,7 @@
           </div>
           <div class="flex items-center gap-3 shrink-0">
             {% if item.unit_cost %}<span class="text-xs text-slate-300">{{ a.currency }}{{ item.total_cost|floatformat:2 }}</span>{% endif %}
-            {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button class="text-xs text-slate-500 hover:text-rose-400">Remove</button></form>{% endif %}
+            {% if not item.tracked %}<form method="POST" action="{% url 'plan_item_delete' item.id %}">{% csrf_token %}<button title="Remove" class="act act-delete">{% icon 'bin' 'w-4 h-4' %}<span>Remove</span></button></form>{% endif %}
           </div>
         </div>
         {% empty %}

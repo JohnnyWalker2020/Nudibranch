@@ -13,8 +13,8 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <a href="{% url 'project_edit' project.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Edit project</a>
-      <a href="{% url 'plan_create' %}?project={{ project.id }}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">+ New tank</a>
+      <a href="{% url 'project_edit' project.id %}" title="Edit project" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit project</span></a>
+      <a href="{% url 'plan_create' %}?project={{ project.id }}" title="New tank" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>New tank</span></a>
     </div>
   </div>
 

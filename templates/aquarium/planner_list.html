@@ -13,8 +13,8 @@
     </div>
     <div class="flex items-center gap-2">
       <a href="{% url 'wishlist' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs text-center">💜 Wishlist</a>
-      <a href="{% url 'project_create' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs text-center">+ New project</a>
-      <a href="{% url 'plan_create' %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl text-center">+ New plan</a>
+      <a href="{% url 'project_create' %}" title="New project" class="act act-add">{% icon 'box' 'w-4 h-4' %}<span>New project</span></a>
+      <a href="{% url 'plan_create' %}" title="New plan" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>New plan</span></a>
     </div>
   </div>
 
@@ -52,7 +52,7 @@
       <span class="text-4xl">🗺️</span>
       <h3 class="mt-3 text-base font-bold text-white">No plans yet</h3>
       <p class="mt-1 text-xs text-slate-400 max-w-md mx-auto">Plan a brand new tank, or plan what to add to a tank you already have.</p>
-      <a href="{% url 'plan_create' %}" class="mt-4 inline-block px-4 py-2 bg-cyan-500 text-slate-950 font-bold text-xs rounded-xl">+ New plan</a>
+      <a href="{% url 'plan_create' %}" title="New plan" class="act act-add mt-4">{% icon 'box' 'w-4 h-4' %}<span>New plan</span></a>
     </div>
     {% endfor %}
   </div>

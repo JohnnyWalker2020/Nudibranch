@@ -30,8 +30,8 @@
       <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Refill to full</button>
     </form>
     <div class="flex items-center gap-3 text-xs font-semibold">
-      <a href="{% url 'dosing_edit' res.id %}" class="text-slate-400 hover:text-cyan-400">Edit</a>
-      <a href="{% url 'dosing_delete' res.id %}" class="text-slate-500 hover:text-rose-400">Delete</a>
+      <a href="{% url 'dosing_edit' res.id %}" title="Edit" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit</span></a>
+      <a href="{% url 'dosing_delete' res.id %}" title="Delete" class="act act-delete">{% icon 'bin' 'w-4 h-4' %}<span>Delete</span></a>
     </div>
   </div>
 </div>

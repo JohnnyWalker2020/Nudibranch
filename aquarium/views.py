@@ -3,6 +3,8 @@ import json
 import math
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
+import uuid
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib import messages
@@ -871,7 +873,7 @@ def livestock_view(request):
     status_filter = request.GET.get('status')
     tank = get_active_tank(request)
 
-    animals = in_system(Animal.objects.select_related('tank').prefetch_related('groups'), tank)
+    animals = in_system(Animal.objects.select_related('tank', 'sump').prefetch_related('groups'), tank)
     if group_id:
         animals = animals.filter(groups__id=group_id)
     departed_count = animals.filter(status='deceased').count()
@@ -883,6 +885,7 @@ def livestock_view(request):
 
     return render(request, 'aquarium/livestock.html', {
         'animals': animals,
+        'cards': livestock_cards(animals),
         'departed_count': departed_count,
         'groups': groups,
         'selected_group': group_id,
@@ -973,7 +976,7 @@ def animal_create_view(request):
         form = AnimalForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
-            return redirect('livestock')
+            return redirect(_safe_next(request, 'livestock'))
     else:
         initial = {}
         species_id = _to_int(request.GET.get('species_id'), None)
@@ -986,6 +989,13 @@ def animal_create_view(request):
                     'notes': f"Care: {sp.care_level}. Diet: {sp.diet}. {sp.notes}".strip(),
                     'new_group_name': sp.suggested_group,
                 }
+        # Added from a tank page: straight into that tank, or into one of its sumps.
+        sump = Sump.objects.filter(id=_to_int(request.GET.get('sump'), None)).first()
+        tank_id = sump.tank_id if sump else _to_int(request.GET.get('tank'), None)
+        if sump:
+            initial['sump'] = sump.pk
+        if tank_id:
+            initial['tank'] = tank_id
         active_tank = get_active_tank(request)
         if active_tank:
             initial.setdefault('tank', active_tank.pk)
@@ -994,7 +1004,8 @@ def animal_create_view(request):
     return render(request, 'aquarium/animal_form.html', {
         'form': form,
         'title': 'Add Unlisted Specimen',
-        'is_edit': False
+        'is_edit': False,
+        'next': _safe_next(request, ''),
     })
 
 
@@ -1005,7 +1016,7 @@ def animal_edit_view(request, animal_id):
         form = AnimalForm(request.POST, request.FILES, instance=animal)
         if form.is_valid():
             form.save()
-            return redirect('livestock')
+            return redirect(_safe_next(request, 'livestock'))
     else:
         form = AnimalForm(instance=animal)
 
@@ -1013,7 +1024,8 @@ def animal_edit_view(request, animal_id):
         'form': form,
         'animal': animal,
         'title': f'Edit {animal.name}',
-        'is_edit': True
+        'is_edit': True,
+        'next': _safe_next(request, ''),
     })
 
 
@@ -1045,13 +1057,95 @@ def animal_silly_name_view(request, animal_id):
     return redirect(_safe_next(request, 'livestock'))
 
 
+def livestock_cards(animals):
+    """One card per animal, except individuals of one herd, which share a card in the order they were added."""
+    cards, by_herd = [], {}
+    for animal in animals:
+        if animal.herd is None:
+            cards.append({'key': f'a{animal.id}', 'lead': animal, 'members': [animal]})
+        elif animal.herd in by_herd:
+            by_herd[animal.herd]['members'].append(animal)
+        else:
+            by_herd[animal.herd] = {'key': f'h{animal.herd.hex[:12]}', 'lead': animal, 'members': [animal]}
+            cards.append(by_herd[animal.herd])
+    for card in cards:
+        card['members'].sort(key=lambda a: a.id)
+        card['lead'] = card['members'][0]
+        card['photos'] = [a for a in card['members'] if a.photo]
+    return cards
+
+
+def _copy_animal(animal, **changes):
+    """A new individual of the same kind: same species, categories, tank and status, but its own name and photo."""
+    twin = Animal(name=animal.name, species=animal.species, tank=animal.tank, sump=animal.sump, herd=animal.herd,
+                  count=1, acquired_date=animal.acquired_date, status=animal.status,
+                  quarantine_started=animal.quarantine_started, quarantine_days=animal.quarantine_days,
+                  banned_to_sump=animal.banned_to_sump, notes=animal.notes)
+    for field, value in changes.items():
+        setattr(twin, field, value)
+    twin.save()
+    twin.groups.set(animal.groups.all())
+    return twin
+
+
+@require_POST
+def animal_flush_view(request, animal_id):
+    """Flush from a card: it's marked deceased and gets its headstone. Deleting for good is on its edit page."""
+    animal = get_object_or_404(Animal, id=animal_id)
+    if animal.status != 'deceased':
+        animal.status = 'deceased'
+        animal.save()
+        messages.success(request, f"🚽 {animal.nickname or animal.name} has been flushed. Rest in peace.")
+    return redirect(_safe_next(request, 'livestock'))
+
+
+@require_POST
+def animal_split_view(request, animal_id):
+    """'3x Clownfish' becomes three individuals on one card, each with its own name, photo and status.
+    What was paid is shared out between them."""
+    animal = get_object_or_404(Animal, id=animal_id)
+    n = animal.count
+    if n < 2:
+        return redirect(_safe_next(request, 'livestock'))
+    if n > 100:
+        messages.error(request, "That's more than 100. Split them a bit at a time by lowering the count first.")
+        return redirect(_safe_next(request, 'livestock'))
+    with transaction.atomic():
+        animal.herd = animal.herd or uuid.uuid4()
+        share = None
+        if animal.paid is not None:
+            share = (animal.paid / n).quantize(Decimal('0.01'))
+            first_share = animal.paid - share * (n - 1)  # the odd cents stay with the first one
+            animal.paid = first_share
+        animal.count = 1
+        animal.save()
+        for _ in range(n - 1):
+            _copy_animal(animal, paid=share)
+    messages.success(request, f"Split into {n} individuals. Tap Edit on each to give it a name and photo.")
+    return redirect(_safe_next(request, 'livestock'))
+
+
+@require_POST
+def animal_add_another_view(request, animal_id):
+    """One more of the same kind on the same card, then straight to its edit page to name it."""
+    animal = get_object_or_404(Animal, id=animal_id)
+    if animal.herd is None:
+        animal.herd = uuid.uuid4()
+        animal.save(update_fields=['herd'])
+    twin = _copy_animal(animal, status='healthy' if animal.status in Animal.GONE_STATUSES else animal.status,
+                        acquired_date=timezone.localdate(), quarantine_started=None)
+    target = reverse('animal_edit', args=[twin.id])
+    nxt = _safe_next(request, '')
+    return redirect(f"{target}?next={quote(nxt)}" if nxt else target)
+
+
 def animal_delete_view(request, animal_id):
     """Delete an animal from the tank with confirmation."""
     animal = get_object_or_404(Animal, id=animal_id)
     if request.method == 'POST':
         animal.delete()
-        return redirect('livestock')
-    return render(request, 'aquarium/animal_confirm_delete.html', {'animal': animal})
+        return redirect(_safe_next(request, 'livestock'))
+    return render(request, 'aquarium/animal_confirm_delete.html', {'animal': animal, 'next': _safe_next(request, '')})
 
 
 # ==========================================
@@ -1465,6 +1559,26 @@ def tank_detail_view(request, tank_id):
         light.schedules = [r for r in schedules if light in r.equipment.all()]
     linked = {r.id for light in lights for r in light.schedules}
 
+    # Livestock: the display's in Fish / Cleanup crew / Coral, and each sump's with its sump.
+    show_departed = request.GET.get('deceased') == '1'
+    departed = list(tank.animals.filter(status='deceased').order_by('-died_on', 'name')) if show_departed else []
+    departed_count = len(departed) if show_departed else tank.animals.filter(status='deceased').count()
+    animals = list(tank.animals.exclude(status__in=Animal.GONE_STATUSES).select_related('sump').prefetch_related('groups'))
+    back = quote(request.get_full_path())
+    for row in sumps:
+        row['animals'] = [a for a in animals if a.sump_id == row['sump'].id]
+        row['add_query'] = f"?sump={row['sump'].id}&next={back}"
+    in_display = [a for a in animals if not a.sump_id]
+    livestock_sections = [
+        {'key': key, 'title': title, 'icon': icon, 'empty': empty,
+         'items': [a for a in in_display if a.tank_section == key]}
+        for key, title, icon, empty in (
+            ('fish', 'Fish', '🐠', "No fish yet. It's very peaceful in here."),
+            ('cuc', 'Clean up Crew', '🐌', 'Nobody on cleaning duty. Snails, hermits and shrimp go here.'),
+            ('coral', 'Coral', '🪸', 'No corals yet. Corals and anemones go here.'),
+        )
+    ]
+
     here = f'tank:{tank.id}'
     first_sump = next(iter(tank.sumps.all()), None)
     filter_home = f'sump:{first_sump.id}' if first_sump else here  # filters usually live in the sump
@@ -1479,20 +1593,46 @@ def tank_detail_view(request, tank_id):
         'tank_light_schedules': [r for r in schedules if r.id not in linked],
         'display_picker': _equipment_picker(everything, here),
         'flow_groups': [
-            {'title': 'Return pumps', 'add_label': '+ Add a return pump',
+            {'title': 'Return pumps', 'add_label': 'Add a return pump',
              'items': [eq for eq in _tank_equipment_flow(tank) if eq.category == 'return_pump'],
              'picker': _equipment_picker(everything, first_sump and f'sump:{first_sump.id}' or here,
                                          categories=('return_pump',), tank=tank),
              'empty': "No return pump yet, so nothing's coming back up from the sump."},
-            {'title': 'Wavemakers & powerheads', 'add_label': '+ Add some flow',
+            {'title': 'Wavemakers & powerheads', 'add_label': 'Add some flow',
              'items': [eq for eq in _tank_equipment_flow(tank) if eq.category == 'wavemaker'],
              'picker': _equipment_picker(everything, here, categories=('wavemaker',), tank=tank),
-             'empty': "The water's standing still: no wavemakers yet. Tap + Add some flow."},
+             'empty': "The water's standing still: no wavemakers yet. Tap Add some flow."},
         ],
         'light_picker': _equipment_picker(everything, here, categories=('lighting',), tank=tank),
         'filters': [eq for eq in all_equipment if eq.category in FILTER_CATEGORIES],
         'flow_sketch': _flow_sketch(tank, _tank_equipment_flow(tank)),
         'filter_picker': _equipment_picker(everything, filter_home, categories=FILTER_CATEGORIES, tank=tank),
+        'livestock_sections': livestock_sections,
+        'display_add_query': f"?tank={tank.id}&next={back}",
+        'show_departed': show_departed,
+        'departed': departed,
+        'departed_count': departed_count,
+    })
+
+
+@require_POST
+def sump_level_view(request, sump_id):
+    """The water level slider on a sump card. The level is the sump's fill %, so when its volume is worked out
+    from its size, the volume follows (and with it the system total used for dosing)."""
+    sump = get_object_or_404(Sump, id=sump_id)
+    level = _to_decimal(request.POST.get('fill_percent'))
+    if level is None:
+        return JsonResponse({'error': 'Give a level from 1 to 100%.'}, status=400)
+    sump.fill_percent = max(Decimal('1'), min(Decimal('100'), level)).quantize(Decimal('0.1'))
+    sump.save()
+    tank = Tank.objects.prefetch_related('sumps', 'plumbing_runs').get(id=sump.tank_id)
+    return JsonResponse({
+        'fill_percent': float(sump.fill_percent),
+        'volume_gallons': float(sump.volume_gallons),
+        'moves_volume': sump.level_moves_volume,
+        'sump_gallons': round(tank.sump_gallons, 1),
+        'total_gallons': tank.total_system_gallons,
+        'total_liters': tank.total_system_liters,
     })
 
 

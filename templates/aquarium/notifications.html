@@ -179,7 +179,7 @@
             </div>
             <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
               <a href="{{ animal.reef2reef_disease_url }}" target="_blank" rel="noopener" class="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs rounded-lg border border-rose-500/40">🩺 Reef2Reef disease search →</a>
-              <a href="{% url 'animal_edit' animal.id %}" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg">Edit</a>
+              <a href="{% url 'animal_edit' animal.id %}" title="Edit" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit</span></a>
             </div>
           </div>
         {% endfor %}

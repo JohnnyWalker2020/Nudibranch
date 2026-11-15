@@ -11,8 +11,14 @@
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <a href="{% url 'species_catalog' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">📖 Browse Common Species</a>
-      <a href="{% url 'groups_manage' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs transition-colors">✏️ Edit categories</a>
-      <a href="{% url 'animal_create' %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Specimen</a>
+      {% if selected_status == 'deceased' %}
+        <a href="{% url 'livestock' %}" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 text-white border border-slate-700 rounded-xl font-semibold text-xs">{% icon 'headstone' %}Hide deceased</a>
+      {% elif departed_count %}
+        <a href="{% url 'livestock' %}?status=deceased" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">{% icon 'headstone' %}Show deceased ({{ departed_count }})</a>
+      {% endif %}
+      {% url 'groups_manage' as groups_url %}{% act 'edit' groups_url label='Edit categories' extra='py-2.5 rounded-xl' %}
+      {% include 'aquarium/partials/arrange_button.html' with page='livestock' %}
+      {% url 'animal_create' as add_url %}{% act 'add_livestock' add_url label='Add specimen' primary=True %}
     </div>
   </div>
 
@@ -25,22 +31,38 @@
         <a href="{% url 'livestock' %}?group={{ g.id }}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if selected_group == g.id %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white border-l-2{% endif %}" style="border-left-color: {{ g.color }}">{{ g.icon }} {{ g.name }} <span class="text-[10px] opacity-70">({{ g.scoped_count }})</span></a>
       {% endfor %}
       {% if selected_group %}
-        <a href="{% url 'groups_manage' %}#group-{{ selected_group }}" class="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap bg-slate-800/60 text-slate-300 hover:text-cyan-400 border border-slate-700/60">Edit category</a>
-        <a href="{% url 'group_delete' selected_group %}?next={% url 'livestock' %}" class="px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap text-rose-400 hover:bg-rose-500/10 border border-rose-500/30">Delete category</a>
+        {% url 'groups_manage' as groups_url %}{% with groups_url|add:'#group-' as g_url %}{% act 'edit' g_url label='Edit category' suffix=selected_group %}{% endwith %}
+        {% url 'group_delete' selected_group as gdel_url %}{% act 'delete' gdel_url|add:'?next=/livestock/' label='Delete category' %}
       {% endif %}
     </div>
   </div>
 
   <!-- Cards -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for animal in animals %}
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between shadow-sm">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-arrange="livestock">
+    {% for card in cards %}{% with animal=card.lead herd=card.members|length|add:'-1' %}
+      <div data-card="{{ card.key }}" data-card-title="{% if herd %}{{ card.members|length }}× {{ animal.name }}{% else %}{{ animal.nickname|default:animal.name }}{% endif %}" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between shadow-sm">
         <div>
           <form id="photo-form-{{ animal.id }}" method="POST" action="{% url 'animal_upload_photo' animal.id %}" enctype="multipart/form-data" class="hidden">
             {% csrf_token %}
             <input type="file" id="photo-input-{{ animal.id }}" name="photo" accept="image/*" onchange="document.getElementById('photo-form-{{ animal.id }}').submit()">
           </form>
 
+          {% if herd and card.photos %}
+          <div class="relative h-44 bg-slate-950 border-b border-slate-800">
+            <div class="flex h-full overflow-x-auto snap-x snap-mandatory no-scrollbar" data-photo-strip>
+              {% for a in card.photos %}
+                <figure class="relative shrink-0 w-full h-full snap-center">
+                  <img loading="lazy" src="{{ a.photo.url }}" alt="{{ a.nickname|default:a.name }}" class="w-full h-full object-cover">
+                  <figcaption class="absolute bottom-2 left-2 px-2 py-0.5 rounded-lg bg-slate-950/80 text-[11px] font-semibold text-white">{{ a.nickname|default:a.name }}{% if card.photos|length > 1 %} <span class="text-slate-400">· {{ forloop.counter }}/{{ card.photos|length }}</span>{% endif %}</figcaption>
+                </figure>
+              {% endfor %}
+            </div>
+            {% if card.photos|length > 1 %}
+              <button type="button" data-strip-step="-1" aria-label="Previous photo" class="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-950/70 text-white text-sm hover:bg-slate-900">‹</button>
+              <button type="button" data-strip-step="1" aria-label="Next photo" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-950/70 text-white text-sm hover:bg-slate-900">›</button>
+            {% endif %}
+          </div>
+          {% elif not herd %}
           <div class="relative w-full {% if animal.photo %}h-44{% else %}h-11{% endif %} bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-800 group">
             {% if animal.photo %}
               <img loading="lazy" src="{{ animal.photo.url }}" alt="{{ animal.name }}" class="w-full h-full object-cover">
@@ -49,36 +71,55 @@
               <button type="button" onclick="document.getElementById('photo-input-{{ animal.id }}').click()" class="w-full h-full flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:text-cyan-300 hover:bg-slate-900/60 transition-colors">📷 Add photo</button>
             {% endif %}
           </div>
+          {% endif %}
 
           <div class="p-4 space-y-3">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
-                {% if animal.nickname %}
+                {% if herd %}
+                  <h3 class="text-base font-bold text-white tracking-tight"><span class="text-cyan-400">{{ card.members|length }}×</span> {{ animal.name }}</h3>
+                {% elif animal.nickname %}
                   <h3 class="text-base font-bold text-white tracking-tight">{{ animal.nickname }}</h3>
                   <p class="text-xs font-semibold text-slate-300">{% if animal.count > 1 %}<span class="text-cyan-400">{{ animal.count }}×</span> {% endif %}{{ animal.name }}</p>
                 {% else %}
                   <h3 class="text-base font-bold text-white tracking-tight">{% if animal.count > 1 %}<span class="text-cyan-400">{{ animal.count }}×</span> {% endif %}{{ animal.name }}</h3>
                 {% endif %}
                 {% if animal.species %}<p class="text-xs text-slate-400 italic">{{ animal.species }}</p>{% endif %}
-                {% if not animal.nickname %}
+                {% if not animal.nickname and not herd %}
                   <form method="POST" action="{% url 'animal_silly_name' animal.id %}" class="mt-0.5">
                     {% csrf_token %}
                     <button class="text-[11px] font-semibold text-cyan-400 hover:underline">🎲 Give it a silly name</button>
                   </form>
                 {% endif %}
               </div>
-              <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md
+              {% if not herd %}<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md
                 {% if animal.status == 'healthy' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/40
                 {% elif animal.status == 'quarantine' %}bg-amber-500/20 text-amber-400 border border-amber-500/40
                 {% elif animal.status == 'monitoring' %}bg-rose-500/20 text-rose-400 border border-rose-500/40
-                {% else %}bg-slate-500/20 text-slate-400 border border-slate-500/40{% endif %}">{{ animal.get_status_display }}</span>
+                {% else %}bg-slate-500/20 text-slate-400 border border-slate-500/40{% endif %}">{{ animal.get_status_display }}</span>{% endif %}
             </div>
             <div class="flex flex-wrap gap-1.5">
               {% if animal.banned_to_sump %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-300 border border-rose-500/30">⛓️ Banned to the sump</span>{% endif %}
               {% if costs_enabled and animal.paid is not None %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30">💸 Paid {{ currency_symbol }}{{ animal.paid|floatformat:2 }}</span>{% endif %}
+              {% if animal.sump_id %}<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">{% icon 'sump' 'w-3.5 h-3.5' %} In the {{ animal.sump.name|lower }}</span>{% endif %}
               {% if animal.tank and animal.tank_id != active_tank.id %}<span class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">🏛️ {{ animal.tank.name }}</span>{% endif %}
               {% for g in animal.groups.all %}<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 border-l-2" style="border-left-color: {{ g.color }}">{{ g.icon }} {{ g.name }}</span>{% empty %}{% if not animal.tank %}<span class="text-[10px] text-slate-500">No category</span>{% endif %}{% endfor %}
             </div>
+            {% if herd %}
+              <ul class="divide-y divide-slate-800/80 rounded-xl bg-slate-950/40 border border-slate-800/60">
+                {% for a in card.members %}
+                  <li class="flex items-center gap-2 px-2 py-1.5">
+                    {% if a.photo %}<img loading="lazy" src="{{ a.photo.url }}" alt="" class="w-7 h-7 rounded-lg object-cover">{% else %}<span class="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500">#{{ forloop.counter }}</span>{% endif %}
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-xs font-bold text-white truncate">{{ a.nickname|default:'No name yet' }}</span>
+                      <span class="block text-[10px] {% if a.status == 'healthy' %}text-emerald-400{% elif a.status == 'quarantine' %}text-amber-400{% elif a.status == 'monitoring' %}text-rose-400{% else %}text-slate-500{% endif %}">{{ a.get_status_display }}{% if a.sump_id %} · {{ a.sump.name }}{% endif %}</span>
+                    </span>
+                    {% url 'animal_edit' a.id as a_edit %}{% act 'edit' a_edit compact=True title='Edit '|add:a.name suffix='?next=/livestock/' %}
+                    {% if a.status != 'deceased' %}{% include 'aquarium/partials/animal_flush.html' with animal=a compact=True %}{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
             {% if animal.notes %}<p class="text-xs text-slate-300 line-clamp-2 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">{{ animal.notes }}</p>{% endif %}
             <div class="flex flex-wrap items-center gap-2 pt-1">
               <a href="{{ animal.wikipedia_url }}" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 border border-slate-800">Wikipedia</a>
@@ -92,28 +133,50 @@
           </div>
         </div>
         <div class="px-4 py-2 bg-slate-950/40 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
-          <span>{% if animal.acquired_date %}Acquired {{ animal.acquired_date|date:"M Y" }}{% endif %}</span>
+          <span>{% if animal.acquired_date and not herd %}Acquired {{ animal.acquired_date|date:"M Y" }}{% endif %}</span>
           <div class="flex items-center gap-2">
-            <a href="{% url 'animal_edit' animal.id %}" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold rounded-lg">Edit</a>
-            <a href="{% url 'animal_delete' animal.id %}" class="px-3 py-1 text-rose-400 hover:bg-rose-500/10 font-semibold rounded-lg border border-rose-500/30">Delete</a>
+            {% if herd %}
+              <form method="POST" action="{% url 'animal_add_another' animal.id %}" class="inline-flex">{% csrf_token %}<input type="hidden" name="next" value="/livestock/">{% act 'add_livestock' button=True label='Add another' title='Add another '|add:animal.name %}</form>
+            {% else %}
+              {% if animal.count > 1 %}
+                <form method="POST" action="{% url 'animal_split' animal.id %}" class="inline-flex" onsubmit="return confirm('Split {{ animal.count }}× {{ animal.name|escapejs }} into {{ animal.count }} individuals on one card? Each can then have its own name, photo and status.')">{% csrf_token %}<input type="hidden" name="next" value="/livestock/"><button type="submit" class="act" title="Give each one its own name and photo">✂️ <span>Split</span></button></form>
+              {% else %}
+                <form method="POST" action="{% url 'animal_add_another' animal.id %}" class="inline-flex">{% csrf_token %}<input type="hidden" name="next" value="/livestock/">{% act 'add_livestock' button=True compact=True label='Add another' title='Add another '|add:animal.name %}</form>
+              {% endif %}
+              {% url 'animal_edit' animal.id as edit_url %}{% act 'edit' edit_url %}
+              {% if animal.status != 'deceased' %}{% include 'aquarium/partials/animal_flush.html' %}{% endif %}
+            {% endif %}
           </div>
         </div>
       </div>
-    {% empty %}
+    {% endwith %}{% empty %}
       <div class="col-span-full py-16 text-center bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6">
         <span class="text-4xl">🪸</span>
         <h3 class="mt-3 text-base font-bold text-white">No livestock match this filter</h3>
         <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
           <a href="{% url 'species_catalog' %}" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">📖 Browse Common Species</a>
-          <a href="{% url 'animal_create' %}" class="px-4 py-2.5 bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs rounded-xl border border-slate-700">+ Add Specimen</a>
+          {% url 'animal_create' as add_url %}{% act 'add_livestock' add_url label='Add specimen' extra='py-2.5 rounded-xl' %}
         </div>
       </div>
     {% endfor %}
   </div>
+  {% include 'aquarium/partials/arrange_apply.html' with page='livestock' %}
   {% if departed_count and selected_status != 'deceased' %}
     <p class="text-center text-[11px] text-slate-500"><a href="{% url 'livestock' %}?status=deceased" class="hover:text-slate-300">{{ departed_count }} no longer with us</a></p>
   {% elif selected_status == 'deceased' %}
     <p class="text-center text-[11px] text-slate-500"><a href="{% url 'livestock' %}" class="hover:text-slate-300">Back to the living</a></p>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // The photo strip on a card with several individuals: the arrows scroll one photo at a time.
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-strip-step]');
+    if (!btn) return;
+    const strip = btn.parentElement.querySelector('[data-photo-strip]');
+    strip.scrollBy({ left: strip.clientWidth * Number(btn.dataset.stripStep), behavior: 'smooth' });
+  });
+</script>
 {% endblock %}

@@ -1,0 +1,10 @@
+{% comment %}
+Quick flush: one tap and a confirm. It's marked deceased and gets a headstone (Show deceased).
+Deleting for good is only on its edit page. Needs `animal`; `compact` shows the toilet alone.
+{% endcomment %}
+<form method="POST" action="{% url 'animal_flush' animal.id %}" class="inline-flex"
+      onsubmit="return confirm('Flush {{ animal.nickname|default:animal.name|escapejs }}? It gets marked deceased, with a headstone.')">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  {% act 'flush' button=True compact=compact title='Flush '|add:animal.name %}
+</form>

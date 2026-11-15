@@ -58,7 +58,7 @@
     <form method="POST" action="{% url 'timelapse_capture' feed.id %}">{% csrf_token %}<button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400">Capture a frame now</button></form>
     {% endif %}
     {% if total_frames %}
-    <form method="POST" action="{% url 'timelapse_clear' feed.id %}" onsubmit="return confirm('Delete all {{ total_frames }} frames for this camera?')">{% csrf_token %}<button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 border border-rose-500/30 hover:bg-rose-500/10">Delete all frames</button></form>
+    <form method="POST" action="{% url 'timelapse_clear' feed.id %}" onsubmit="return confirm('Delete all {{ total_frames }} frames for this camera?')">{% csrf_token %}<button title="Delete all frames" class="act act-delete">{% icon 'bin' 'w-4 h-4' %}<span>Delete all frames</span></button></form>
     {% endif %}
   </div>
 </div>

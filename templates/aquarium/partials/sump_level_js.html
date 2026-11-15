@@ -1,0 +1,57 @@
+<style>
+  /* Bottom of the slider is empty, top is full. */
+  .sump-range { writing-mode: vertical-lr; direction: rtl; }
+</style>
+<script>
+(function () {
+  const CM_PER_IN = 2.54;
+  function csrf() {
+    try { return JSON.parse(document.body.getAttribute('hx-headers'))['X-CSRFToken']; } catch (e) { return ''; }
+  }
+  function show(box) {
+    const pct = Number(box.querySelector('.sump-range').value);
+    const unit = box.querySelector('button[data-units]').value;
+    const height = parseFloat(box.dataset.height);
+    let text = String(pct);
+    if (unit !== '%' && height) {
+      let level = height * pct / 100;                       // in the sump's own unit
+      if (box.dataset.dimUnit === 'in' && unit === 'cm') level *= CM_PER_IN;
+      if (box.dataset.dimUnit === 'cm' && unit === 'in') level /= CM_PER_IN;
+      text = level.toFixed(1);
+    }
+    box.querySelector('[data-level-text]').textContent = text;
+    box.querySelector('[data-water]').style.height = pct + '%';
+    const full = parseFloat(box.dataset.boxGallons);
+    if (box.dataset.moves === '1' && full) {
+      box.querySelector('[data-level-gal]').textContent = '≈ ' + (full * pct / 100).toFixed(1) + ' gal';
+    }
+  }
+  function save(box) {
+    const status = box.querySelector('[data-level-status]');
+    status.textContent = 'Saving…';
+    const body = new URLSearchParams({ fill_percent: box.querySelector('.sump-range').value });
+    fetch(box.dataset.url, { method: 'POST', body, headers: { 'X-CSRFToken': csrf() } })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        status.textContent = 'Saved';
+        setTimeout(() => { status.textContent = ''; }, 1500);
+        if (data.moves_volume) {
+          box.querySelector('[data-level-gal]').textContent = '≈ ' + data.volume_gallons + ' gal';
+        }
+        const set = (sel, value) => document.querySelectorAll(sel).forEach(el => { el.textContent = value; });
+        set(`[data-sump-gal="${box.dataset.sump}"]`, data.volume_gallons);
+        set('[data-tank-sump-gal]', data.sump_gallons);
+        set('[data-tank-total-gal]', data.total_gallons);
+        set('[data-tank-total-l]', data.total_liters);
+      })
+      .catch(() => { status.textContent = "Couldn't save"; });
+  }
+  document.querySelectorAll('[data-sump-level]').forEach(box => {
+    const range = box.querySelector('.sump-range');
+    range.addEventListener('input', () => show(box));
+    range.addEventListener('change', () => save(box));
+    box.querySelector('button[data-units]').addEventListener('change', () => show(box));
+    show(box);
+  });
+})();
+</script>

@@ -1,0 +1,14 @@
+{% comment %}One livestock entry as a small chip on the tank page, with edit and quick flush. Needs `animal`.{% endcomment %}
+<span class="inline-flex items-center gap-1.5 pl-1 pr-1 py-1 rounded-xl bg-slate-950/60 border {% if animal.status == 'quarantine' %}border-amber-500/40{% elif animal.status == 'monitoring' %}border-rose-500/40{% else %}border-slate-800{% endif %}">
+  {% if animal.photo %}
+    <img loading="lazy" src="{{ animal.photo.url }}" alt="" class="w-7 h-7 rounded-lg object-cover">
+  {% else %}
+    <span class="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-sm" aria-hidden="true">{% with g=animal.groups.all|first %}{{ g.icon|default:'🐟' }}{% endwith %}</span>
+  {% endif %}
+  <span class="min-w-0">
+    <span class="block text-xs font-bold text-white leading-tight truncate max-w-[10rem]">{% if animal.count > 1 %}<span class="text-cyan-400">{{ animal.count }}×</span> {% endif %}{{ animal.nickname|default:animal.name }}</span>
+    {% if animal.nickname or animal.status != 'healthy' %}<span class="block text-[10px] text-slate-500 leading-tight truncate max-w-[10rem]">{% if animal.nickname %}{{ animal.name }}{% endif %}{% if animal.status != 'healthy' %}{% if animal.nickname %} · {% endif %}{{ animal.get_status_display }}{% endif %}</span>{% endif %}
+  </span>
+  {% url 'animal_edit' animal.id as edit_url %}{% with here=request.get_full_path|urlencode %}{% act 'edit' edit_url compact=True title='Edit '|add:animal.name suffix='?next='|add:here %}{% endwith %}
+  {% include 'aquarium/partials/animal_flush.html' with compact=True %}
+</span>

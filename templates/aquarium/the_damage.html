@@ -191,8 +191,8 @@
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <span class="text-sm font-bold text-amber-400">{{ currency }}{{ entry.amount|floatformat:2 }}</span>
-        <a href="{% url 'cost_edit' entry.id %}" class="text-xs text-orange-200/70 hover:text-white">Edit</a>
-        <form method="POST" action="{% url 'cost_delete' entry.id %}" onsubmit="return confirm('Delete this entry?')">{% csrf_token %}<button class="text-xs text-orange-200/50 hover:text-red-400">Delete</button></form>
+        <a href="{% url 'cost_edit' entry.id %}" title="Edit" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit</span></a>
+        <form method="POST" action="{% url 'cost_delete' entry.id %}" onsubmit="return confirm('Delete this entry?')">{% csrf_token %}<button title="Delete" class="act act-delete">{% icon 'bin' 'w-4 h-4' %}<span>Delete</span></button></form>
       </div>
     </div>
     {% empty %}
@@ -231,7 +231,6 @@
             <div class="tombstone-grass"></div>
             <div class="flex items-center justify-center gap-3 pt-1 text-[10px]">
               <form method="POST" action="{% url 'animal_epitaph' animal.id %}">{% csrf_token %}<button class="font-semibold text-orange-200/60 hover:text-white">🎲 Recarve</button></form>
-              <a href="{% url 'animal_edit' animal.id %}" class="font-semibold text-orange-200/60 hover:text-white">Edit</a>
             </div>
           </div>
         {% endfor %}

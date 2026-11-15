@@ -1,4 +1,5 @@
 """Views for the tools section: planner, power, quarantine, timeline, time-lapse, webhooks, backups, timers."""
+import json
 import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -379,6 +380,42 @@ SETTINGS_SECTIONS = [
     ('icons', '🎨 Icons', 'How the tank characters behave.', ['disable_icon_aging', 'enable_old_version_icons', 'enable_random_icons']),
     ('water-tests', '🧪 Water tests', 'Extra parameters from lab tests.', ['icp_enabled']),
 ]
+
+
+# Pages with an Arrange button. The key is what the page's data-arrange says.
+ARRANGE_PAGES = ('tank', 'livestock', 'equipment', 'dosing', 'routines', 'tools', 'parameters', 'tanks')
+
+
+def merge_card_order(old, new):
+    """A filtered page (livestock in one category) only sends the cards it showed. Those take the places
+    they held before, in their new order, and every other card stays where it was."""
+    shown = set(new)
+    rest = iter(new)
+    merged = [next(rest) if key in shown else key for key in old]
+    return merged + list(rest)
+
+
+@require_POST
+def card_order_view(request):
+    """Saves the order chosen with Arrange on one page. An empty list goes back to the page's normal order."""
+    page = request.POST.get('page', '')
+    if page not in ARRANGE_PAGES:
+        return JsonResponse({'error': 'unknown page'}, status=400)
+    try:
+        order = json.loads(request.POST.get('order', '[]'))
+    except ValueError:
+        return JsonResponse({'error': 'bad order'}, status=400)
+    if not isinstance(order, list) or len(order) > 1000 or not all(isinstance(k, str) and 0 < len(k) <= 40 for k in order):
+        return JsonResponse({'error': 'bad order'}, status=400)
+    app = AppSettings.load()
+    saved = dict(app.card_order or {})
+    if order:
+        saved[page] = merge_card_order(saved.get(page, []), list(dict.fromkeys(order)))
+    else:
+        saved.pop(page, None)
+    app.card_order = saved
+    app.save(update_fields=['card_order'])
+    return JsonResponse({'ok': True})
 
 
 def app_settings_view(request):

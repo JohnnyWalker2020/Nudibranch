@@ -178,9 +178,7 @@
             {% endif %}
 
             <div class="flex items-center gap-1.5 flex-1">
-              <button type="submit" class="flex-1 py-1.5 px-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-md shadow-cyan-500/20 active:scale-95 transition-all text-center">
-                + Quick Add
-              </button>
+              <button type="submit" title="Add it to your livestock" class="act act-add_livestock act-primary flex-1 justify-center">{% icon 'fishbag' 'w-5 h-5' %}<span>Quick Add</span></button>
               <a href="{% url 'animal_create' %}?species_id={{ s.id }}" class="py-1.5 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 text-xs font-semibold rounded-xl border border-slate-700 transition-colors flex items-center gap-1" title="Customize and take a photo">
                 <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
                 <span>With Photo</span>

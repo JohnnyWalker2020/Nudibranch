@@ -24,9 +24,10 @@
       <form method="POST" action="{% url 'tank_archive' tank.id %}" onsubmit="return confirm('Retire {{ tank.name|escapejs }}? All its data is kept, but it stops sending alerts and running schedules. You can bring it back at any time.')">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Retire</button></form>
       {% endif %}
       <a href="{% url 'tank_look' tank.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🎨 Icon &amp; colours</a>
-      <a href="{% url 'tank_edit' tank.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">✏️ Edit tank</a>
+      {% url 'tank_edit' tank.id as edit_url %}{% act 'edit' edit_url label='Edit tank' extra='py-2.5 rounded-xl' %}
       <a href="{% url 'tank_export' tank.id %}" title="Download this tank's setup as a YAML file you can import or share (no prices)" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⬇ Export</a>{% if costs_enabled %}<a href="{% url 'tank_export' tank.id %}?prices=1" class="text-[11px] text-slate-500 hover:text-cyan-400 underline">with prices</a>{% endif %}
-      <a href="{% url 'sump_create' tank.id %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Add Sump</a>
+      {% include 'aquarium/partials/arrange_button.html' with page='tank' %}
+      {% url 'sump_create' tank.id as sump_add_url %}{% act 'add' sump_add_url label='Add sump' primary=True %}
     </div>
   </div>
 
@@ -36,16 +37,15 @@
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Display tank</span>
       <span class="text-lg font-black text-white">{{ tank.volume_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
       {% if tank.capacity_is_manual %}<span class="block text-[10px] text-slate-500">entered manually</span>{% elif tank.has_dimensions %}<span class="block text-[10px] text-slate-500">from dimensions</span>{% endif %}
-      <a href="{% url 'equipment_create' %}?location=tank:{{ tank.id }}&next={{ request.path|urlencode }}" class="mt-1 inline-block px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-[10px] rounded-md border border-slate-700 transition-colors">+ Equipment</a>
     </div>
     <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Sump</span>
-      <span class="text-lg font-black text-white">{{ tank.sump_gallons|floatformat:"-1" }}</span><span class="text-xs text-slate-400"> gal</span>
+      <span class="text-lg font-black text-white" data-tank-sump-gal>{{ tank.sump_gallons|floatformat:"-1" }}</span><span class="text-xs text-slate-400"> gal</span>
     </div>
     <div class="bg-slate-950/60 rounded-xl border border-cyan-500/30 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total water</span>
-      <span class="text-lg font-black text-cyan-400">{{ tank.total_system_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
-      <span class="block text-[10px] text-slate-500">{{ tank.total_system_liters }} L{% if tank.plumbing_gallons %} · incl. {{ tank.plumbing_gallons|floatformat:"-1" }} gal plumbing{% else %} · <a href="{% url 'plumbing_create' tank.id %}" class="text-cyan-400 hover:underline">add plumbing</a>{% endif %}</span>
+      <span class="text-lg font-black text-cyan-400" data-tank-total-gal>{{ tank.total_system_gallons }}</span><span class="text-xs text-slate-400"> gal</span>
+      <span class="block text-[10px] text-slate-500"><span data-tank-total-l>{{ tank.total_system_liters }}</span> L{% if tank.plumbing_gallons %} · incl. {{ tank.plumbing_gallons|floatformat:"-1" }} gal plumbing{% else %} · <a href="{% url 'plumbing_create' tank.id %}" class="text-cyan-400 hover:underline">add plumbing</a>{% endif %}</span>
     </div>
     <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Dimensions</span>
@@ -75,70 +75,68 @@
     </div>
   </div>
 
-  <!-- Sumps -->
-  {% for row in sump_rows %}
-    {% with sump=row.sump %}
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🧫</span> {{ sump.name }}</h2>
-          <p class="text-xs text-cyan-400 font-semibold">{{ sump.volume_gallons }} gal{% if sump.has_dimensions %} · {{ sump.width|floatformat:"-1" }} × {{ sump.depth|floatformat:"-1" }} × {{ sump.height|floatformat:"-1" }} {{ sump.dimension_unit }}{% endif %}{% if sump.capacity_is_manual %} · manual capacity{% endif %} · {% if sump.head_height is not None %}{{ sump.head_height|floatformat:"-1" }} {{ sump.head_height_unit }} head height{% else %}<a href="{% url 'sump_edit' sump.id %}" class="underline">set head height</a>{% endif %}{% if sump.overflow_label %} · {{ sump.overflow_label }}{% endif %}</p>
-          {% if sump.notes %}<p class="text-[11px] text-slate-500 mt-0.5">{{ sump.notes }}</p>{% endif %}
-        </div>
-        <div class="flex items-center gap-2">
-          {% if not row.chambers %}{% include 'aquarium/partials/equipment_picker.html' with picker=row.picker label='+ Add device' %}{% endif %}
-          <a href="{% url 'sump_edit' sump.id %}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700 transition-colors">Edit sump</a>
-        </div>
-      </div>
+  <div data-arrange="tank" class="space-y-6">
+  <!-- The display tank: its gear and who lives in it -->
+  <div data-card="display" data-card-title="In the display tank" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5">
+    <div class="flex items-center justify-between gap-2">
+      <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🐠</span> In the display tank</h2>
+      {% if departed_count %}
+        <a href="{{ request.path }}{% if not show_departed %}?deceased=1{% endif %}" class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white">{% icon 'headstone' %}{% if show_departed %}Hide deceased{% else %}Show deceased ({{ departed_count }}){% endif %}</a>
+      {% endif %}
+    </div>
 
-      <!-- Chamber diagram -->
-      {% if sump.chambers.all %}
-        <div class="flex items-stretch gap-1 overflow-x-auto no-scrollbar">
-          {% for cr in row.chambers %}
-            {% with c=cr.chamber %}
-            <div style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0; min-width: 10rem;" class="p-2.5 bg-slate-950/70 border border-slate-700 rounded-xl flex flex-col">
-              <div class="text-center">
-                <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
-                <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
-                <span class="text-[11px] text-cyan-400 block">{{ c.volume_gallons }} gal · {{ c.share_percent|floatformat:"-1" }}%</span>
-              </div>
-              {% for eq in cr.equipment %}
-                <div class="mt-1 flex items-center justify-between gap-1 pl-1.5 rounded bg-slate-800 {% if eq.status == 'offline' %}opacity-60{% endif %}">
-                  <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" title="{{ eq.name }}" class="min-w-0 truncate text-[10px] leading-tight text-slate-300 hover:text-cyan-400 {% if eq.status == 'offline' %}line-through{% endif %}">⚙️ {{ eq.name }}</a>
-                  {% include 'aquarium/partials/equipment_actions.html' with unplace=True no_bin=True %}
-                </div>
-              {% endfor %}
-              <div class="mt-auto pt-2 text-center">{% include 'aquarium/partials/equipment_picker.html' with picker=cr.picker label='+ Add device' %}</div>
+    <section class="space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">⚙️ Gear</h3>
+        {% include 'aquarium/partials/equipment_picker.html' with picker=display_picker %}
+      </div>
+      {% if display_equipment %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {% for eq in display_equipment %}
+            <div class="flex items-center justify-between gap-1 p-2.5 bg-slate-950/60 border border-slate-800 hover:border-cyan-500/40 rounded-xl {% if eq.status == 'offline' %}opacity-50{% endif %}">
+              <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="min-w-0 flex-1">
+                <span class="block text-xs font-bold text-white truncate">{{ eq.name }}</span>
+                <span class="block text-[10px] text-slate-500">{{ eq.get_category_display }}{% if eq.is_service_due %} · <span class="font-bold text-amber-400">service due</span>{% endif %}</span>
+                {% if eq.schedule_text %}<span class="block text-[10px] text-violet-300 truncate">🕒 {{ eq.schedule_text }}</span>{% endif %}
+              </a>
+              {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
             </div>
-            {% endwith %}
           {% endfor %}
         </div>
-        {% if sump.chamber_share_total != 100 %}
-          <p class="text-[11px] text-amber-400">Chamber shares add up to {{ sump.chamber_share_total }}% (should be 100%).</p>
-        {% endif %}
       {% else %}
-        <p class="text-xs text-slate-500">This sump isn't split into chambers yet. You can split it under <a href="{% url 'sump_edit' sump.id %}#chambers" class="text-cyan-400 hover:underline">Edit sump</a>.</p>
+        <p class="text-xs text-slate-500">Looking a bit bare: no wavemakers, heaters or other gear in the display yet. Lights and filters have their own cards.</p>
       {% endif %}
+    </section>
 
-      {% if row.equipment %}
-        <div>
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">In this sump (no specific chamber)</h3>
-          <div class="flex flex-wrap gap-1.5">
-            {% for eq in row.equipment %}{% include 'aquarium/partials/equipment_chip.html' with unplace=True %}{% endfor %}
-          </div>
+    {% url 'animal_create' as animal_add_url %}
+    {% for section in livestock_sections %}
+      <section class="space-y-2 pt-4 border-t border-slate-800">
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">{{ section.icon }} {{ section.title }}{% if section.items %} <span class="text-slate-500 font-semibold normal-case">({{ section.items|length }})</span>{% endif %}</h3>
+          {% act 'add_livestock' animal_add_url label='Add' title='Add to '|add:section.title suffix=display_add_query %}
         </div>
-      {% endif %}
-    </div>
-    {% endwith %}
-  {% empty %}
-    <div class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
-      <p class="text-xs text-slate-400"><span class="font-bold text-white">🧫 No sump on this tank.</span> Add one to include its volume in dosing and turnover.</p>
-      <a href="{% url 'sump_create' tank.id %}" class="shrink-0 px-3 py-1.5 bg-cyan-500 text-slate-950 font-bold text-xs rounded-lg">+ Add Sump</a>
-    </div>
-  {% endfor %}
+        {% if section.items %}
+          <div class="flex flex-wrap gap-1.5">{% for animal in section.items %}{% include 'aquarium/partials/animal_chip.html' %}{% endfor %}</div>
+        {% else %}
+          <p class="text-xs text-slate-500">{{ section.empty }}</p>
+        {% endif %}
+      </section>
+    {% endfor %}
+    {% if show_departed and departed %}
+      <section class="space-y-2 pt-4 border-t border-slate-800">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">{% icon 'headstone' %} No longer with us</h3>
+        <div class="flex flex-wrap gap-1.5">
+          {% for animal in departed %}
+            <a href="{% url 'animal_edit' animal.id %}?next={{ request.get_full_path|urlencode }}" title="{{ animal.epitaph_text }}" class="inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 hover:text-white">{% icon 'headstone' %}{{ animal.nickname|default:animal.name }}{% if animal.died_on %} <span class="text-slate-500">· {{ animal.died_on|date:"M Y" }}</span>{% endif %}</a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+    <p class="text-[10px] text-slate-500">Sorted by livestock category: anything in a coral or anemone category is Coral, cleanup crew and invertebrates are Clean up Crew, and the rest are Fish. <a href="{% url 'groups_manage' %}" class="text-cyan-400 hover:underline">Categories</a></p>
+  </div>
 
   <!-- Flow & turnover -->
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+  <div data-card="flow" data-card-title="Flow &amp; water turnover" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
     <div class="flex items-center justify-between">
       <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🌊</span> Flow &amp; Water Turnover</h2>
       <span class="text-[11px] text-slate-500">Estimates from your pumps and power settings</span>
@@ -190,16 +188,122 @@
         </div>
       </div>
     {% endfor %}
+    <!-- Plumbing runs, part of flow -->
+  <div class="pt-4 border-t border-slate-800 space-y-3">
+    <div class="flex items-center justify-between gap-2">
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">{% icon 'pipe' %} Plumbing</h3>
+        <p class="text-[11px] text-slate-500">{% with runs=tank.plumbing_runs.all %}{% if runs %}{{ runs|length }} run{{ runs|length|pluralize }} · {{ tank.plumbing_feet }} ft · {{ tank.plumbing_gallons|floatformat:"-2" }} gal in pipes (included in total water){% else %}Add pipe runs to include the water in your plumbing in the total water volume{% endif %}{% endwith %}</p>
+      </div>
+      {% url 'plumbing_create' tank.id as run_add_url %}{% act 'add' run_add_url label='Add a run' %}
+    </div>
+    {% if tank.plumbing_runs.all %}
+      <div class="divide-y divide-slate-800/80">
+        {% for run in tank.plumbing_runs.all %}
+          <div class="py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span class="text-slate-300">
+              <span class="font-bold text-white">{{ run.display_name }}</span>
+              <span class="text-slate-500">· {% if run.count > 1 %}{{ run.count }} × {% endif %}{{ run.length|floatformat:"-1" }} {{ run.length_unit }} of {{ run.size_label }}{% if run.fill_percent < 100 %} · {{ run.fill_percent|floatformat:"-1" }}% full{% endif %}</span>
+            </span>
+            <span class="flex items-center gap-3">
+              <span class="text-cyan-400 font-semibold">{{ run.gallons|floatformat:"-2" }} gal <span class="text-slate-500 font-normal">({{ run.liters }} L)</span></span>
+              {% url 'plumbing_edit' run.id as run_edit_url %}{% act 'edit' run_edit_url %}
+              {% url 'plumbing_delete' run.id as run_del_url %}{% act 'delete' run_del_url %}
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+  </div>
+
+  <!-- Sumps -->
+  <div data-card="sumps" data-card-title="Sump{{ sump_rows|length|pluralize }}" class="space-y-6">
+  {% for row in sump_rows %}
+    {% with sump=row.sump %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row gap-5">
+     <div class="flex-1 min-w-0 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">{% icon 'sump' 'w-5 h-5' %} {{ sump.name }}</h2>
+          <p class="text-xs text-cyan-400 font-semibold"><span data-sump-gal="{{ sump.id }}">{{ sump.volume_gallons }}</span> gal{% if sump.has_dimensions %} · {{ sump.width|floatformat:"-1" }} × {{ sump.depth|floatformat:"-1" }} × {{ sump.height|floatformat:"-1" }} {{ sump.dimension_unit }}{% endif %}{% if sump.capacity_is_manual %} · manual capacity{% endif %} · {% if sump.head_height is not None %}{{ sump.head_height|floatformat:"-1" }} {{ sump.head_height_unit }} head height{% else %}<a href="{% url 'sump_edit' sump.id %}" class="underline">set head height</a>{% endif %}{% if sump.overflow_label %} · {{ sump.overflow_label }}{% endif %}</p>
+          {% if sump.notes %}<p class="text-[11px] text-slate-500 mt-0.5">{{ sump.notes }}</p>{% endif %}
+        </div>
+        <div class="flex items-center gap-2">
+          {% if not row.chambers %}{% include 'aquarium/partials/equipment_picker.html' with picker=row.picker label='Add device' %}{% endif %}
+          {% url 'sump_edit' sump.id as sump_edit_url %}{% act 'edit' sump_edit_url label='Edit sump' %}
+        </div>
+      </div>
+
+      <!-- Chamber diagram -->
+      {% if sump.chambers.all %}
+        <div class="flex items-stretch gap-1 overflow-x-auto no-scrollbar">
+          {% for cr in row.chambers %}
+            {% with c=cr.chamber %}
+            <div style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0; min-width: 10rem;" class="p-2.5 bg-slate-950/70 border border-slate-700 rounded-xl flex flex-col">
+              <div class="text-center">
+                <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
+                <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
+                <span class="text-[11px] text-cyan-400 block">{{ c.volume_gallons }} gal · {{ c.share_percent|floatformat:"-1" }}%</span>
+              </div>
+              {% for eq in cr.equipment %}
+                <div class="mt-1 flex items-center justify-between gap-1 pl-1.5 rounded bg-slate-800 {% if eq.status == 'offline' %}opacity-60{% endif %}">
+                  <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" title="{{ eq.name }}" class="min-w-0 truncate text-[10px] leading-tight text-slate-300 hover:text-cyan-400 {% if eq.status == 'offline' %}line-through{% endif %}">⚙️ {{ eq.name }}</a>
+                  {% include 'aquarium/partials/equipment_actions.html' with unplace=True no_bin=True %}
+                </div>
+              {% endfor %}
+              <div class="mt-auto pt-2 text-center">{% include 'aquarium/partials/equipment_picker.html' with picker=cr.picker label='Add device' %}</div>
+            </div>
+            {% endwith %}
+          {% endfor %}
+        </div>
+        {% if sump.chamber_share_total != 100 %}
+          <p class="text-[11px] text-amber-400">Chamber shares add up to {{ sump.chamber_share_total }}% (should be 100%).</p>
+        {% endif %}
+      {% else %}
+        <p class="text-xs text-slate-500">This sump isn't split into chambers yet. You can split it under <a href="{% url 'sump_edit' sump.id %}#chambers" class="text-cyan-400 hover:underline">Edit sump</a>.</p>
+      {% endif %}
+
+      {% if row.equipment %}
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">In this sump (no specific chamber)</h3>
+          <div class="flex flex-wrap gap-1.5">
+            {% for eq in row.equipment %}{% include 'aquarium/partials/equipment_chip.html' with unplace=True %}{% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      <div>
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Living in the {{ sump.name|lower }}</h3>
+          {% url 'animal_create' as animal_add_url %}{% act 'add_livestock' animal_add_url label='Add livestock' suffix=row.add_query %}
+        </div>
+        {% if row.animals %}
+          <div class="flex flex-wrap gap-1.5">{% for animal in row.animals %}{% include 'aquarium/partials/animal_chip.html' %}{% endfor %}</div>
+        {% else %}
+          <p class="text-xs text-slate-500">Nobody lives here yet. Pods, chaeto critters and anything banished to the sump go here.</p>
+        {% endif %}
+      </div>
+     </div>
+     {% include 'aquarium/partials/sump_level.html' %}
+    </div>
+    {% endwith %}
+  {% empty %}
+    <div class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
+      <p class="text-xs text-slate-400"><span class="font-bold text-white">🧫 No sump on this tank.</span> Add one to include its volume in dosing and turnover.</p>
+      {% url 'sump_create' tank.id as sump_add_url %}{% act 'add' sump_add_url label='Add sump' %}
+    </div>
+  {% endfor %}
   </div>
 
   <!-- Lighting -->
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+  <div data-card="lighting" data-card-title="Lighting" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
     <div class="flex items-center justify-between gap-2">
       <div>
         <h2 class="text-base font-bold text-white flex items-center gap-2"><span>💡</span> Lighting</h2>
         <p class="text-[11px] text-slate-500">{% if light_summary.watts_full %}About {{ light_summary.watts_now }} W now of {{ light_summary.watts_full }} W over the display · {% endif %}<a href="{% url 'tools' %}?tank={{ tank.id }}#light" class="text-cyan-400 hover:underline">PAR estimate in Tools</a></p>
       </div>
-      {% include 'aquarium/partials/equipment_picker.html' with picker=light_picker label='+ Add more sun' %}
+      {% include 'aquarium/partials/equipment_picker.html' with picker=light_picker label='Add more sun' %}
     </div>
     {% if lights %}
       <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -222,7 +326,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="text-xs text-slate-500">It's dark in here: no lights on this tank yet. Tap <span class="text-cyan-400">+ Add more sun</span>.</p>
+      <p class="text-xs text-slate-500">It's dark in here: no lights on this tank yet. Tap <span class="text-cyan-400">Add more sun</span>.</p>
     {% endif %}
     {% for r in tank_light_schedules %}
       {% include 'aquarium/partials/light_schedule.html' %}
@@ -230,13 +334,13 @@
   </div>
 
   <!-- Filters -->
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+  <div data-card="filters" data-card-title="Filters" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
     <div class="flex items-center justify-between gap-2">
       <div>
         <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🧦</span> Filters</h2>
         <p class="text-[11px] text-slate-500">Socks, roller mats, sponges, canisters and media reactors</p>
       </div>
-      {% include 'aquarium/partials/equipment_picker.html' with picker=filter_picker label='+ Catch more gunk' %}
+      {% include 'aquarium/partials/equipment_picker.html' with picker=filter_picker label='Catch more gunk' %}
     </div>
     {% if filters %}
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -257,64 +361,16 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="text-xs text-slate-500">Nothing's catching the gunk yet. Tap <span class="text-cyan-400">+ Catch more gunk</span> to add a filter. New filters default to a weekly change reminder.</p>
+      <p class="text-xs text-slate-500">Nothing's catching the gunk yet. Tap <span class="text-cyan-400">Catch more gunk</span> to add a filter. New filters default to a weekly change reminder.</p>
     {% endif %}
   </div>
-
-  <!-- Plumbing runs -->
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-    <div class="flex items-center justify-between gap-2">
-      <div>
-        <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🔧</span> Plumbing</h2>
-        <p class="text-[11px] text-slate-500">{% with runs=tank.plumbing_runs.all %}{% if runs %}{{ runs|length }} run{{ runs|length|pluralize }} · {{ tank.plumbing_feet }} ft · {{ tank.plumbing_gallons|floatformat:"-2" }} gal in pipes (included in total water){% else %}Add pipe runs to include the water in your plumbing in the total water volume{% endif %}{% endwith %}</p>
-      </div>
-      <a href="{% url 'plumbing_create' tank.id %}" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg border border-slate-700">+ Run</a>
-    </div>
-    {% if tank.plumbing_runs.all %}
-      <div class="divide-y divide-slate-800/80">
-        {% for run in tank.plumbing_runs.all %}
-          <div class="py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span class="text-slate-300">
-              <span class="font-bold text-white">{{ run.display_name }}</span>
-              <span class="text-slate-500">· {% if run.count > 1 %}{{ run.count }} × {% endif %}{{ run.length|floatformat:"-1" }} {{ run.length_unit }} of {{ run.size_label }}{% if run.fill_percent < 100 %} · {{ run.fill_percent|floatformat:"-1" }}% full{% endif %}</span>
-            </span>
-            <span class="flex items-center gap-3">
-              <span class="text-cyan-400 font-semibold">{{ run.gallons|floatformat:"-2" }} gal <span class="text-slate-500 font-normal">({{ run.liters }} L)</span></span>
-              <a href="{% url 'plumbing_edit' run.id %}" class="text-cyan-400 hover:underline">Edit</a>
-              <a href="{% url 'plumbing_delete' run.id %}" class="text-rose-400 hover:underline">Delete</a>
-            </span>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
   </div>
-
-  <!-- Display tank equipment -->
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-    <div class="flex items-center justify-between gap-2">
-      <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🐠</span> In the display tank</h2>
-      {% include 'aquarium/partials/equipment_picker.html' with picker=display_picker %}
-    </div>
-    {% if display_equipment %}
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {% for eq in display_equipment %}
-          <div class="flex items-center justify-between gap-1 p-2.5 bg-slate-950/60 border border-slate-800 hover:border-cyan-500/40 rounded-xl {% if eq.status == 'offline' %}opacity-50{% endif %}">
-            <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="min-w-0 flex-1">
-              <span class="block text-xs font-bold text-white truncate">{{ eq.name }}</span>
-              <span class="block text-[10px] text-slate-500">{{ eq.get_category_display }}{% if eq.is_service_due %} · <span class="font-bold text-amber-400">service due</span>{% endif %}</span>
-              {% if eq.schedule_text %}<span class="block text-[10px] text-violet-300 truncate">🕒 {{ eq.schedule_text }}</span>{% endif %}
-            </a>
-            {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="text-xs text-slate-500">Looking a bit bare: no wavemakers, heaters or other gear in the display yet. Lights and filters have their own sections.</p>
-    {% endif %}
-  </div>
+  {% include 'aquarium/partials/arrange_apply.html' with page='tank' %}
 
   {% if tank.notes %}
     <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 whitespace-pre-line">{{ tank.notes }}</div>
   {% endif %}
 </div>
 {% endblock %}
+
+{% block extra_js %}{% include 'aquarium/partials/sump_level_js.html' %}{% endblock %}

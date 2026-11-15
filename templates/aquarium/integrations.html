@@ -11,7 +11,7 @@
       <h1 class="text-2xl font-black text-white tracking-tight">Phone Alerts &amp; Webhooks</h1>
       <p class="text-xs text-slate-400 mt-0.5">Send what happens in your tank to your phone, Home Assistant, or your own devices</p>
     </div>
-    <a href="{% url 'webhook_create' %}" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl text-center">+ Add connection</a>
+    <a href="{% url 'webhook_create' %}" title="Add connection" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>Add connection</span></a>
   </div>
 
   {% include 'aquarium/partials/mute_card.html' %}
@@ -40,7 +40,7 @@
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <form method="POST" action="{% url 'webhook_test' endpoint.id %}">{% csrf_token %}<button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400">Send test</button></form>
-        <a href="{% url 'webhook_edit' endpoint.id %}" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Edit</a>
+        <a href="{% url 'webhook_edit' endpoint.id %}" title="Edit" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit</span></a>
       </div>
     </div>
     {% empty %}
