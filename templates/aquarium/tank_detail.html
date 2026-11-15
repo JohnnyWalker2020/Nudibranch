@@ -13,7 +13,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
       </a>
       <div>
-        <h1 class="text-2xl font-black text-white tracking-tight">{{ tank.name }}{% if tank.is_primary %} <span class="align-middle text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">PRIMARY</span>{% endif %}</h1>
+        <h1 class="text-2xl font-black text-white tracking-tight">{{ tank.name }}{% if tank.is_primary %} <span class="align-middle text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">PRIMARY</span>{% endif %} <a href="{% url 'tank_edit' tank.id %}" title="Change the stage under Edit tank" class="align-middle text-[10px] font-bold px-2 py-0.5 rounded-md border {% if tank.stage == 'uncycled' %}bg-amber-500/15 text-amber-300 border-amber-500/30{% elif tank.stage == 'mature' %}bg-violet-500/15 text-violet-300 border-violet-500/30{% else %}bg-emerald-500/15 text-emerald-300 border-emerald-500/30{% endif %}">{{ tank.get_stage_display|upper }}</a></h1>
         <p class="text-xs text-slate-400 mt-0.5">{{ tank.total_system_gallons }} gal total water ({{ tank.total_system_liters }} L)</p>
       </div>
     </div>
@@ -23,9 +23,11 @@
       {% else %}
       <form method="POST" action="{% url 'tank_archive' tank.id %}" onsubmit="return confirm('Retire {{ tank.name|escapejs }}? All its data is kept, but it stops sending alerts and running schedules. You can bring it back at any time.')">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Retire</button></form>
       {% endif %}
-      <a href="{% url 'tank_look' tank.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🎨 Icon &amp; colours</a>
-      {% url 'tank_edit' tank.id as edit_url %}{% act 'edit' edit_url label='Edit tank' extra='py-2.5 rounded-xl' %}
-      <a href="{% url 'tank_export' tank.id %}" title="Download this tank's setup as a YAML file you can import or share (no prices)" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⬇ Export</a>{% if costs_enabled %}<a href="{% url 'tank_export' tank.id %}?prices=1" class="text-[11px] text-slate-500 hover:text-cyan-400 underline">with prices</a>{% endif %}
+      <a href="{% url 'tank_look' tank.id %}" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🎨 Icon &amp; colours</a>
+      <span class="inline-flex rounded-xl border border-slate-800 bg-slate-900 overflow-hidden text-xs font-semibold">
+        <a href="{% url 'tank_export' tank.id %}" title="Download this tank's setup as a YAML file you can import or share (no prices)" class="pill px-3.5 py-2.5 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">⬇ Export</a>
+        {% if costs_enabled %}<a href="{% url 'tank_export' tank.id %}?prices=1" title="The same file with what you paid for each thing" class="pill px-3 py-2.5 border-l border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">with prices</a>{% endif %}
+      </span>
       {% include 'aquarium/partials/arrange_button.html' with page='tank' %}
       {% url 'sump_create' tank.id as sump_add_url %}{% act 'add' sump_add_url label='Add sump' primary=True %}
     </div>
@@ -77,41 +79,38 @@
 
   <div data-arrange="tank" class="space-y-6">
   <!-- The display tank: its gear and who lives in it -->
-  <div data-card="display" data-card-title="In the display tank" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5">
-    <div class="flex items-center justify-between gap-2">
-      <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🐠</span> In the display tank</h2>
-      {% if departed_count %}
-        <a href="{{ request.path }}{% if not show_departed %}?deceased=1{% endif %}" class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white">{% icon 'headstone' %}{% if show_departed %}Hide deceased{% else %}Show deceased ({{ departed_count }}){% endif %}</a>
-      {% endif %}
+  <div data-card="display" data-card-title="Display tank" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">{% icon 'tank' 'w-5 h-5' %} Display tank</h2>
+        <p class="text-xs text-cyan-400 font-semibold">{{ tank.volume_gallons }} gal{% if tank.has_dimensions %} · {{ tank.width|floatformat:"-1" }} × {{ tank.depth|floatformat:"-1" }} × {{ tank.height|floatformat:"-1" }} {{ tank.dimension_unit }}{% endif %}{% if tank.capacity_is_manual %} · manual capacity{% endif %}{% if tank.substrate_type %} · {{ tank.get_substrate_type_display|lower }}{% endif %}{% if tank.live_rock_label %} · {{ tank.live_rock_label }} live rock{% endif %}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        {% if departed_count %}
+          <a href="{{ request.path }}{% if not show_departed %}?deceased=1{% endif %}" class="inline-flex items-center gap-1.5 px-2 text-[11px] font-semibold text-slate-400 hover:text-white">{% icon 'headstone' %}{% if show_departed %}Hide deceased{% else %}Show deceased ({{ departed_count }}){% endif %}</a>
+        {% endif %}
+        {% url 'tank_edit' tank.id as tank_edit_url %}{% act 'edit' tank_edit_url label='Edit tank' %}
+      </div>
     </div>
 
-    <section class="space-y-2">
-      <div class="flex items-center justify-between gap-2">
+    <div>
+      <div class="flex items-center justify-between gap-2 mb-2">
         <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">⚙️ Gear</h3>
         {% include 'aquarium/partials/equipment_picker.html' with picker=display_picker %}
       </div>
       {% if display_equipment %}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {% for eq in display_equipment %}
-            <div class="flex items-center justify-between gap-1 p-2.5 bg-slate-950/60 border border-slate-800 hover:border-cyan-500/40 rounded-xl {% if eq.status == 'offline' %}opacity-50{% endif %}">
-              <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="min-w-0 flex-1">
-                <span class="block text-xs font-bold text-white truncate">{{ eq.name }}</span>
-                <span class="block text-[10px] text-slate-500">{{ eq.get_category_display }}{% if eq.is_service_due %} · <span class="font-bold text-amber-400">service due</span>{% endif %}</span>
-                {% if eq.schedule_text %}<span class="block text-[10px] text-violet-300 truncate">🕒 {{ eq.schedule_text }}</span>{% endif %}
-              </a>
-              {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
-            </div>
-          {% endfor %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for eq in display_equipment %}{% include 'aquarium/partials/equipment_chip.html' with unplace=True %}{% endfor %}
         </div>
       {% else %}
         <p class="text-xs text-slate-500">Looking a bit bare: no wavemakers, heaters or other gear in the display yet. Lights and filters have their own cards.</p>
       {% endif %}
-    </section>
+    </div>
 
     {% url 'animal_create' as animal_add_url %}
     {% for section in livestock_sections %}
-      <section class="space-y-2 pt-4 border-t border-slate-800">
-        <div class="flex items-center justify-between gap-2">
+      <div>
+        <div class="flex items-center justify-between gap-2 mb-2">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">{{ section.icon }} {{ section.title }}{% if section.items %} <span class="text-slate-500 font-semibold normal-case">({{ section.items|length }})</span>{% endif %}</h3>
           {% act 'add_livestock' animal_add_url label='Add' title='Add to '|add:section.title suffix=display_add_query %}
         </div>
@@ -120,17 +119,17 @@
         {% else %}
           <p class="text-xs text-slate-500">{{ section.empty }}</p>
         {% endif %}
-      </section>
+      </div>
     {% endfor %}
     {% if show_departed and departed %}
-      <section class="space-y-2 pt-4 border-t border-slate-800">
+      <div class="space-y-2">
         <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">{% icon 'headstone' %} No longer with us</h3>
         <div class="flex flex-wrap gap-1.5">
           {% for animal in departed %}
             <a href="{% url 'animal_edit' animal.id %}?next={{ request.get_full_path|urlencode }}" title="{{ animal.epitaph_text }}" class="inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 hover:text-white">{% icon 'headstone' %}{{ animal.nickname|default:animal.name }}{% if animal.died_on %} <span class="text-slate-500">· {{ animal.died_on|date:"M Y" }}</span>{% endif %}</a>
           {% endfor %}
         </div>
-      </section>
+      </div>
     {% endif %}
     <p class="text-[10px] text-slate-500">Sorted by livestock category: anything in a coral or anemone category is Coral, cleanup crew and invertebrates are Clean up Crew, and the rest are Fish. <a href="{% url 'groups_manage' %}" class="text-cyan-400 hover:underline">Categories</a></p>
   </div>

@@ -1214,25 +1214,25 @@ class RetiredSystemTests(TestCase):
     def retire(self, tank=None):
         return self.client.post(reverse('tank_archive', args=[(tank or self.old).pk]))
 
-    def test_keeps_data_and_switches_to_old_icon(self):
+    def test_keeps_data_and_its_icon(self):
         Animal.objects.create(name='Oldie', tank=self.old)
-        self.assertIn('01-dragon-mage-young', self.old.icon_url)
+        self.assertIn('01-dragon-mage-baby', self.old.icon_url)
         self.retire()
         self.old.refresh_from_db()
         self.assertTrue(self.old.is_archived)
         self.assertIsNotNone(self.old.archived_at)
-        self.assertIn('01-dragon-mage-old', self.old.icon_url)
+        self.assertIn('01-dragon-mage-baby', self.old.icon_url)
         self.assertEqual(self.old.parameter_logs.count(), 1)
         self.assertEqual(self.old.animals.count(), 1)
 
-    def test_restore_brings_back_young_icon(self):
+    def test_restore_keeps_the_icon(self):
         self.retire()
         response = self.client.post(reverse('tank_restore', args=[self.old.pk]))
         self.assertRedirects(response, reverse('tank_detail', args=[self.old.pk]))
         self.old.refresh_from_db()
         self.assertFalse(self.old.is_archived)
         self.assertEqual(self.old.icon_choice, '01-dragon-mage-young')
-        self.assertIn('01-dragon-mage-young', self.old.icon_url)
+        self.assertIn('01-dragon-mage-baby', self.old.icon_url)
         self.assertEqual(self.client.get('/').context['active_tank'], self.old)
 
     def test_retiring_twice_is_harmless(self):
@@ -1240,7 +1240,7 @@ class RetiredSystemTests(TestCase):
         self.retire()
         self.client.post(reverse('tank_restore', args=[self.old.pk]))
         self.old.refresh_from_db()
-        self.assertIn('01-dragon-mage-young', self.old.icon_url)
+        self.assertIn('01-dragon-mage-baby', self.old.icon_url)
 
     def test_retiring_primary_promotes_another(self):
         self.retire(self.main)
@@ -1308,15 +1308,17 @@ class RetiredSystemTests(TestCase):
         choices = self.client.get(reverse('plan_create')).context['form'].fields['existing_tank'].queryset
         self.assertEqual(list(choices), [self.main])
 
-    def test_retired_page_explains_the_old_icon(self):
-        self.assertNotContains(self.client.get(reverse('system_theme')), 'This tank is retired')
+    def test_retired_tank_keeps_its_icon_and_can_pick_any(self):
+        Tank.objects.filter(pk=self.old.pk).update(stage='cycled')
         self.retire()
         self.client.post(reverse('system_select'), {'tank': self.old.pk})
-        self.assertContains(self.client.get(reverse('system_theme')), 'This tank is retired')
         self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '03-robot-young'})
         self.old.refresh_from_db()
-        self.assertIn('03-robot-old', self.old.icon_url)
-        self.assertIn('03-robot-old', self.client.get('/').context['system_icon_url'])
+        self.assertIn('03-robot-young', self.old.icon_url)
+        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '03-robot-young', 'icon_version': 'baby'})
+        self.old.refresh_from_db()
+        self.assertIn('03-robot-baby', self.old.icon_url)
+        self.assertIn('03-robot-baby', self.client.get('/').context['system_icon_url'])
 
     def test_every_system_retired_still_works(self):
         self.retire()
@@ -1345,11 +1347,12 @@ class CharacterIconTests(TestCase):
         self.client.post(reverse('tank_archive', args=[tank.pk]))
         tank.refresh_from_db()
 
-    def test_all_26_characters_are_complete_pairs(self):
+    def test_all_26_characters_have_three_versions(self):
         characters = character_icons()
         self.assertEqual(len(characters), 26)
         for c in characters:
-            self.assertNotEqual(c['young'], c['old'], c['key'])
+            self.assertEqual(c['baby'], f"{c['key']}-baby")
+            self.assertEqual(c['young'], f"{c['key']}-young")
             self.assertEqual(c['old'], f"{c['key']}-old")
         labels = [c['label'] for c in characters]
         self.assertEqual(len(labels), len(set(labels)))
@@ -1361,13 +1364,15 @@ class CharacterIconTests(TestCase):
             for word in franchise_words:
                 self.assertNotIn(word, character['key'])
 
-    def test_picker_only_offers_young_by_default(self):
+    def test_picker_offers_characters_and_a_version(self):
         page = self.client.get(reverse('system_theme'))
         self.assertContains(page, 'value="01-dragon-mage-young"')
         self.assertNotContains(page, 'value="01-dragon-mage-old"')
-        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '01-dragon-mage-old'})
+        self.assertContains(page, 'Follows its stage (uncycled)')
+        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '01-dragon-mage-young', 'icon_version': 'old'})
         self.main.refresh_from_db()
-        self.assertEqual(self.main.icon_choice, '03-robot-young')
+        self.assertEqual((self.main.icon_choice, self.main.icon_version), ('01-dragon-mage-young', 'old'))
+        self.assertIn('01-dragon-mage-old', self.main.icon_url)
 
     def test_surprise_me_only_uses_young(self):
         self.settings_on(enable_random_icons=True)
@@ -1375,44 +1380,35 @@ class CharacterIconTests(TestCase):
         self.assertEqual(len(pool), 26)
         self.assertTrue(all('-young' in item['path'] for item in pool))
 
-    def test_aging_switches_on_retire_and_back(self):
-        self.assertIn('03-robot-young', self.main.icon_url)
+    def test_stage_picks_the_version(self):
+        for stage, version in (('uncycled', 'baby'), ('cycled', 'young'), ('mature', 'old')):
+            Tank.objects.filter(pk=self.main.pk).update(stage=stage)
+            self.main.refresh_from_db()
+            self.assertIn(f'03-robot-{version}', self.main.icon_url)
+        # A version of its own wins over the stage
+        Tank.objects.filter(pk=self.main.pk).update(icon_version='baby')
+        self.main.refresh_from_db()
+        self.assertIn('03-robot-baby', self.main.icon_url)
+        # No chosen character: the default one follows the stage too
+        Tank.objects.filter(pk=self.other.pk).update(stage='mature')
+        self.other.refresh_from_db()
+        self.assertIn(icons.default_stem(self.other.pk, 'old'), self.other.icon_url)
+
+    def test_retiring_keeps_the_icon(self):
+        Tank.objects.filter(pk=self.main.pk).update(stage='cycled')
+        self.main.refresh_from_db()
+        before = self.main.icon_url
         self.retire(self.main)
-        self.assertIn('03-robot-old', self.main.icon_url)
+        self.assertEqual(self.main.icon_url, before)
         self.client.post(reverse('tank_restore', args=[self.main.pk]))
         self.main.refresh_from_db()
-        self.assertIn('03-robot-young', self.main.icon_url)
+        self.assertEqual(self.main.icon_url, before)
 
-    def test_disable_icon_aging(self):
-        self.retire(self.main)
-        self.settings_on(disable_icon_aging=True)
-        self.assertIn('03-robot-young', self.main.icon_url)
-        self.settings_on(disable_icon_aging=False)
-        self.assertIn('03-robot-old', self.main.icon_url)
-
-    def test_enable_old_version_icons(self):
-        self.settings_on(enable_old_version_icons=True)
-        self.assertContains(self.client.get(reverse('system_theme')), 'value="01-dragon-mage-old"')
-        self.client.post(reverse('system_theme'), {'theme': 'ocean', 'icon_choice': '01-dragon-mage-old'})
-        self.main.refresh_from_db()
-        self.assertEqual(self.main.icon_choice, '01-dragon-mage-old')
-        self.assertIn('01-dragon-mage-old', self.main.icon_url)
-        # Turned off again: the system shows the young version, and saving the page keeps that character.
-        self.settings_on(enable_old_version_icons=False)
-        self.assertIn('01-dragon-mage-young', self.main.icon_url)
-        page = self.client.get(reverse('system_theme'))
-        self.assertEqual(page.context['selected_icon'], '01-dragon-mage-young')
-
-    def test_old_choice_with_aging_disabled_still_works(self):
-        self.settings_on(enable_old_version_icons=True, disable_icon_aging=True)
-        Tank.objects.filter(pk=self.main.pk).update(icon_choice='01-dragon-mage-old')
-        self.main.refresh_from_db()
-        self.retire(self.main)
-        self.assertIn('01-dragon-mage-old', self.main.icon_url)
-        self.other.icon_choice = '03-robot-young'
-        self.other.save()
-        self.retire(self.other)
-        self.assertIn('03-robot-young', self.other.icon_url)
+    def test_new_tanks_start_uncycled_and_the_stage_is_on_edit_tank(self):
+        self.assertEqual(Tank.objects.create(name='New').stage, 'uncycled')
+        page = self.client.get(reverse('tank_edit', args=[self.main.pk]))
+        self.assertContains(page, 'name="stage"')
+        self.assertContains(self.client.get(reverse('tank_detail', args=[self.main.pk])), 'UNCYCLED')
 
     def test_uploaded_icon_stays_static(self):
         buf = io.BytesIO()
@@ -1423,39 +1419,24 @@ class CharacterIconTests(TestCase):
         self.assertIn('/media/icons/', url)
         self.retire(self.main)
         self.assertEqual(self.main.icon_url, url)
-        self.assertNotContains(self.client.get(reverse('system_theme')), 'This tank is retired')
 
-    def test_surprise_me_retired_gets_a_lasting_old_icon(self):
-        self.settings_on(enable_random_icons=True)
-        self.assertEqual(self.other.icon_url, '')
-        self.retire(self.other)
-        first = self.other.icon_url
-        self.assertIn('-old', first)
-        self.assertEqual(Tank.objects.get(pk=self.other.pk).icon_url, first)
-        self.settings_on(disable_icon_aging=True)
-        self.assertEqual(self.other.icon_url, '')
-
-    def test_settings_page_has_both_options(self):
+    def test_settings_page_drops_the_old_icon_options(self):
         page = self.client.get(reverse('app_settings'))
-        self.assertContains(page, 'Disable icon aging')
-        self.assertContains(page, 'Enable old version icons')
-        self.client.post(reverse('app_settings'), {
-            'electricity_rate': '0.15', 'currency_symbol': '$', 'auto_backup_days': 7, 'auto_backup_keep': 4,
-            'disable_icon_aging': 'on', 'enable_old_version_icons': 'on'})
-        saved = AppSettings.load()
-        self.assertTrue(saved.disable_icon_aging and saved.enable_old_version_icons)
+        self.assertNotContains(page, 'icon aging')
+        self.assertNotContains(page, 'old version icons')
+        self.assertContains(page, 'name="enable_random_icons"')
 
     def test_removed_icon_falls_back_to_the_default(self):
         Tank.objects.filter(pk=self.main.pk).update(icon_choice='gone-young')
         self.main.refresh_from_db()
-        self.assertIn(icons.default_stem(self.main.pk), self.main.icon_url)
+        self.assertIn(icons.default_stem(self.main.pk, 'baby'), self.main.icon_url)
         self.settings_on(enable_random_icons=True)
         self.assertEqual(self.main.icon_url, '')
 
     def test_random_icons_are_off_by_default(self):
         self.assertFalse(AppSettings.load().enable_random_icons)
         first = self.other.icon_url
-        self.assertIn(icons.default_stem(self.other.pk), first)
+        self.assertIn(icons.default_stem(self.other.pk, 'baby'), first)
         self.assertEqual(Tank.objects.get(pk=self.other.pk).icon_url, first)
         page = self.client.get('/')
         self.assertEqual(page.context['random_icons'], [])
@@ -1527,10 +1508,10 @@ class MatchMyIconTests(TestCase):
         problems = []
         palettes = set()
         for character in character_icons():
-            for stem in (character['young'], character['old']):
-                self.tank.icon_choice = stem
-                AppSettings.load()
-                AppSettings.objects.filter(pk=1).update(enable_old_version_icons=True)
+            for version in ('baby', 'young', 'old'):
+                stem = character[version]
+                self.tank.icon_choice = character['young']
+                self.tank.icon_version = version
                 palette = self.tank.icon_palette()
                 if palette is None:
                     problems.append(f'{stem}: no colours')
@@ -2934,6 +2915,21 @@ class LivestockNamesAndGraveyardTests(TestCase):
         self.assertTrue(any(name in silly_names.SOLO_NAMES for name in names))
         self.assertTrue(all(len(name) <= 120 for name in names))
 
+    def test_there_are_lots_of_names_and_every_roll_gets_a_fanfare(self):
+        for kind in ('Turbo Snail', 'Royal Gramma', 'Hermit crab', 'Hammer coral'):
+            self.assertGreater(silly_names.name_count(kind), 1_000_000, kind)
+        names = [silly_names.silly_name('Royal Gramma') for _ in range(300)]
+        self.assertGreater(len(set(names)), 280)  # almost never the same twice
+        longest = max(len(f'{h} {f} "{t}" {s}') for h in silly_names.HONORIFICS for f in silly_names.FIRST_NAMES
+                      for t in silly_names.TITLES for s in max(silly_names.SURNAMES.values(), key=len))
+        self.assertLessEqual(longest, Animal._meta.get_field('nickname').max_length)
+        data = self.client.get(reverse('silly_name'), {'about': 'Royal Gramma', 'kind': 'Royal Gramma'}).json()
+        self.assertIn(data['name'], data['message'])
+        self.assertTrue(all('{name}' in line for line in silly_names.ANNOUNCEMENTS))
+        page = self.client.post(reverse('animal_silly_name', args=[self.snail.id]), follow=True)
+        self.snail.refresh_from_db()
+        self.assertTrue(any(self.snail.nickname in str(m) for m in page.context['messages']))
+
     def test_epitaphs_fit_their_field(self):
         field = Animal._meta.get_field('epitaph')
         self.assertTrue(all(len(line) <= field.max_length for line in silly_names.EPITAPHS))
@@ -3399,13 +3395,13 @@ class SystemLookTests(TestCase):
         self.save(theme='kelp', icon_choice='01-dragon-mage-young')
         page = self.client.get('/')
         self.assertContains(page, '--cyan-500:16 185 129')
-        self.assertContains(page, '01-dragon-mage-young')
-        self.assertIn('01-dragon-mage-young', page.context['system_icon_url'])
+        self.assertContains(page, '01-dragon-mage-baby')
+        self.assertIn('01-dragon-mage-baby', page.context['system_icon_url'])
         self.client.post(reverse('system_select'), {'tank': self.qt.pk})
         page = self.client.get('/')
         self.assertNotContains(page, '--cyan-500:16 185 129')
         self.assertEqual(page.context['system_icon_url'], self.qt.icon_url)
-        self.assertNotIn('01-dragon-mage-young', page.context['system_icon_url'])
+        self.assertNotIn('01-dragon-mage-baby', page.context['system_icon_url'])
 
     def test_custom_icon_upload_and_replace(self):
         buf = io.BytesIO()

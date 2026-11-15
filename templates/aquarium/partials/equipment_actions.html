@@ -1,9 +1,11 @@
 {% comment %}
 Small buttons for one piece of equipment. Needs `eq`.
-`unplace` adds the unplug (take it off this tank; it stays in the equipment list). The bin goes to the delete
-confirmation page. They show the picture alone, since they sit in tight rows; `words` adds the words.
+Edit (superglue), then `unplace` adds the unplug (take it off this tank; it stays in the equipment list), and the bin
+goes to the delete confirmation page. They show the picture alone, since they sit in tight rows; `words` adds the words.
 {% endcomment %}
-<span class="inline-flex items-center gap-1 shrink-0">
+<span class="inline-flex items-center gap-0.5 shrink-0">{% with here=request.get_full_path|urlencode %}
+  {% url 'equipment_edit' eq.id as edit_url %}
+  {% if words %}{% act 'edit' edit_url suffix='?next='|add:here title='Edit '|add:eq.name %}{% else %}{% act 'edit' edit_url compact=True suffix='?next='|add:here title='Edit '|add:eq.name %}{% endif %}
   {% if unplace %}
     <form method="POST" action="{% url 'equipment_unplace' eq.id %}" class="inline-flex"
           onsubmit="return confirm('Take {{ eq.name|escapejs }} off this tank? It stays in your equipment list.')">
@@ -13,7 +15,7 @@ confirmation page. They show the picture alone, since they sit in tight rows; `w
     </form>
   {% endif %}
   {% if not no_bin %}
-    {% url 'equipment_delete' eq.id as del_url %}{% with here=request.get_full_path|urlencode %}
-    {% if words %}{% act 'delete' del_url suffix='?next='|add:here title='Delete '|add:eq.name %}{% else %}{% act 'delete' del_url compact=True suffix='?next='|add:here title='Delete '|add:eq.name %}{% endif %}{% endwith %}
+    {% url 'equipment_delete' eq.id as del_url %}
+    {% if words %}{% act 'delete' del_url suffix='?next='|add:here title='Delete '|add:eq.name %}{% else %}{% act 'delete' del_url compact=True suffix='?next='|add:here title='Delete '|add:eq.name %}{% endif %}
   {% endif %}
-</span>
+{% endwith %}</span>

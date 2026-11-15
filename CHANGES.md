@@ -10,6 +10,8 @@ Apply with `docker compose up -d --build` (or a restart when running from source
 - **Arrange**: the tank system, livestock, equipment, dosing, routines, tools, water and tanks pages have an **Arrange** button. Move cards with ▲ ▼ and tap Done; the order is saved for the app. **Back to normal** undoes it. (The dashboard keeps its own Customize.)
 - **Buttons**: add, edit and delete look the same everywhere, with drawn icons: a parcel to add, a fish in a bag to add livestock, a tube of superglue to edit, a bin to delete, an unplugged plug to take equipment off a tank, and a toilet to flush livestock. Plumbing and sumps got their own icons too.
 - **Flush**: livestock cards have a quick Flush. It marks the animal deceased and gives it a headstone. Deleting for good is only on its edit page now.
+- **Tank stage**: each tank has a stage under **Edit tank**: Uncycled, Cycled or Mature, shown beside its name. New tanks start uncycled; tanks you already had start as cycled. Tank Look has a **Version** choice for the character. Retiring a tank no longer changes its look, so the two old icon settings are gone. Migration 0043.
+- **Silly names**: well over a million possible names per kind of animal, and every roll comes with an announcement.
 - **Several of one kind**: a card like "3× Clownfish" has a **Split** button that makes each one its own entry (own name, photo, status), kept together on one card with their photos to scroll through. **Add another** adds one more to the card. Flushing one leaves the rest.
 
 ## Round 23 (2026-11-13)

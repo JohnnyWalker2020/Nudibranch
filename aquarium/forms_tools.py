@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from .events import EVENT_TYPES
-from .icons import character_icons
+from .icons import character_icons, young_version
 from .forms import CHECKBOX, INPUT, TEXTAREA, PercentSliderInput, UnitNumberInput, unit_pair
 from .models import (
     AnimalPhoto, AppSettings, CostEntry, Equipment, PlanProject, PlannedItem, PlannedSystem, QuarantineEntry, ROSystem, currency_choices,
@@ -43,15 +43,17 @@ class SystemThemeForm(forms.ModelForm):
 
     class Meta:
         model = Tank
-        fields = ['theme', 'ui_style', 'icon_choice', 'custom_icon']
+        fields = ['theme', 'ui_style', 'icon_choice', 'icon_version', 'custom_icon']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         choices = [('', 'Random'), ('custom', 'Your icon')]
         choices += [(c['young'], c['label']) for c in character_icons()]
-        if AppSettings.load().enable_old_version_icons:
-            choices += [(c['old'], f"{c['label']} (old)") for c in character_icons()]
         self.fields['icon_choice'].choices = choices
+        self.fields['icon_version'].required = False
+        # The character is stored as its young file; the version is its own setting.
+        if self.instance.icon_choice not in ('', 'custom'):
+            self.initial['icon_choice'] = young_version(self.instance.icon_choice)
         self.fields['ui_style'].required = False  # left out, the tank keeps its style
 
     def clean_ui_style(self):
@@ -192,7 +194,7 @@ class AppSettingsForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = AppSettings
         fields = ['electricity_rate', 'currency_symbol', 'auto_backup_days', 'auto_backup_keep',
-                  'disable_icon_aging', 'enable_old_version_icons', 'enable_random_icons', 'resolved_alert_days',
+                  'enable_random_icons', 'resolved_alert_days',
                   'icp_enabled']
 
 

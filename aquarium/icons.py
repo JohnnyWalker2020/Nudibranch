@@ -1,6 +1,7 @@
 """
-The character icons. Each character is a pair of files in static/icons/nudibranch:
-NN-some-name-young.png and NN-some-name-old.png. Add a pair there and it appears after a restart.
+The character icons. Each character has three files in static/icons/nudibranch:
+NN-some-name-baby.png, -young.png and -old.png. A tank shows the one for its stage (uncycled, cycled, mature)
+unless it's set to a version of its own. Add a set there and it appears after a restart.
 Small copies for the pages are made by `manage.py build_icon_thumbnails` when the app starts.
 """
 import colorsys
@@ -13,8 +14,10 @@ from PIL import Image
 
 ICON_URL = '/static/icons/nudibranch/'
 FALLBACK_ICON = '/static/icons/icon.svg'
+BABY = '-baby'
 YOUNG = '-young'
 OLD = '-old'
+VERSIONS = ('baby', 'young', 'old')
 
 
 def icon_dir():
@@ -37,7 +40,8 @@ def _label(base):
 
 @lru_cache(maxsize=1)
 def character_icons():
-    """[{'key', 'label', 'young', 'old', 'young_url', 'old_url'}] in file name order."""
+    """[{'key', 'label', 'baby', 'young', 'old', and their _url}] in file name order.
+    A character missing its baby or old file uses its young one."""
     directory = icon_dir()
     characters = []
     seen = {}
@@ -45,6 +49,8 @@ def character_icons():
         base = path.stem[:-len(YOUNG)]
         old_stem = f'{base}{OLD}'
         has_old = (directory / f'{old_stem}.png').exists()
+        baby_stem = f'{base}{BABY}'
+        has_baby = (directory / f'{baby_stem}.png').exists()
         label = _label(base)
         seen[label] = seen.get(label, 0) + 1
         if seen[label] > 1:
@@ -52,8 +58,10 @@ def character_icons():
         characters.append({
             'key': base,
             'label': label,
+            'baby': baby_stem if has_baby else path.stem,
             'young': path.stem,
             'old': old_stem if has_old else path.stem,
+            'baby_url': _url_for(baby_stem if has_baby else path.stem),
             'young_url': _url_for(path.stem),
             'old_url': _url_for(old_stem if has_old else path.stem),
         })
@@ -62,34 +70,22 @@ def character_icons():
 
 def _character_for(choice):
     for character in character_icons():
-        if choice in (character['young'], character['old']):
+        if choice in (character['baby'], character['young'], character['old']):
             return character
     return None
 
 
-def display_stem(choice, *, aged, old_allowed):
-    """
-    Which file to show for a chosen young or old icon, or '' if it's no longer available.
-    `aged` means a retired system with aging on. Old icons otherwise need the setting that allows them.
-    """
+def stem_for(choice, version='young'):
+    """The file for a chosen character in one version (baby, young or old), or '' if it's no longer available."""
     character = _character_for(choice)
-    if character is None:
-        return ''
-    if aged or (choice == character['old'] and old_allowed):
-        return character['old']
-    return character['young']
+    return character[version] if character else ''
 
 
-def retired_default_stem(pk):
-    """A retired system on "Surprise me" has no chosen character, so give it a lasting old one."""
-    characters = character_icons()
-    return characters[pk % len(characters)]['old'] if characters else ''
-
-
-def default_stem(pk):
+def default_stem(pk, version='young'):
     """The lasting icon for a system with no chosen character, while random icons are off."""
     characters = character_icons()
-    return characters[(pk or 0) % len(characters)]['young'] if characters else ''
+    return characters[(pk or 0) % len(characters)][version] if characters else ''
+''
 
 
 def url_for_stem(stem):

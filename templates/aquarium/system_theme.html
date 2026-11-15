@@ -68,7 +68,13 @@
 
     <section class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3">
       <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">App icon</h2>
-      {% if aging_shown %}<p class="text-xs text-amber-300">🧓 This tank is retired, so it shows the old version of whichever character you pick.</p>{% endif %}
+      <div class="flex flex-wrap items-center gap-2">
+        <label for="id_icon_version" class="text-[11px] font-semibold text-slate-400">Version</label>
+        <select id="id_icon_version" name="icon_version" data-stage-version="{{ stage_version }}" class="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500">
+          {% for value, label in versions %}<option value="{{ value }}" {% if active_tank.icon_version == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <span class="text-[11px] text-slate-500">Baby, young or old. Set the stage under Edit tank.</span>
+      </div>
       <div class="grid grid-cols-3 sm:grid-cols-5 gap-3 max-h-96 overflow-y-auto pr-1">
         <label class="cursor-pointer">
           <input type="radio" name="icon_choice" value="" class="peer sr-only" {% if not selected_icon %}checked{% endif %}>
@@ -77,7 +83,7 @@
             <span class="w-12 h-12 flex items-center justify-center text-2xl">🎲</span>
             <span class="text-[10px] font-semibold text-slate-300 text-center">Surprise me</span>
             {% else %}
-            <img src="{{ default_icon_url }}" alt="" loading="lazy" class="w-12 h-12 rounded-xl object-cover">
+            <img src="{{ default_icon_url }}" alt="" loading="lazy" class="w-12 h-12 rounded-xl object-cover" data-baby="{{ default_icon.baby_url }}" data-young="{{ default_icon.young_url }}" data-old="{{ default_icon.old_url }}">
             <span class="text-[10px] font-semibold text-slate-300 text-center">Default</span>
             {% endif %}
           </span>
@@ -86,22 +92,11 @@
         <label class="cursor-pointer">
           <input type="radio" name="icon_choice" value="{{ c.young }}" class="peer sr-only" {% if selected_icon ==  c.young  %}checked{% endif %}>
           <span class="flex flex-col items-center gap-1.5 p-2 h-full rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400">
-            <img src="{{ c.young_url }}" alt="" loading="lazy" width="48" height="48" class="w-12 h-12 rounded-xl object-cover">
+            <img src="{% if version == 'baby' %}{{ c.baby_url }}{% elif version == 'old' %}{{ c.old_url }}{% else %}{{ c.young_url }}{% endif %}" alt="" loading="lazy" width="48" height="48" class="w-12 h-12 rounded-xl object-cover" data-baby="{{ c.baby_url }}" data-young="{{ c.young_url }}" data-old="{{ c.old_url }}">
             <span class="text-[10px] font-semibold text-slate-300 text-center">{{ c.label }}</span>
           </span>
         </label>
         {% endfor %}
-        {% if old_icons_enabled %}
-        {% for c in characters %}
-        <label class="cursor-pointer">
-          <input type="radio" name="icon_choice" value="{{ c.old }}" class="peer sr-only" {% if selected_icon ==  c.old  %}checked{% endif %}>
-          <span class="flex flex-col items-center gap-1.5 p-2 h-full rounded-2xl bg-slate-950 border-2 border-slate-800 peer-checked:border-cyan-400">
-            <img src="{{ c.old_url }}" alt="" loading="lazy" width="48" height="48" class="w-12 h-12 rounded-xl object-cover">
-            <span class="text-[10px] font-semibold text-slate-300 text-center">{{ c.label }} (old)</span>
-          </span>
-        </label>
-        {% endfor %}
-        {% endif %}
         {% if active_tank.custom_icon %}
         <label class="cursor-pointer">
           <input type="radio" name="icon_choice" value="custom" class="peer sr-only" {% if selected_icon == 'custom' %}checked{% endif %}>
@@ -115,7 +110,7 @@
       <div class="pt-3 border-t border-slate-800">
         <label for="id_custom_icon" class="block text-[10px] font-bold uppercase text-slate-400 mb-1">{% if active_tank.custom_icon %}Replace your icon{% else %}Or add your own{% endif %}</label>
         <input id="id_custom_icon" type="file" name="custom_icon" accept="image/png,image/jpeg,image/webp,image/gif" class="w-full text-xs text-slate-300">
-        <p class="text-[11px] text-slate-500 mt-1">PNG, JPG, WebP or GIF, up to 5 MB. Square images look best. Your own icon never changes, even if the tank retires.</p>
+        <p class="text-[11px] text-slate-500 mt-1">PNG, JPG, WebP or GIF, up to 5 MB. Square images look best. Your own icon never changes with the stage.</p>
         {% for err in form.custom_icon.errors %}<p class="text-xs text-rose-400 mt-1">{{ err }}</p>{% endfor %}
       </div>
     </section>
@@ -126,4 +121,18 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // The pictures follow the version picked, so you see what the tank will show.
+  (function () {
+    const select = document.getElementById('id_icon_version');
+    if (!select) return;
+    select.addEventListener('change', () => {
+      const version = select.value || select.dataset.stageVersion;
+      document.querySelectorAll('img[data-young]').forEach(img => { if (img.dataset[version]) img.src = img.dataset[version]; });
+    });
+  })();
+</script>
 {% endblock %}

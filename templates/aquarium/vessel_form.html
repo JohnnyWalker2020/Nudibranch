@@ -51,6 +51,12 @@
           <span class="text-[11px] text-slate-500">Used as the default when adding livestock, equipment and reservoirs</span>
         </span>
       </label>
+
+      <div class="space-y-1.5">
+        <label for="{{ form.stage.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Stage</label>
+        {{ form.stage }}
+        <p class="text-[11px] text-slate-500"><b class="text-slate-400">Uncycled:</b> new water, the good bacteria are still growing, so no livestock yet. <b class="text-slate-400">Cycled:</b> ammonia and nitrite read zero and stay there; most keepers wait for this before adding fish. <b class="text-slate-400">Mature:</b> stable for six months or so, when the fussier corals usually do best.</p>
+      </div>
     {% endif %}
 
     <!-- Dimensions -->

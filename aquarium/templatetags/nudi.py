@@ -63,14 +63,25 @@ ICONS = {
         '<rect x="9.4" y="10.6" width="11.6" height="1.9" rx=".95" fill="#cbd5e1"/>'
         '<path d="M11.5 14.2c1.8.1 3.6.5 5.2 1.3" fill="none" stroke="#38bdf8" stroke-width="1.3" stroke-linecap="round"/>'
     ),
-    # A plug pulled out of its socket, for taking equipment off a tank (it stays in the list).
+    # A plug pulled out of a wall socket, for taking equipment off a tank (it stays in the list).
     'unplug': (
-        '<path d="M2.5 13h4.5" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>'
-        '<rect x="7" y="9.4" width="5.2" height="7.2" rx="1.6" fill="#cbd5e1"/>'
-        '<path d="M12.2 11.3h2.4M12.2 14.7h2.4" stroke="#e2e8f0" stroke-width="1.4" stroke-linecap="round"/>'
-        '<rect x="17.2" y="7.6" width="4.3" height="10.8" rx="1.1" fill="#475569"/>'
-        '<path d="M18.6 11.3h1.5M18.6 14.7h1.5" stroke="#0f172a" stroke-width="1.3" stroke-linecap="round"/>'
-        '<path d="M15.6 7.8l.7 1.4M15.6 18.2l.7-1.4M15.4 13h.9" stroke="#fbbf24" stroke-width="1.1" stroke-linecap="round"/>'
+        '<rect x="13" y="2.8" width="9" height="11" rx="2" fill="#f1f5f9"/>'
+        '<path d="M16 6.6v3.2M19 6.6v3.2" stroke="#334155" stroke-width="1.5" stroke-linecap="round"/>'
+        '<path d="M4.6 6v3.2M7.6 6v3.2" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/>'
+        '<rect x="3" y="9" width="6.2" height="5.6" rx="1.6" fill="#f97316"/>'
+        '<path d="M6.1 14.6c0 2.6 3 2.8 3 5.1s-2.2 2.5-3.4 2.5" fill="none" stroke="#f97316" stroke-width="1.6" stroke-linecap="round"/>'
+        '<path d="M10.2 5.2l1.6-1M10.4 8.2h1.9" stroke="#94a3b8" stroke-width="1.1" stroke-linecap="round"/>'
+    ),
+    # A little aquarium with a fish, sand and a plant, for the display tank.
+    'tank': (
+        '<rect x="2.7" y="8" width="18.6" height="11.3" fill="#38bdf8" fill-opacity=".45"/>'
+        '<path d="M2.7 17.4c4-1 8.5.8 18.6-.6v2.5H2.7z" fill="#fcd34d" fill-opacity=".85"/>'
+        '<path d="M2 5.5v13.8a1.2 1.2 0 0 0 1.2 1.2h17.6a1.2 1.2 0 0 0 1.2-1.2V5.5" fill="none" stroke="#94a3b8" stroke-width="1.4"/>'
+        '<path d="M1.4 5.2h21.2" stroke="#cbd5e1" stroke-width="1.6" stroke-linecap="round"/>'
+        '<ellipse cx="9.6" cy="12.4" rx="2.7" ry="1.7" fill="#fb923c"/>'
+        '<path d="M12.1 12.4l2.1-1.5v3z" fill="#fb923c"/>'
+        '<circle cx="8.4" cy="12" r=".45" fill="#0f172a"/>'
+        '<path d="M17 17.2c-.3-1.8-1.2-3 0-5M18.6 17.2c.1-1.6 1-2.8.2-4.4" fill="none" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round"/>'
     ),
     # A PVC elbow with a drip, for plumbing.
     'pipe': (

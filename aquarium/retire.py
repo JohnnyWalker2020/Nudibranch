@@ -1,6 +1,6 @@
 """
-Retiring a system: keeps all its data and stops its alerts and jobs. Its icon switches to the old
-version when it's displayed (see Tank.icon_url), so nothing needs undoing when it comes back.
+Retiring a system: keeps all its data and stops its alerts and jobs. Its icon stays as it was (the
+version for its stage, or the one picked in Tank Look), so nothing needs undoing when it comes back.
 """
 from django.db import transaction
 from django.utils import timezone

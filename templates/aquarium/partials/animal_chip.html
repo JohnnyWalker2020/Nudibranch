@@ -1,5 +1,5 @@
 {% comment %}One livestock entry as a small chip on the tank page, with edit and quick flush. Needs `animal`.{% endcomment %}
-<span class="inline-flex items-center gap-1.5 pl-1 pr-1 py-1 rounded-xl bg-slate-950/60 border {% if animal.status == 'quarantine' %}border-amber-500/40{% elif animal.status == 'monitoring' %}border-rose-500/40{% else %}border-slate-800{% endif %}">
+<span class="inline-flex items-center gap-2 pl-1.5 pr-1.5 py-1.5 rounded-xl bg-slate-950/60 border {% if animal.status == 'quarantine' %}border-amber-500/40{% elif animal.status == 'monitoring' %}border-rose-500/40{% else %}border-slate-800{% endif %}">
   {% if animal.photo %}
     <img loading="lazy" src="{{ animal.photo.url }}" alt="" class="w-7 h-7 rounded-lg object-cover">
   {% else %}

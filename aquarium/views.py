@@ -30,7 +30,7 @@ from .calculators import (
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, unit_choices
 from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
-from .silly_names import silly_name
+from .silly_names import announcement, silly_name
 from .tank_presets import TANK_PRESETS
 from .forms import (
     AnimalForm, AnimalGroupForm, AnimalPhotoUploadForm, DosingReservoirForm, EquipmentForm, MaintenanceRoutineForm,
@@ -1043,7 +1043,8 @@ def animal_upload_photo_view(request, animal_id):
 
 def silly_name_view(request):
     """GET: a silly name for the animal form's dice button. Nothing is saved until the form is."""
-    return JsonResponse({'name': silly_name(request.GET.get('about', ''))})
+    name = silly_name(request.GET.get('about', ''))
+    return JsonResponse({'name': name, 'message': announcement(request.GET.get('kind', ''), name)})
 
 
 @require_POST
@@ -1053,7 +1054,7 @@ def animal_silly_name_view(request, animal_id):
     if not animal.nickname:
         animal.nickname = silly_name(f"{animal.name} {animal.species}")
         animal.save(update_fields=['nickname'])
-        messages.success(request, f"{animal.name} shall henceforth be known as {animal.nickname}.")
+        messages.success(request, f"🎲 {announcement(animal.name, animal.nickname)}")
     return redirect(_safe_next(request, 'livestock'))
 
 

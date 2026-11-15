@@ -665,7 +665,7 @@ class TankForm(VesselFormMixin, forms.ModelForm):
 
     class Meta:
         model = Tank
-        fields = ['name', 'is_primary', 'dimension_unit', 'width', 'depth', 'height',
+        fields = ['name', 'is_primary', 'stage', 'dimension_unit', 'width', 'depth', 'height',
                   'fill_percent', 'capacity_is_manual', 'volume_gallons', 'substrate_type', 'substrate_amount',
                   'substrate_unit', 'substrate_product', 'live_rock_amount', 'live_rock_unit', 'notes']
         widgets = {
@@ -678,6 +678,7 @@ class TankForm(VesselFormMixin, forms.ModelForm):
             'live_rock_unit': forms.Select(attrs={'class': INPUT, 'aria-label': 'Live rock weight unit'}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. 120g Display Tank'}),
             'is_primary': forms.CheckboxInput(attrs={'class': CHECKBOX}),
+            'stage': forms.Select(attrs={'class': INPUT}),
             'notes': forms.Textarea(attrs={'class': TEXTAREA, 'rows': 2}),
         }
 
@@ -686,8 +687,12 @@ class TankForm(VesselFormMixin, forms.ModelForm):
         self.fields['substrate_type'].choices = [('', 'Not set')] + Tank.SUBSTRATE_TYPES
         self.fields['substrate_product'].queryset = Equipment.objects.filter(category='substrate').order_by('name')
         self.fields['substrate_product'].empty_label = 'None'
+        self.fields['stage'].required = False  # left out (an older form or an import), it keeps its stage
         unit_pair(self, 'substrate_amount', 'substrate_unit')
         unit_pair(self, 'live_rock_amount', 'live_rock_unit')
+
+    def clean_stage(self):
+        return self.cleaned_data.get('stage') or self.instance.stage or 'uncycled'
 
     def clean_substrate_amount(self):
         return self._clean_weight('substrate_amount')

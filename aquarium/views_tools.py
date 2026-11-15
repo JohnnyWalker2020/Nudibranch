@@ -92,6 +92,12 @@ def tank_look_view(request, tank_id):
     return response
 
 
+def _default_character(tank):
+    """The character a tank with no choice shows, in all three versions, for the picker's pictures."""
+    characters = character_icons()
+    return characters[(tank.pk or 0) % len(characters)] if characters else {}
+
+
 def system_theme_view(request):
     tank = get_active_tank(request)
     if tank is None:
@@ -111,11 +117,13 @@ def system_theme_view(request):
         'form': form, 'themes': THEMES, 'active_tank': tank,
         'characters': character_icons(),
         'icon_palette': tank.icon_palette(),
-        'old_icons_enabled': app_settings.enable_old_version_icons,
         'random_enabled': app_settings.enable_random_icons,
-        'default_icon_url': url_for_stem(default_stem(tank.pk)),
-        'selected_icon': tank.icon_choice if app_settings.enable_old_version_icons else young_version(tank.icon_choice),
-        'aging_shown': tank.is_archived and not app_settings.disable_icon_aging and tank.icon_choice != 'custom',
+        'version': tank.icon_version_shown,
+        'stage_version': Tank.STAGE_VERSION.get(tank.stage, 'young'),
+        'default_icon': _default_character(tank),
+        'default_icon_url': url_for_stem(default_stem(tank.pk, tank.icon_version_shown)),
+        'selected_icon': young_version(tank.icon_choice),
+        'versions': [('', f"Follows its stage ({tank.get_stage_display().lower()})"), ('baby', 'Baby'), ('young', 'Young'), ('old', 'Old')],
     })
 
 
@@ -377,7 +385,7 @@ SETTINGS_SECTIONS = [
      ['currency_symbol', 'electricity_rate']),
     ('backups', '💾 Backups', 'Automatic copies of your database and photos.', ['auto_backup_days', 'auto_backup_keep']),
     ('alerts', '🔔 Alerts', 'How long the Alerts page remembers things that are fixed.', ['resolved_alert_days']),
-    ('icons', '🎨 Icons', 'How the tank characters behave.', ['disable_icon_aging', 'enable_old_version_icons', 'enable_random_icons']),
+    ('icons', '🎨 Icons', 'How the tank characters behave.', ['enable_random_icons']),
     ('water-tests', '🧪 Water tests', 'Extra parameters from lab tests.', ['icp_enabled']),
 ]
 

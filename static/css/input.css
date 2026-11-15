@@ -48,8 +48,9 @@
   .act-remove {
     @apply hover:border-amber-500/50 hover:text-amber-300;
   }
+  /* Picture-only buttons sit inside chips and rows, so they go without a frame, like the category tags. */
   .act-compact {
-    @apply gap-0 px-1.5 py-1;
+    @apply gap-0 px-1 py-1 border-transparent bg-transparent hover:bg-slate-800 hover:border-transparent;
   }
   .act .nudi-icon {
     @apply transition-transform;
@@ -97,6 +98,7 @@
 .style-8bit input,
 .style-8bit select,
 .style-8bit textarea,
+.style-8bit .act,
 .style-8bit button { border-radius: 0 !important; }
 /* Stepped corners where the browser can cut them (recent Chrome and Edge); the border and shadow follow the step.
    Other browsers keep the square corners above. */
@@ -106,6 +108,7 @@
   .style-8bit input,
   .style-8bit select,
   .style-8bit textarea,
+  .style-8bit .act,
   .style-8bit button { border-radius: 4px !important; corner-shape: notch; }
   .style-8bit .rounded-xl,
   .style-8bit .rounded-2xl,
@@ -125,12 +128,14 @@
 /* Flat colours instead of gradients: buttons go solid, panels go plain */
 .style-8bit a[class*="bg-gradient-to"],
 .style-8bit button[class*="bg-gradient-to"],
+.style-8bit .act-primary,
 .style-8bit .pixel-sample {
   background-image: none !important;
   background-color: rgb(var(--cyan-600)) !important;
   border: 2px solid rgb(0 0 0 / 0.55) !important;
   box-shadow: 3px 3px 0 0 rgb(0 0 0 / 0.6) !important;
 }
+.style-8bit .act-primary:active,
 .style-8bit a[class*="bg-gradient-to"]:active,
 .style-8bit button[class*="bg-gradient-to"]:active { transform: translate(2px, 2px) !important; box-shadow: 1px 1px 0 0 rgb(0 0 0 / 0.6) !important; }
 .style-8bit div[class*="bg-gradient-to"],
@@ -158,6 +163,12 @@
 .style-8bit header .text-lg.font-black { font-size: 13px !important; }
 /* Larger buttons made of several lines (like Add a timer) keep their descriptions readable */
 .style-8bit button span:not(.font-black):not(.font-bold) { font-family: ui-sans-serif, system-ui, sans-serif !important; }
+/* Add / edit / delete buttons and the header's link buttons read the same whether they're a link or a button */
+.style-8bit .act, .style-8bit .pill, .style-8bit .act select,
+.style-8bit :is(.act, .pill, [data-arrange-toggle]) span:not(.font-black):not(.font-bold) {
+  font-family: var(--pixel-font) !important; font-size: 9px !important; font-weight: 400 !important; letter-spacing: 0 !important; line-height: 1.6 !important;
+}
+.style-8bit .act:not(.act-compact):not(.act-primary) { border-width: 2px !important; }
 /* Icons stay crisp, like sprites */
 .style-8bit #nudibranch-logo,
 .style-8bit img[src*="/icons/"],

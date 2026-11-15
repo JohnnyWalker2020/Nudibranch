@@ -567,6 +567,14 @@ class Tank(DimensionedVessel):
     ui_style = models.CharField(max_length=10, choices=UI_STYLES, default='standard',
                                 help_text="How the cards and buttons look while this tank is selected")
     icon_choice = models.CharField(max_length=60, blank=True, help_text="A character icon, 'custom', or blank for the default")
+    STAGES = [('uncycled', 'Uncycled'), ('cycled', 'Cycled'), ('mature', 'Mature')]
+    STAGE_VERSION = {'uncycled': 'baby', 'cycled': 'young', 'mature': 'old'}
+    stage = models.CharField(max_length=10, choices=STAGES, default='uncycled',
+                             help_text="Uncycled while the nitrogen cycle gets going, cycled once ammonia and nitrite "
+                                       "stay at zero, mature once it's been stable for months")
+    ICON_VERSIONS = [('', 'Follows its stage'), ('baby', 'Baby'), ('young', 'Young'), ('old', 'Old')]
+    icon_version = models.CharField(max_length=5, choices=ICON_VERSIONS, blank=True,
+                                    help_text="Which version of the character to show. Blank follows the stage")
     custom_icon = models.ImageField(upload_to='icons/', null=True, blank=True)
     substrate_type = models.CharField(max_length=20, choices=SUBSTRATE_TYPES, blank=True)
     substrate_amount = models.DecimalField(max_digits=8, decimal_places=1, null=True, blank=True)
@@ -619,17 +627,17 @@ class Tank(DimensionedVessel):
             return self.custom_icon.url if self.custom_icon else ''
         return icons.url_for_stem(self._icon_stem())
 
+    @property
+    def icon_version_shown(self):
+        """'baby', 'young' or 'old': its own choice, or the one for its stage. Retiring doesn't change it."""
+        return self.icon_version or self.STAGE_VERSION.get(self.stage, 'young')
+
     def _icon_stem(self):
-        app_settings = AppSettings.load()
-        aged = self.is_archived and not app_settings.disable_icon_aging
-        stem = ''
-        if self.icon_choice:
-            stem = icons.display_stem(self.icon_choice, aged=aged, old_allowed=app_settings.enable_old_version_icons)
+        version = self.icon_version_shown
+        stem = icons.stem_for(self.icon_choice, version) if self.icon_choice else ''
         if stem:
             return stem
-        if aged:
-            return icons.retired_default_stem(self.pk)
-        return '' if app_settings.enable_random_icons else icons.default_stem(self.pk)
+        return '' if AppSettings.load().enable_random_icons else icons.default_stem(self.pk, version)
 
     def icon_palette(self):
         """Page colours taken from the icon being shown, or None (a random icon has no lasting colours)."""
@@ -1414,10 +1422,6 @@ class AppSettings(models.Model):
     currency_symbol = models.CharField(max_length=4, default='$')
     costs_enabled = models.BooleanField(default=False, editable=False,
                                         help_text="Prices stay hidden until this is turned on in The Damage")
-    disable_icon_aging = models.BooleanField(
-        default=False, help_text="Retired tanks keep their young icon instead of switching to the old version")
-    enable_old_version_icons = models.BooleanField(
-        default=False, help_text="Lets you pick the old version of a character for any tank")
     enable_random_icons = models.BooleanField(
         default=False, help_text="Tanks with no chosen icon show a different character on every page")
     icp_enabled = models.BooleanField(
