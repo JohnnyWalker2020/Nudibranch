@@ -376,7 +376,14 @@ def tools_view(request):
         'power': power.power_summary(tank),
         'latest_backup': next(iter(backups.list_backups()), None),
         'camera_count': WebcamFeed.objects.filter(is_active=True).count(),
+        'fill_systems': _fill_systems(),
     })
+
+
+def _fill_systems():
+    """Saved RO/DI units for the Time to Fill card, with their output already worked out."""
+    return [{'id': s.pk, 'name': s.name, 'gph': round(_system_gph(s), 2), 'measured': bool(s.measured_gph),
+             'waste_ratio': float(s.waste_ratio or 0)} for s in ROSystem.objects.all()]
 
 
 # Which App Settings fields go in which section, in order: (anchor, title, blurb, fields).
@@ -828,7 +835,7 @@ def timer_start_view(request):
     if from_step:  # started from a routine's step: the page stays put, so ticked steps stay ticked
         return render(request, 'aquarium/partials/step_timer.html', {'step': {'timer': timer}})
     messages.success(request, f"Timer started: {name}.")
-    return redirect('timers')
+    return redirect(_safe_next(request, 'timers'))
 
 
 @require_POST

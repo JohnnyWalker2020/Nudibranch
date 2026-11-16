@@ -1,9 +1,9 @@
-<!-- Expects `res` (DosingReservoir) in context -->
+<!-- Expects `res` (DosingReservoir) in context. on_tank_page: it's on that tank's own page, so no tank name, and Refill comes back there. -->
 <div class="bg-slate-900 border {% if res.is_low %}border-amber-500/50{% else %}border-slate-800{% endif %} rounded-2xl p-4 space-y-2.5 shadow-sm">
   <div class="flex items-start justify-between gap-2">
     <div class="min-w-0">
       <h3 class="text-sm font-bold text-white truncate">{{ res.name }}</h3>
-      {% if res.tank_id != active_tank.id %}<p class="text-[11px] text-slate-500">{{ res.tank.name }}</p>{% endif %}
+      {% if not on_tank_page and res.tank_id != active_tank.id %}<p class="text-[11px] text-slate-500">{{ res.tank.name }}</p>{% endif %}
     </div>
     {% if res.is_low %}<span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30">LOW</span>{% endif %}
   </div>
@@ -22,11 +22,28 @@
     {{ res.daily_consumption|floatformat:"-2" }} {{ res.unit }} a day
     {% if res.days_remaining is not None %}· runs out in <span class="font-bold text-white">~{{ res.days_remaining|floatformat:"-1" }} d</span> ({{ res.estimated_empty_date|date:"M j" }}){% else %}· set a daily use to count down{% endif %}
   </p>
+  {% with ft=res.fill_time %}{% if ft %}
+  <p class="text-[11px] text-slate-400">
+    {% if not ft.system %}Est. time to fill: <a href="{% url 'timers' %}" class="text-cyan-400 hover:underline">add your RO/DI</a> to see it
+    {% elif ft.full %}Est. time to fill: it's full
+    {% else %}Est. time to fill is <span class="font-bold text-white">~{{ ft.label }}</span> <span class="text-slate-500" title="{% if ft.measured %}From its measured output{% else %}From its rating, scaled for your pressure and temperature. Timing a real fill on Fill Timers is more accurate{% endif %}">with {{ ft.system.name }}</span>{% endif %}
+  </p>
+  {% if ft.timer_minutes %}
+  <form method="POST" action="{% url 'timer_start' %}">
+    {% csrf_token %}
+    <input type="hidden" name="minutes" value="{{ ft.timer_minutes }}">
+    <input type="hidden" name="reservoir" value="{{ res.id }}">
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="text-[11px] font-semibold text-cyan-400 hover:underline" title="5 minutes before the estimate, so you can check on it before it's full">⏱ Quick set timer for {{ ft.timer_label }} <span class="font-normal text-slate-500">(5 min early)</span></button>
+  </form>
+  {% endif %}
+  {% endif %}{% endwith %}
   {% if res.counts_down %}<p class="text-[10px] text-slate-500">Estimated from daily use since {{ res.level_set_at|date:"M j" }}. Correct it under Edit when you check.</p>{% endif %}
 
   <div class="pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2">
     <form method="POST" action="{% url 'refill_reservoir' res.id %}">
       {% csrf_token %}
+      {% if on_tank_page %}<input type="hidden" name="next" value="{{ request.get_full_path }}">{% endif %}
       <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Refill to full</button>
     </form>
     <div class="flex items-center gap-3 text-xs font-semibold">

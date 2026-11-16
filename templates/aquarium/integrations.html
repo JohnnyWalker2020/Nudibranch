@@ -86,9 +86,9 @@
         {% for d in deliveries %}
         <tr class="border-t border-slate-800/60">
           <td class="p-3 whitespace-nowrap text-slate-500">{{ d.created_at|date:"M j, g:i A" }}</td>
-          <td class="p-3 text-white">{{ d.title }}</td>
-          <td class="p-3 text-slate-400 whitespace-nowrap">{{ d.endpoint.name }}</td>
-          <td class="p-3 whitespace-nowrap font-semibold {% if d.status == 'sent' %}text-emerald-400{% elif d.status == 'failed' %}text-rose-400{% else %}text-amber-400{% endif %}">{{ d.get_status_display }}{% if d.error %}: {{ d.error|truncatechars:50 }}{% endif %}</td>
+          <td class="p-3 text-white break-words">{{ d.title }}<span class="sm:hidden block text-slate-400">{{ d.endpoint.name }}</span></td>
+          <td class="hidden sm:table-cell p-3 text-slate-400 whitespace-nowrap">{{ d.endpoint.name }}</td>
+          <td class="p-3 break-words font-semibold {% if d.status == 'sent' %}text-emerald-400{% elif d.status == 'failed' %}text-rose-400{% else %}text-amber-400{% endif %}">{{ d.get_status_display }}{% if d.error %}: {{ d.error|truncatechars:50 }}{% endif %}</td>
         </tr>
         {% empty %}
         <tr><td class="p-6 text-center text-slate-500">Nothing sent yet.</td></tr>

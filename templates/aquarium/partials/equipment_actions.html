@@ -1,21 +1,12 @@
 {% comment %}
 Small buttons for one piece of equipment. Needs `eq`.
-Edit (superglue), then `unplace` adds the unplug (take it off this tank; it stays in the equipment list), and the bin
-goes to the delete confirmation page. They show the picture alone, since they sit in tight rows; `words` adds the words.
+Edit (superglue), then the bin, which goes to the delete confirmation page. When it's placed in a tank, that page also
+offers taking it off the tank instead (it stays in the equipment list), so there's only the one removal button here.
+They show the picture alone, since they sit in tight rows; `words` adds the words.
 {% endcomment %}
 <span class="inline-flex items-center gap-0.5 shrink-0">{% with here=request.get_full_path|urlencode %}
   {% url 'equipment_edit' eq.id as edit_url %}
   {% if words %}{% act 'edit' edit_url suffix='?next='|add:here title='Edit '|add:eq.name %}{% else %}{% act 'edit' edit_url compact=True suffix='?next='|add:here title='Edit '|add:eq.name %}{% endif %}
-  {% if unplace %}
-    <form method="POST" action="{% url 'equipment_unplace' eq.id %}" class="inline-flex"
-          onsubmit="return confirm('Take {{ eq.name|escapejs }} off this tank? It stays in your equipment list.')">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      {% if words %}{% act 'remove' button=True title='Take '|add:eq.name|add:' off this tank' %}{% else %}{% act 'remove' button=True compact=True title='Take '|add:eq.name|add:' off this tank' %}{% endif %}
-    </form>
-  {% endif %}
-  {% if not no_bin %}
-    {% url 'equipment_delete' eq.id as del_url %}
-    {% if words %}{% act 'delete' del_url suffix='?next='|add:here title='Delete '|add:eq.name %}{% else %}{% act 'delete' del_url compact=True suffix='?next='|add:here title='Delete '|add:eq.name %}{% endif %}
-  {% endif %}
+  {% url 'equipment_delete' eq.id as del_url %}
+  {% if words %}{% act 'delete' del_url suffix='?next='|add:here title='Delete '|add:eq.name %}{% else %}{% act 'delete' del_url compact=True suffix='?next='|add:here title='Delete '|add:eq.name %}{% endif %}
 {% endwith %}</span>

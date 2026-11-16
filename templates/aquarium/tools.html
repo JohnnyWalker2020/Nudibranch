@@ -6,12 +6,12 @@
 <div class="space-y-6">
   {% include 'aquarium/partials/system_tabs.html' with active='tools' %}
 
-  <div class="flex items-center justify-between gap-4">
+  <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-black text-white tracking-tight">Tools</h1>
       <p class="text-xs text-slate-400 mt-0.5">Planning, timers, alerts, and keeping your data safe</p>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
 {% include 'aquarium/partials/arrange_button.html' with page='tools' %}
       <a href="{% url 'app_settings' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⚙️ Settings</a>
       <form method="POST" action="{% url 'logout' %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">Sign out</button></form>
@@ -49,6 +49,11 @@
     <a href="#dose-estimator" class="flex flex-col bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-4 transition-all">
       <span class="flex items-start gap-2"><span class="text-xl sm:text-2xl leading-none">🧮</span><span class="text-sm font-bold text-white leading-tight">Dose Estimator</span></span>
       <span class="hidden sm:block text-xs text-slate-400 mt-1.5">Work out how much to dose for alkalinity, calcium, magnesium, nitrate, phosphate, and more.</span>
+      <span class="mt-auto pt-2 text-[11px] font-semibold text-cyan-400 truncate">Open calculator</span>
+    </a>
+    <a href="#fill-time" class="flex flex-col bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-4 transition-all">
+      <span class="flex items-start gap-2"><span class="text-xl sm:text-2xl leading-none">🪣</span><span class="text-sm font-bold text-white leading-tight">Time to Fill</span></span>
+      <span class="hidden sm:block text-xs text-slate-400 mt-1.5">How long your RO/DI takes to fill a container, and when to check on it.</span>
       <span class="mt-auto pt-2 text-[11px] font-semibold text-cyan-400 truncate">Open calculator</span>
     </a>
     <a href="#light" class="flex flex-col bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-3 sm:p-4 transition-all">
@@ -92,6 +97,7 @@
   <div data-card="salt" data-card-title="Salt mixing calculator">{% include 'aquarium/partials/salt_calculator.html' %}</div>
   <div data-card="salinity" data-card-title="Salinity fixer">{% include 'aquarium/partials/salinity_fixer.html' %}</div>
   <div data-card="dose" data-card-title="Dose estimator">{% include 'aquarium/partials/dose_estimator.html' %}</div>
+  <div data-card="fill" data-card-title="Time to fill">{% include 'aquarium/partials/fill_time.html' %}</div>
   <div data-card="par" data-card-title="PAR estimate">{% include 'aquarium/partials/par_estimate.html' %}</div>
   </div>
   {% include 'aquarium/partials/arrange_apply.html' with page='tools' %}
@@ -107,4 +113,5 @@
 {% include 'aquarium/partials/salt_calculator_js.html' %}
 {% include 'aquarium/partials/salinity_fixer_js.html' %}
 {% include 'aquarium/partials/dose_estimator_js.html' %}
+{% include 'aquarium/partials/fill_time_js.html' %}
 {% endblock %}

@@ -1,0 +1,105 @@
+<!-- Time to Fill: how long an RO/DI unit takes to fill a container. Needs fill_systems; fill_time_js.html runs it. -->
+  <section id="fill-time" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
+    <div>
+      <h2 class="text-lg font-bold text-white">🪣 Time to Fill</h2>
+      <p class="text-xs text-slate-400">How long your RO/DI takes to fill a container, and roughly when to go and check it. Tap a unit to switch it.</p>
+    </div>
+    {{ fill_systems|json_script:"fill-systems" }}
+
+    <div class="grid {% if fill_systems %}grid-cols-3{% else %}grid-cols-2{% endif %} gap-2" role="group" aria-label="How fast your RO/DI makes water">
+      {% if fill_systems %}<button type="button" data-fill-speed="system" aria-pressed="true" class="px-2 py-2.5 border rounded-xl text-xs font-bold transition-colors">My RO/DI</button>{% endif %}
+      <button type="button" data-fill-speed="label" aria-pressed="false" class="px-2 py-2.5 border rounded-xl text-xs font-bold transition-colors">From the label</button>
+      <button type="button" data-fill-speed="timed" aria-pressed="false" class="px-2 py-2.5 border rounded-xl text-xs font-bold transition-colors">I timed it</button>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div class="col-span-2 lg:col-span-1">
+        <label for="ft-size" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Container size</label>
+        <div class="unit-field">
+          <input type="number" id="ft-size" value="32" min="0" step="any">
+          <button type="button" id="ft-size-unit" data-units="gal,L" data-name="Volume unit" data-remember="fill-time-volume" value="gal" class="unit-btn">gal</button>
+        </div>
+      </div>
+      <div>
+        <label for="ft-already" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Already in it</label>
+        <div class="unit-field">
+          <input type="number" id="ft-already" value="0" min="0" step="any">
+          <span class="unit-suffix" data-ft-volume-label>gal</span>
+        </div>
+      </div>
+      <div>
+        <label for="ft-stop" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Fill to</label>
+        <div class="unit-field">
+          <input type="number" id="ft-stop" value="90" min="1" max="100" step="any">
+          <span class="unit-suffix">%</span>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">Leaving some room gives you a margin</p>
+      </div>
+
+      {% if fill_systems %}
+      <div data-fill-for="system" class="col-span-2 lg:col-span-3">
+        <label for="ft-system" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">RO/DI system</label>
+        <select id="ft-system" class="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
+          {% for s in fill_systems %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <p id="ft-system-note" class="text-[10px] text-slate-500 mt-1"></p>
+      </div>
+      {% endif %}
+
+      <div data-fill-for="label" class="hidden col-span-2 lg:col-span-1">
+        <label for="ft-gpd" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Rated output</label>
+        <div class="unit-field">
+          <input type="number" id="ft-gpd" value="75" min="0" step="any">
+          <span class="unit-suffix">GPD</span>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">The gallons-per-day number on the membrane</p>
+      </div>
+      <div data-fill-for="label" class="hidden">
+        <label for="ft-psi" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Water pressure</label>
+        <div class="unit-field">
+          <input type="number" id="ft-psi" value="60" min="0" step="any">
+          <button type="button" id="ft-psi-unit" data-units="psi,bar" data-name="Pressure unit" data-remember="fill-time-pressure" value="psi" class="unit-btn">psi</button>
+        </div>
+      </div>
+      <div data-fill-for="label" class="hidden">
+        <label for="ft-temp" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Water temperature</label>
+        <div class="unit-field">
+          <input type="number" id="ft-temp" value="60" step="any">
+          <button type="button" id="ft-temp-unit" data-units="F,C" data-labels="°F,°C" data-name="Temperature unit" data-remember="fill-time-temp" value="F" class="unit-btn">°F</button>
+        </div>
+      </div>
+
+      <div data-fill-for="timed" class="hidden">
+        <label for="ft-timed-amount" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">It made</label>
+        <div class="unit-field">
+          <input type="number" id="ft-timed-amount" min="0" step="any" placeholder="1">
+          <span class="unit-suffix" data-ft-volume-label>gal</span>
+        </div>
+      </div>
+      <div data-fill-for="timed" class="hidden">
+        <label for="ft-timed-minutes" class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">In</label>
+        <div class="unit-field">
+          <input type="number" id="ft-timed-minutes" min="0" step="any" placeholder="25">
+          <span class="unit-suffix">min</span>
+        </div>
+      </div>
+      <p data-fill-for="timed" class="hidden col-span-2 lg:col-span-1 lg:self-center text-[10px] text-slate-500">Time how long it takes to fill a jug or bucket of known size. This is the most accurate way.</p>
+    </div>
+
+    <p id="ft-error" class="hidden text-xs font-semibold text-amber-300" role="alert"></p>
+
+    <div id="ft-answer" class="hidden space-y-2">
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 bg-slate-950/80 border border-slate-800 rounded-2xl">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Time to fill</span>
+        <span id="ft-time" class="text-3xl font-black text-cyan-400">-</span>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 bg-slate-950/80 border border-slate-800 rounded-2xl">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Started now, done around</span>
+        <span id="ft-done-at" class="text-xl font-black text-cyan-400">-</span>
+      </div>
+      <p id="ft-summary" class="text-xs text-slate-300"></p>
+      <a href="{% url 'timers' %}" class="inline-block text-xs font-semibold text-cyan-400 hover:underline">Want a reminder? Start a fill timer →</a>
+    </div>
+
+    <p class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300"><strong>Estimate only.</strong> RO/DI output changes with water pressure, water temperature, membrane age and how clogged the filters are, so the real time can be quite different. Worked out from the label it can easily be off by a third or more; a timed fill is much closer. Check on the container well before this time is up, and use a float valve or auto shut-off if you have one. Watching the fill is your job: if it overflows and your room becomes an aquarium, that's on you.</p>
+  </section>

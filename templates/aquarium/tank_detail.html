@@ -28,6 +28,7 @@
         <a href="{% url 'tank_export' tank.id %}" title="Download this tank's setup as a YAML file you can import or share (no prices)" class="pill px-3.5 py-2.5 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">⬇ Export</a>
         {% if costs_enabled %}<a href="{% url 'tank_export' tank.id %}?prices=1" title="The same file with what you paid for each thing" class="pill px-3 py-2.5 border-l border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">with prices</a>{% endif %}
       </span>
+      {% include 'aquarium/partials/fold_all_button.html' with page='tank' %}
       {% include 'aquarium/partials/arrange_button.html' with page='tank' %}
       {% url 'sump_create' tank.id as sump_add_url %}{% act 'add' sump_add_url label='Add sump' primary=True %}
     </div>
@@ -80,9 +81,14 @@
   <div data-arrange="tank" class="space-y-6">
   <!-- The display tank: its gear and who lives in it -->
   <div data-card="display" data-card-title="Display tank" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+    <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Display tank">
+      <span class="card-mini-title">{% icon 'tank' %} Display tank</span>
+      <span class="card-mini-data"><span><b>{{ tank.volume_gallons }}</b> gal</span>{% for section in livestock_sections %}<span>{{ section.icon }} <b>{{ section.items|length }}</b> {{ section.title|lower }}</span>{% endfor %}<span>⚙️ <b>{{ display_equipment|length }}</b> gear</span></span>
+      {% include 'aquarium/partials/card_mini_chevron.html' %}
+    </button>
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
-        <h2 class="text-base font-bold text-white flex items-center gap-2">{% icon 'tank' 'w-5 h-5' %} Display tank</h2>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Display tank' %}{% icon 'tank' 'w-5 h-5' %} Display tank</h2>
         <p class="text-xs text-cyan-400 font-semibold">{{ tank.volume_gallons }} gal{% if tank.has_dimensions %} · {{ tank.width|floatformat:"-1" }} × {{ tank.depth|floatformat:"-1" }} × {{ tank.height|floatformat:"-1" }} {{ tank.dimension_unit }}{% endif %}{% if tank.capacity_is_manual %} · manual capacity{% endif %}{% if tank.substrate_type %} · {{ tank.get_substrate_type_display|lower }}{% endif %}{% if tank.live_rock_label %} · {{ tank.live_rock_label }} live rock{% endif %}</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -94,13 +100,13 @@
     </div>
 
     <div>
-      <div class="flex items-center justify-between gap-2 mb-2">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
         <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">⚙️ Gear</h3>
         {% include 'aquarium/partials/equipment_picker.html' with picker=display_picker %}
       </div>
       {% if display_equipment %}
         <div class="flex flex-wrap gap-1.5">
-          {% for eq in display_equipment %}{% include 'aquarium/partials/equipment_chip.html' with unplace=True %}{% endfor %}
+          {% for eq in display_equipment %}{% include 'aquarium/partials/equipment_chip.html' %}{% endfor %}
         </div>
       {% else %}
         <p class="text-xs text-slate-500">Looking a bit bare: no wavemakers, heaters or other gear in the display yet. Lights and filters have their own cards.</p>
@@ -136,8 +142,13 @@
 
   <!-- Flow & turnover -->
   <div data-card="flow" data-card-title="Flow &amp; water turnover" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-    <div class="flex items-center justify-between">
-      <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🌊</span> Flow &amp; Water Turnover</h2>
+    <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Flow and water turnover">
+      <span class="card-mini-title"><span>🌊</span> Flow</span>
+      <span class="card-mini-data"><span>Return <b class="{% if flow.return_status == 'ok' %}text-emerald-400{% elif flow.return_status == 'unknown' %}text-slate-500{% else %}text-amber-400{% endif %}">{% if flow.return_turnover %}{{ flow.return_turnover }}×{% else %}—{% endif %}</b>/hr</span><span>Circulation <b class="{% if flow.circulation_status == 'ok' %}text-emerald-400{% elif flow.circulation_status == 'unknown' %}text-slate-500{% else %}text-amber-400{% endif %}">{% if flow.circulation_turnover %}{{ flow.circulation_turnover }}×{% else %}—{% endif %}</b>/hr</span><span><b>{{ flow.return_gph }}</b> + <b>{{ flow.wavemaker_gph }}</b> gph</span></span>
+      {% include 'aquarium/partials/card_mini_chevron.html' %}
+    </button>
+    <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+      <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Flow and water turnover' %}<span>🌊</span> Flow &amp; Water Turnover</h2>
       <span class="text-[11px] text-slate-500">Estimates from your pumps and power settings</span>
     </div>
 
@@ -174,7 +185,7 @@
     <!-- Return pumps and wavemakers: the same rows, in their own groups -->
     {% for group in flow_groups %}
       <div>
-        <div class="flex items-center justify-between gap-2 mb-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">{{ group.title }}</h3>
           {% include 'aquarium/partials/equipment_picker.html' with picker=group.picker label=group.add_label %}
         </div>
@@ -218,17 +229,22 @@
 
   <!-- Sumps -->
   <div data-card="sumps" data-card-title="Sump{{ sump_rows|length|pluralize }}" class="space-y-6">
+    <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Sumps">
+      <span class="card-mini-title">{% icon 'sump' %} Sump{{ sump_rows|length|pluralize }}</span>
+      <span class="card-mini-data">{% for row in sump_rows %}{% with sump=row.sump %}<span>{% if sump_rows|length > 1 %}{{ sump.name }} {% endif %}<b data-sump-gal="{{ sump.id }}">{{ sump.volume_gallons }}</b> gal{% if row.chambers %} · {{ row.chambers|length }} chamber{{ row.chambers|length|pluralize }}{% endif %} · <span class="mini-bar"><span class="block h-full" style="width: {{ sump.fill_percent|floatformat:0 }}%; background: #22d3ee;"></span></span> {{ sump.fill_percent|floatformat:0 }}% full</span>{% endwith %}{% empty %}<span>No sump yet</span>{% endfor %}</span>
+      {% include 'aquarium/partials/card_mini_chevron.html' %}
+    </button>
   {% for row in sump_rows %}
     {% with sump=row.sump %}
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row gap-5">
      <div class="flex-1 min-w-0 space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 class="text-base font-bold text-white flex items-center gap-2">{% icon 'sump' 'w-5 h-5' %} {{ sump.name }}</h2>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Sumps' %}{% icon 'sump' 'w-5 h-5' %} {{ sump.name }}</h2>
           <p class="text-xs text-cyan-400 font-semibold"><span data-sump-gal="{{ sump.id }}">{{ sump.volume_gallons }}</span> gal{% if sump.has_dimensions %} · {{ sump.width|floatformat:"-1" }} × {{ sump.depth|floatformat:"-1" }} × {{ sump.height|floatformat:"-1" }} {{ sump.dimension_unit }}{% endif %}{% if sump.capacity_is_manual %} · manual capacity{% endif %} · {% if sump.head_height is not None %}{{ sump.head_height|floatformat:"-1" }} {{ sump.head_height_unit }} head height{% else %}<a href="{% url 'sump_edit' sump.id %}" class="underline">set head height</a>{% endif %}{% if sump.overflow_label %} · {{ sump.overflow_label }}{% endif %}</p>
           {% if sump.notes %}<p class="text-[11px] text-slate-500 mt-0.5">{{ sump.notes }}</p>{% endif %}
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2 min-w-0">
           {% if not row.chambers %}{% include 'aquarium/partials/equipment_picker.html' with picker=row.picker label='Add device' %}{% endif %}
           {% url 'sump_edit' sump.id as sump_edit_url %}{% act 'edit' sump_edit_url label='Edit sump' %}
         </div>
@@ -236,10 +252,10 @@
 
       <!-- Chamber diagram -->
       {% if sump.chambers.all %}
-        <div class="flex items-stretch gap-1 overflow-x-auto no-scrollbar">
+        <div class="flex flex-wrap sm:flex-nowrap items-stretch gap-1 sm:overflow-x-auto no-scrollbar">
           {% for cr in row.chambers %}
             {% with c=cr.chamber %}
-            <div style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0; min-width: 10rem;" class="p-2.5 bg-slate-950/70 border border-slate-700 rounded-xl flex flex-col">
+            <div style="flex: {{ c.share_percent|floatformat:1|default:1 }} 1 0;" class="min-w-[8rem] sm:min-w-[10rem] p-2.5 bg-slate-950/70 border border-slate-700 rounded-xl flex flex-col">
               <div class="text-center">
                 <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
                 <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
@@ -248,7 +264,7 @@
               {% for eq in cr.equipment %}
                 <div class="mt-1 flex items-center justify-between gap-1 pl-1.5 rounded bg-slate-800 {% if eq.status == 'offline' %}opacity-60{% endif %}">
                   <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" title="{{ eq.name }}" class="min-w-0 truncate text-[10px] leading-tight text-slate-300 hover:text-cyan-400 {% if eq.status == 'offline' %}line-through{% endif %}">⚙️ {{ eq.name }}</a>
-                  {% include 'aquarium/partials/equipment_actions.html' with unplace=True no_bin=True %}
+                  {% include 'aquarium/partials/equipment_actions.html' %}
                 </div>
               {% endfor %}
               <div class="mt-auto pt-2 text-center">{% include 'aquarium/partials/equipment_picker.html' with picker=cr.picker label='Add device' %}</div>
@@ -267,7 +283,7 @@
         <div>
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">In this sump (no specific chamber)</h3>
           <div class="flex flex-wrap gap-1.5">
-            {% for eq in row.equipment %}{% include 'aquarium/partials/equipment_chip.html' with unplace=True %}{% endfor %}
+            {% for eq in row.equipment %}{% include 'aquarium/partials/equipment_chip.html' %}{% endfor %}
           </div>
         </div>
       {% endif %}
@@ -295,11 +311,39 @@
   {% endfor %}
   </div>
 
+  <!-- Dosing containers and ATO: the same cards as Dosing & ATO, which has the rest (logging doses, the estimator) -->
+  <div data-card="reservoirs" data-card-title="Dosing &amp; ATO" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+    <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Dosing and ATO">
+      <span class="card-mini-title"><span>💧</span> Dosing &amp; ATO</span>
+      <span class="card-mini-data">{% for res in reservoirs %}<span>{{ res.name }} <span class="mini-bar"><span class="block h-full" style="width: {{ res.percent_remaining }}%; background: {{ res.color }};"></span></span> <b class="{% if res.is_low %}text-amber-400{% endif %}">{{ res.percent_remaining }}%</b>{% if res.days_remaining is not None %} · ~{{ res.days_remaining|floatformat:"0" }}d{% endif %}</span>{% empty %}<span>No containers yet</span>{% endfor %}</span>
+      {% include 'aquarium/partials/card_mini_chevron.html' %}
+    </button>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Dosing and ATO' %}<span>💧</span> Dosing &amp; ATO</h2>
+        <p class="text-[11px] text-slate-500">Container levels and top-off water. Log doses and work out amounts on the Dosing &amp; ATO page.</p>
+      </div>
+      <a href="{% url 'dosing' %}" class="text-xs font-semibold text-cyan-400 hover:underline">Open Dosing &amp; ATO →</a>
+    </div>
+    {% if reservoirs %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for res in reservoirs %}{% include 'aquarium/partials/reservoir_card.html' with on_tank_page=True %}{% endfor %}
+      </div>
+    {% else %}
+      <p class="text-xs text-slate-500">No dosing containers or ATO water on this tank yet. <a href="{% url 'dosing' %}" class="text-cyan-400 hover:underline">Add one on Dosing &amp; ATO</a>.</p>
+    {% endif %}
+  </div>
+
   <!-- Lighting -->
   <div data-card="lighting" data-card-title="Lighting" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-    <div class="flex items-center justify-between gap-2">
+    <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Lighting">
+      <span class="card-mini-title"><span>💡</span> Lighting</span>
+      <span class="card-mini-data"><span><b>{{ lights|length }}</b> light{{ lights|length|pluralize }}</span>{% if light_summary.watts_full %}<span>~<b>{{ light_summary.watts_now }}</b> W now of {{ light_summary.watts_full }} W</span>{% endif %}</span>
+      {% include 'aquarium/partials/card_mini_chevron.html' %}
+    </button>
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
-        <h2 class="text-base font-bold text-white flex items-center gap-2"><span>💡</span> Lighting</h2>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Lighting' %}<span>💡</span> Lighting</h2>
         <p class="text-[11px] text-slate-500">{% if light_summary.watts_full %}About {{ light_summary.watts_now }} W now of {{ light_summary.watts_full }} W over the display · {% endif %}<a href="{% url 'tools' %}?tank={{ tank.id }}#light" class="text-cyan-400 hover:underline">PAR estimate in Tools</a></p>
       </div>
       {% include 'aquarium/partials/equipment_picker.html' with picker=light_picker label='Add more sun' %}
@@ -313,7 +357,7 @@
                 <a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-sm font-bold text-white hover:text-cyan-400">{{ eq.name }}</a>
                 <p class="text-[11px] text-slate-500">{% if eq.brand %}{{ eq.brand }} · {% endif %}{% if eq.wattage %}{{ eq.wattage }} W at {{ eq.power_setting_percent }}%{% else %}<a href="{% url 'equipment_edit' eq.id %}?next={{ request.path|urlencode }}" class="text-cyan-400 underline">add wattage</a>{% endif %}{% if eq.sump_id %} · {{ eq.location_label }}{% endif %}{% if eq.status == 'offline' %} · offline{% endif %}</p>
               </div>
-              {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
+              {% include 'aquarium/partials/equipment_actions.html' %}
             </div>
             {% include 'aquarium/partials/power_slider_form.html' %}
             {% for r in eq.schedules %}
@@ -334,9 +378,14 @@
 
   <!-- Filters -->
   <div data-card="filters" data-card-title="Filters" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-    <div class="flex items-center justify-between gap-2">
+    <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Filters">
+      <span class="card-mini-title"><span>🧦</span> Filters</span>
+      <span class="card-mini-data"><span><b>{{ filters|length }}</b> filter{{ filters|length|pluralize }}</span>{% if filters_due %}<span><b class="text-amber-400">{{ filters_due }} change{{ filters_due|pluralize }} due</b></span>{% elif filters %}<span>nothing due</span>{% endif %}</span>
+      {% include 'aquarium/partials/card_mini_chevron.html' %}
+    </button>
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
-        <h2 class="text-base font-bold text-white flex items-center gap-2"><span>🧦</span> Filters</h2>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Filters' %}<span>🧦</span> Filters</h2>
         <p class="text-[11px] text-slate-500">Socks, roller mats, sponges, canisters and media reactors</p>
       </div>
       {% include 'aquarium/partials/equipment_picker.html' with picker=filter_picker label='Catch more gunk' %}
@@ -355,7 +404,7 @@
               <input type="hidden" name="next" value="{{ request.path }}">
               <button type="submit" title="Mark changed or cleaned today" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-[10px] rounded-lg border border-slate-700">✓ Changed</button>
             </form>
-            {% include 'aquarium/partials/equipment_actions.html' with unplace=True %}
+            {% include 'aquarium/partials/equipment_actions.html' %}
           </div>
         {% endfor %}
       </div>

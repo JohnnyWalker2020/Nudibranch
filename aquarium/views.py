@@ -120,8 +120,8 @@ def _edit_object(request, model, form_class, pk, *, title, subtitle='', back_url
     })
 
 
-def _delete_object(request, model, pk, *, label, back_url, warning=''):
-    """Generic confirm-then-delete page."""
+def _delete_object(request, model, pk, *, label, back_url, warning='', alternative=None):
+    """Generic confirm-then-delete page. `alternative` ({'url', 'label', 'note'}) offers a gentler choice that posts there."""
     obj = get_object_or_404(model, pk=pk)
     next_url = _safe_next(request, back_url)
     if request.method == 'POST':
@@ -132,6 +132,7 @@ def _delete_object(request, model, pk, *, label, back_url, warning=''):
         'object_label': label,
         'warning': warning,
         'back_url': next_url,
+        'alternative': alternative,
     })
 
 
@@ -1382,6 +1383,8 @@ def dose_log_delete(request, dose_id):
 
 def calculator_context(tank):
     """What the salt calculator and Dose Estimator need. They live on the Tools page."""
+    salinity_start = _salinity_start(tank)
+    salt_start = _salt_start(tank, salinity_start)
     return {
         **dose_log_context(tank),
         'dose_data': {
@@ -1391,12 +1394,26 @@ def calculator_context(tank):
                 for k, c in DOSE_CHEMICALS.items()
             ],
         },
-        'sample_mix': calculate_salt_mix(volume=10.0, volume_unit='gal', brand_key='tropic_marin_pro',
-                                         target_salinity=1.026, salinity_unit='sg'),
+        'sample_mix': calculate_salt_mix(volume=10.0, volume_unit='gal', brand_key=salt_start['brand'],
+                                         target_salinity=salt_start['target'], salinity_unit=salt_start['unit']),
         'salt_brands': SALT_MIX_RECIPES,
         'volume_tank': tank_volume_choices(tank),
-        'salinity_start': _salinity_start(tank),
+        'salinity_start': salinity_start,
+        'salt_start': salt_start,
     }
+
+
+def _salt_start(tank, salinity_start):
+    """The Salt Mixing Calculator's starting target and brand: this tank's salinity target, and the salt it last logged."""
+    names = {r['name']: key for key, r in SALT_MIX_RECIPES.items()}
+    brands = WaterChangeLog.objects.exclude(salt_brand='').order_by('-performed_at')
+    last = brands.filter(tank=tank).values_list('salt_brand', flat=True).first() if tank else None
+    brand = names.get(last or _last_salt_brand()) or 'tropic_marin_pro'
+    is_sg = salinity_start['unit'] == 'sg'
+    ptype = ParameterType.objects.in_use().filter(code='salinity').first()
+    return {'unit': salinity_start['unit'], 'target': salinity_start['target'], 'brand': brand,
+            'min': 1.015 if is_sg else 20, 'max': 1.035 if is_sg else 45, 'step': 0.001 if is_sg else 0.5,
+            'from_tank': bool(ptype and tank), 'settings_id': ptype.pk if ptype else None}
 
 
 def _salinity_start(tank):
@@ -1465,7 +1482,7 @@ def refill_reservoir_view(request, res_id):
         reservoir.last_refilled_date = timezone.localdate()
         reservoir.level_set_at = timezone.now()  # it counts down again from this new level
         reservoir.save()
-    return redirect('dosing')
+    return redirect(_safe_next(request, 'dosing'))
 
 
 def dosing_create_view(request):
@@ -1606,6 +1623,10 @@ def tank_detail_view(request, tank_id):
         ],
         'light_picker': _equipment_picker(everything, here, categories=('lighting',), tank=tank),
         'filters': [eq for eq in all_equipment if eq.category in FILTER_CATEGORIES],
+        'filters_due': sum(1 for eq in all_equipment if eq.category in FILTER_CATEGORIES and eq.is_service_due),
+        # Its dosing containers and ATO, the same cards as on Dosing & ATO (ATO first)
+        'reservoirs': sorted(DosingReservoir.objects.filter(tank=tank).select_related('tank'),
+                             key=lambda r: (r.reservoir_type != 'ato_freshwater', r.name.lower())),
         'flow_sketch': _flow_sketch(tank, _tank_equipment_flow(tank)),
         'filter_picker': _equipment_picker(everything, filter_home, categories=FILTER_CATEGORIES, tank=tank),
         'livestock_sections': livestock_sections,
@@ -2076,7 +2097,10 @@ def equipment_edit_view(request, eq_id):
 
 def equipment_delete_view(request, eq_id):
     eq = get_object_or_404(Equipment, id=eq_id)
-    return _delete_object(request, Equipment, eq_id, label=eq.name, back_url='/equipment/')
+    # Placed in a tank: taking it off is offered too, since that's often all that's meant.
+    alternative = {'url': reverse('equipment_unplace', args=[eq.pk]), 'label': f"Just take it off {eq.tank.name}",
+                   'note': "It stays in your equipment list, ready to use somewhere else."} if eq.tank else None
+    return _delete_object(request, Equipment, eq_id, label=eq.name, back_url='/equipment/', alternative=alternative)
 
 
 # ==========================================

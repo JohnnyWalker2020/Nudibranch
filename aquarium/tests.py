@@ -2659,7 +2659,9 @@ class LogPagingAndPageTests(TestCase):
     def test_wording_says_tank(self):
         for name in ('tanks', 'tools', 'planner', 'notifications', 'parameters'):
             text = re.sub(r'<(script|style).*?</\1>|<[^>]+>|\{.*?\}', ' ', self.client.get(reverse(name)).content.decode(), flags=re.S)
-            self.assertIsNone(re.search(r'(?<!RO/DI )\b[Ss]ystems?\b', text), name)
+            # "Tank systems" is the name of the tanks page, asked for by name
+            self.assertIsNone(re.search(r'(?<!RO/DI )(?<![Tt]ank )\b[Ss]ystems?\b', text), name)
+        self.assertContains(self.client.get(reverse('tanks')), '<h1 class="text-2xl font-black text-white tracking-tight">Tank systems</h1>')
 
 
 class LightAndParTests(TestCase):
@@ -3062,7 +3064,12 @@ class SumpAndLightCardTests(TestCase):
         page = self.page()
         self.assertContains(page, '>Add device</option>')
         self.assertContains(page, f'value="chamber:{self.chamber.id}"')
-        self.assertContains(page, reverse('equipment_unplace', args=[self.pump.id]))
+        # One way to remove it here, the bin. Its confirmation page offers taking it off the tank instead.
+        self.assertContains(page, reverse('equipment_delete', args=[self.pump.id]) + '?next=')
+        self.assertNotContains(page, reverse('equipment_unplace', args=[self.pump.id]))
+        confirm = self.client.get(reverse('equipment_delete', args=[self.pump.id]))
+        self.assertContains(confirm, f'action="{reverse("equipment_unplace", args=[self.pump.id])}"')
+        self.assertContains(confirm, 'Just take it off ')
         self.assertNotContains(page, 'divide-slate-800/80')
 
     def test_remove_leaves_it_in_no_chamber_and_in_the_equipment_list(self):
@@ -4862,7 +4869,9 @@ class TankPageEquipmentLightsAndPresetTests(TestCase):
         page = self.client.get(self.url).content.decode()
         for eq in (self.light, self.heater):
             self.assertIn(reverse('equipment_delete', args=[eq.pk]) + '?next=', page)
-            self.assertIn(reverse('equipment_unplace', args=[eq.pk]), page)
+            # Only the one removal button per item
+            self.assertNotIn(reverse('equipment_unplace', args=[eq.pk]), page)
+            self.assertEqual(page.count(reverse('equipment_delete', args=[eq.pk]) + '?next='), 1)
         self.assertContains(self.client.get(reverse('equipment')), reverse('equipment_delete', args=[self.heater.pk]))
         self.assertContains(self.client.get(reverse('power')), reverse('equipment_delete', args=[self.light.pk]))
 
@@ -5725,3 +5734,161 @@ class ActionButtonTests(TestCase):
         self.assertIn('<button type="submit"', html)
         self.assertIn('class="sr-only">Flush', html)
         self.assertEqual(html.count('<svg'), 3)
+
+
+class TimeToFillAndPhoneLayoutTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+
+    def test_tools_page_has_the_estimator_and_its_warning(self):
+        page = self.client.get(reverse('tools'))
+        self.assertContains(page, 'id="fill-time"')
+        self.assertContains(page, 'href="#fill-time"')
+        self.assertContains(page, 'Estimate only.')
+        self.assertContains(page, 'your room becomes an aquarium')
+        # No saved RO/DI yet: it starts from the label, and the "My RO/DI" choice isn't offered
+        self.assertEqual(page.context['fill_systems'], [])
+        self.assertNotContains(page, 'data-fill-speed="system"')
+
+    def test_saved_systems_bring_their_worked_out_output(self):
+        from .models import ROSystem
+        ROSystem.objects.create(name='Measured', rated_gpd=75, measured_gph=Decimal('2.5'), waste_ratio=0)
+        ROSystem.objects.create(name='Rated', rated_gpd=100, feed_psi=50, feed_temp_f=65, waste_ratio=3, is_default=False)
+        page = self.client.get(reverse('tools'))
+        systems = {s['name']: s for s in page.context['fill_systems']}
+        self.assertEqual(systems['Measured']['gph'], 2.5)
+        self.assertTrue(systems['Measured']['measured'])
+        # 100 GPD at 50 of 60 psi and 65°F (about 3% less output per °C under 77°F)
+        self.assertAlmostEqual(systems['Rated']['gph'], 2.85, places=2)
+        self.assertEqual(systems['Rated']['waste_ratio'], 3.0)
+        self.assertContains(page, 'data-fill-speed="system"')
+
+    def test_phone_layout_has_no_sideways_scrolling_rows(self):
+        Equipment.objects.create(name='Heater', category='heater', tank=self.tank)
+        equipment = self.client.get(reverse('equipment'))
+        self.assertContains(equipment, 'aria-label="Show a category"')
+        for name in ('livestock', 'parameters', 'species_catalog', 'dashboard', 'power'):
+            self.assertNotContains(self.client.get(reverse(name)), 'overflow-x-auto no-scrollbar py-1"', msg_prefix=name)
+
+    def test_ato_card_shows_the_time_to_fill(self):
+        ato = DosingReservoir.objects.create(tank=self.tank, name='ATO', reservoir_type='ato_freshwater', capacity=5,
+                                             current_level=2, unit='gal', daily_consumption=0)
+        dose = DosingReservoir.objects.create(tank=self.tank, name='Alk', capacity=1000, current_level=500, unit='ml',
+                                              daily_consumption=0)
+        self.assertContains(self.client.get(reverse('dosing')), 'add your RO/DI</a> to see it')
+        ROSystem.objects.create(name='Mine', rated_gpd=75, measured_gph=Decimal('2'), waste_ratio=0)
+        page = self.client.get(reverse('dosing'))
+        # 3 gal of space at 2 gal an hour
+        self.assertContains(page, 'Est. time to fill is <span class="font-bold text-white">~1 h 30 min</span>')
+        self.assertContains(page, 'with Mine')
+        self.assertIsNone(DosingReservoir.objects.get(pk=dose.pk).fill_time)
+        DosingReservoir.objects.filter(pk=ato.pk).update(current_level=5)
+        self.assertContains(self.client.get(reverse('dosing')), "Est. time to fill: it's full")
+
+    def test_ato_card_quick_sets_a_timer_5_minutes_early(self):
+        from .models import FillTimer
+        ato = DosingReservoir.objects.create(tank=self.tank, name='ATO', reservoir_type='ato_freshwater', capacity=5,
+                                             current_level=2, unit='gal', daily_consumption=0)
+        ROSystem.objects.create(name='Mine', rated_gpd=75, measured_gph=Decimal('2'), waste_ratio=0)
+        page = self.client.get(reverse('dosing'))
+        # 90 minutes to fill, so the timer is set for 85
+        self.assertContains(page, 'Quick set timer for 1 h 25 min')
+        self.assertContains(page, '<input type="hidden" name="minutes" value="85">')
+        response = self.client.post(reverse('timer_start'), {'minutes': 85, 'reservoir': ato.pk, 'next': '/dosing/'})
+        self.assertRedirects(response, '/dosing/', fetch_redirect_response=False)
+        timer = FillTimer.objects.get()
+        self.assertEqual((timer.name, timer.reservoir), ('Fill ATO', ato))
+        self.assertEqual(round((timer.ends_at - timer.started_at).total_seconds()), 85 * 60)
+        # Somewhere else isn't followed
+        response = self.client.post(reverse('timer_start'), {'minutes': 5, 'next': 'https://example.com/'})
+        self.assertRedirects(response, reverse('timers'), fetch_redirect_response=False)
+        # A fill under 6 minutes is too short to set one 5 minutes early
+        DosingReservoir.objects.filter(pk=ato.pk).update(current_level=Decimal('4.9'))
+        self.assertNotContains(self.client.get(reverse('dosing')), 'Quick set timer')
+
+
+class SaltCalculatorTankTargetTests(TestCase):
+    def setUp(self):
+        from .models import WaterChangeLog
+        self.WaterChangeLog = WaterChangeLog
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.salinity = ParameterType.objects.create(name='Salinity', code='salinity', unit='ppt', decimal_places=1,
+                                                     min_ideal=Decimal('32'), max_ideal=Decimal('34'))
+
+    def test_target_starts_at_the_tanks_own_salinity_target(self):
+        page = self.client.get(reverse('tools'))
+        self.assertEqual(page.context['salt_start']['target'], 33.0)
+        self.assertContains(page, 'id="calc-salinity" value="33.0" min="20" max="45" step="0.5"')
+        self.assertContains(page, 'value="ppt" onchange="setSalinityUnit(this.value)" class="unit-btn">ppt</button>')
+        self.assertContains(page, "Your tank's target.")
+        # The first answer on the page is worked out at that target too
+        from .calculators import calculate_salt_mix
+        self.assertEqual(page.context['sample_mix'], calculate_salt_mix(volume=10, brand_key='tropic_marin_pro',
+                                                                        target_salinity=33.0, salinity_unit='ppt'))
+
+    def test_sg_tanks_start_in_sg(self):
+        ParameterType.objects.filter(pk=self.salinity.pk).update(unit='SG', decimal_places=3,
+                                                                 min_ideal=Decimal('1.025'), max_ideal=Decimal('1.026'))
+        page = self.client.get(reverse('tools'))
+        self.assertContains(page, 'id="calc-salinity" value="1.026" min="1.015" max="1.035" step="0.001"')
+        self.assertContains(page, 'value="sg" onchange="setSalinityUnit(this.value)" class="unit-btn">SG</button>')
+
+    def test_brand_starts_at_the_salt_this_tank_last_used(self):
+        other = Tank.objects.create(name='Frag', volume_gallons=20)
+        self.WaterChangeLog.objects.create(tank=self.tank, gallons=5, salt_brand='Red Sea Coral Pro')
+        self.WaterChangeLog.objects.create(tank=other, gallons=5, salt_brand='Fritz Pro RPM')
+        page = self.client.get(reverse('tools'))
+        self.assertEqual(page.context['salt_start']['brand'], 'red_sea_coral_pro')
+        self.assertContains(page, '<option value="red_sea_coral_pro" selected>')
+
+
+class TankPageReservoirsAndFoldingTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.other = Tank.objects.create(name='Frag', volume_gallons=20)
+        self.ato = DosingReservoir.objects.create(tank=self.tank, name='Top off', reservoir_type='ato_freshwater',
+                                                  capacity=5, current_level=1, unit='gal', daily_consumption=1)
+        self.alk = DosingReservoir.objects.create(tank=self.tank, name='Alk', capacity=1000, current_level=500,
+                                                  unit='ml', daily_consumption=0)
+        DosingReservoir.objects.create(tank=self.other, name='Frag alk', capacity=500, current_level=500, unit='ml',
+                                       daily_consumption=0)
+        self.url = reverse('tank_detail', args=[self.tank.pk])
+
+    def test_tank_page_shows_its_own_containers_and_links_to_dosing(self):
+        page = self.client.get(self.url)
+        self.assertEqual([r.name for r in page.context['reservoirs']], ['Top off', 'Alk'])  # ATO first
+        self.assertNotContains(page, 'Frag alk')
+        self.assertContains(page, f'href="{reverse("dosing")}" class="text-xs font-semibold text-cyan-400 hover:underline">Open Dosing &amp; ATO →</a>')
+        self.assertContains(page, reverse('refill_reservoir', args=[self.ato.pk]))
+
+    def test_refill_from_the_tank_page_comes_back_to_it(self):
+        response = self.client.post(reverse('refill_reservoir', args=[self.ato.pk]), {'next': self.url})
+        self.assertRedirects(response, self.url, fetch_redirect_response=False)
+        self.ato.refresh_from_db()
+        self.assertEqual(self.ato.current_level, self.ato.capacity)
+        # From Dosing & ATO it still goes back there
+        response = self.client.post(reverse('refill_reservoir', args=[self.alk.pk]))
+        self.assertRedirects(response, reverse('dosing'), fetch_redirect_response=False)
+
+    def test_every_card_can_fold_to_a_one_line_summary(self):
+        page = self.client.get(self.url).content.decode()
+        self.assertIn('data-fold-all="tank"', page)
+        for key in ('display', 'flow', 'sumps', 'reservoirs', 'lighting', 'filters'):
+            card = page.split(f'data-card="{key}"', 1)[1]
+            self.assertIn('data-card-mini hidden class="card-mini"', card.split('</button>', 1)[0] + '</button>', key)
+        self.assertEqual(page.count('data-card-mini hidden'), 6)
+        self.assertIn('data-card-fold', page)
+        # The summaries carry the key numbers
+        self.assertIn('Top off <span class="mini-bar">', page)
+        self.assertIn('<b class="text-amber-400">20%</b>', page)  # 1 of 5 gal is low
+        self.assertIn("localStorage.getItem('nudi-folded:tank'", page)
+
+    def test_filters_due_count(self):
+        Equipment.objects.create(name='Sock', category='filter', tank=self.tank, maintenance_interval_days=7,
+                                 last_serviced_date=timezone.localdate() - timedelta(days=10))
+        Equipment.objects.create(name='Mat', category='filter', tank=self.tank, maintenance_interval_days=7,
+                                 last_serviced_date=timezone.localdate())
+        page = self.client.get(self.url)
+        self.assertEqual(page.context['filters_due'], 1)
+        self.assertContains(page, '1 change due')
+

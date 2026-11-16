@@ -31,7 +31,7 @@
         {% with nxt=routine.upcoming %}
         <div class="bg-slate-900 border {% if routine.is_active %}border-violet-500/30{% else %}border-slate-800 opacity-60{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4">
           <div>
-            <div class="flex items-start justify-between gap-2">
+            <div class="flex flex-wrap items-start justify-between gap-2">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ routine.get_category_display }}</span>
@@ -107,7 +107,7 @@
       {% for routine in manual_routines %}
         <div class="bg-slate-900 border {% if routine.is_due %}border-amber-500/50{% else %}border-slate-800{% endif %} rounded-2xl p-5 flex flex-col justify-between space-y-4">
           <div>
-            <div class="flex items-start justify-between gap-2">
+            <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <div class="flex items-center gap-2">
                   <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ routine.get_category_display }}</span>

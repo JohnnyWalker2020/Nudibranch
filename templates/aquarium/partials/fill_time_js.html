@@ -1,0 +1,127 @@
+<script>
+  // Time to Fill. Same maths as aquarium/fill.py: the rating per hour, scaled by pressure (rated at 60 psi)
+  // and about 3% per degree C from 77°F. A timed fill or a saved measured output skips the guesswork.
+  (function () {
+    const el = id => document.getElementById(id);
+    if (!el('fill-time')) return;
+    const L_PER_GAL = 3.78541;
+    const PSI_PER_BAR = 14.5038;
+    const ACTIVE = ['bg-cyan-500/15', 'text-cyan-300', 'border-cyan-500/40'];
+    const IDLE = ['bg-slate-800', 'text-slate-400', 'border-slate-700'];
+    const systems = JSON.parse(el('fill-systems').textContent) || [];
+    const speedButtons = document.querySelectorAll('[data-fill-speed]');
+    let speed = systems.length ? 'system' : 'label';
+    let volumeUnit = el('ft-size-unit').value;
+    let pressureUnit = el('ft-psi-unit').value;
+    let tempUnit = el('ft-temp-unit').value;
+
+    const num = id => { const v = parseFloat(el(id).value); return Number.isFinite(v) ? v : null; };
+    const gallons = v => (volumeUnit === 'L' ? v / L_PER_GAL : v);
+    const round = (v, places) => { const f = 10 ** places; return Math.round(v * f) / f; };
+    const setNumber = (id, v, places) => { if (el(id).value !== '') el(id).value = round(v, places); };
+
+    function showSpeed() {
+      speedButtons.forEach(btn => {
+        const on = btn.dataset.fillSpeed === speed;
+        btn.setAttribute('aria-pressed', on);
+        btn.classList.remove(...(on ? IDLE : ACTIVE));
+        btn.classList.add(...(on ? ACTIVE : IDLE));
+      });
+      document.querySelectorAll('[data-fill-for]').forEach(box => box.classList.toggle('hidden', box.dataset.fillFor !== speed));
+    }
+
+    function chosenSystem() {
+      return systems.find(s => String(s.id) === el('ft-system').value) || systems[0];
+    }
+
+    // Gallons per hour, or a message saying what's missing.
+    function outputGph() {
+      if (speed === 'system') {
+        const s = chosenSystem();
+        el('ft-system-note').textContent = s.measured
+          ? `Uses your measured output, ${s.gph} gal/h.`
+          : `About ${s.gph} gal/h, from its rating scaled for your pressure and temperature. Timing a real fill is more accurate.`;
+        return s.gph;
+      }
+      if (speed === 'timed') {
+        const amount = num('ft-timed-amount'), minutes = num('ft-timed-minutes');
+        if (!amount || !minutes || amount <= 0 || minutes <= 0) return 'Enter how much it made and how many minutes it took.';
+        return gallons(amount) / minutes * 60;
+      }
+      const gpd = num('ft-gpd'), pressure = num('ft-psi'), temp = num('ft-temp');
+      if (!gpd || gpd <= 0 || pressure === null || temp === null) return 'Enter the rated output, your water pressure and temperature.';
+      const psi = pressureUnit === 'bar' ? pressure * PSI_PER_BAR : pressure;
+      const tempC = tempUnit === 'C' ? temp : (temp - 32) * 5 / 9;
+      return gpd / 24 * Math.max(0, psi) / 60 * 1.03 ** (tempC - 25);
+    }
+
+    function duration(minutes) {
+      const total = Math.round(minutes);
+      const h = Math.floor(total / 60), m = total % 60;
+      if (h >= 48) return `${round(minutes / 1440, 1)} days`;
+      if (h) return `${h} h ${m} min`;
+      return total ? `${m} min` : 'Under a minute';
+    }
+
+    function recalculate() {
+      const error = el('ft-error'), answer = el('ft-answer');
+      const fail = message => { error.textContent = message; error.classList.remove('hidden'); answer.classList.add('hidden'); };
+      const size = num('ft-size'), already = num('ft-already') || 0, stop = num('ft-stop');
+      if (!size || size <= 0) return fail('Enter how big the container is.');
+      if (stop === null || stop <= 0 || stop > 100) return fail('Fill to needs to be between 1 and 100%.');
+      const target = size * stop / 100;
+      if (already >= target) return fail("It's already at or past that level. Nothing to fill!");
+      const gph = outputGph();
+      if (typeof gph === 'string') return fail(gph);
+      if (!(gph > 0)) return fail('That works out to no water at all. Check the pressure and output.');
+
+      const toMake = gallons(target - already);
+      const minutes = toMake / gph * 60;
+      const done = new Date(Date.now() + minutes * 60000);
+      const sameDay = done.toDateString() === new Date().toDateString();
+      el('ft-time').textContent = duration(minutes);
+      el('ft-done-at').textContent = done.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        + (sameDay ? '' : ', ' + done.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }));
+      const made = volumeUnit === 'L' ? `${round(toMake * L_PER_GAL, 1)} L` : `${round(toMake, 1)} gal`;
+      const rate = volumeUnit === 'L' ? `${round(gph * L_PER_GAL, 1)} L` : `${round(gph, 2)} gal`;
+      let summary = `Makes ${made} at about ${rate} an hour.`;
+      if (speed === 'system' && chosenSystem().waste_ratio > 0) {
+        const waste = toMake * chosenSystem().waste_ratio;
+        summary += ` About ${volumeUnit === 'L' ? round(waste * L_PER_GAL, 0) + ' L' : round(waste, 0) + ' gal'} goes down the drain as waste.`;
+      }
+      el('ft-summary').textContent = summary;
+      error.classList.add('hidden');
+      answer.classList.remove('hidden');
+    }
+
+    speedButtons.forEach(btn => btn.addEventListener('click', () => { speed = btn.dataset.fillSpeed; showSpeed(); recalculate(); }));
+
+    // Switching a unit converts the numbers already typed, so the answer stays the same.
+    el('ft-size-unit').addEventListener('change', e => {
+      const next = e.target.value;
+      if (next === volumeUnit) return;
+      const factor = next === 'L' ? L_PER_GAL : 1 / L_PER_GAL;
+      ['ft-size', 'ft-already', 'ft-timed-amount'].forEach(id => { const v = num(id); if (v !== null) setNumber(id, v * factor, 2); });
+      volumeUnit = next;
+      document.querySelectorAll('[data-ft-volume-label]').forEach(label => { label.textContent = next; });
+      recalculate();
+    });
+    el('ft-psi-unit').addEventListener('change', e => {
+      const v = num('ft-psi');
+      if (v !== null && e.target.value !== pressureUnit) setNumber('ft-psi', e.target.value === 'bar' ? v / PSI_PER_BAR : v * PSI_PER_BAR, 1);
+      pressureUnit = e.target.value;
+      recalculate();
+    });
+    el('ft-temp-unit').addEventListener('change', e => {
+      const v = num('ft-temp');
+      if (v !== null && e.target.value !== tempUnit) setNumber('ft-temp', e.target.value === 'C' ? (v - 32) * 5 / 9 : v * 9 / 5 + 32, 1);
+      tempUnit = e.target.value;
+      recalculate();
+    });
+
+    el('fill-time').addEventListener('input', recalculate);
+    if (el('ft-system')) el('ft-system').addEventListener('change', recalculate);
+    showSpeed();
+    recalculate();
+  })();
+</script>

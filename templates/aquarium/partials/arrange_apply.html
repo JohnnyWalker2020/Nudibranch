@@ -1,7 +1,7 @@
 {% comment %}
 Puts the saved Arrange order in place. Include it straight after the data-arrange="{{ page }}" box closes,
 so the cards move before the page is drawn. Cards the saved order doesn't know (new ones) keep their place
-after the card they normally follow.
+after the card they normally follow. It also folds the cards this browser left folded (arrange.js runs the fold buttons).
 {% endcomment %}
 <script>
 (function () {
@@ -19,5 +19,20 @@ after the card they normally follow.
   });
   var anchor = normal[0].previousSibling;
   order.forEach(function (c) { box.insertBefore(c, anchor ? anchor.nextSibling : box.firstChild); anchor = c; });
+})();
+</script>
+<script>
+(function () {
+  var box = document.querySelector('[data-arrange="{{ page }}"]');
+  var folded = [];
+  try { folded = JSON.parse(localStorage.getItem('nudi-folded:{{ page }}') || '[]'); } catch (e) { folded = []; }
+  if (!box || !Array.isArray(folded)) return;
+  Array.prototype.forEach.call(box.children, function (card) {
+    if (card.hasAttribute('data-card') && card.querySelector(':scope > [data-card-mini]') && folded.indexOf(card.getAttribute('data-card')) !== -1) {
+      card.classList.add('card-folded');
+      var fold = card.querySelector('[data-card-fold]');
+      if (fold) fold.setAttribute('aria-expanded', 'false');
+    }
+  });
 })();
 </script>

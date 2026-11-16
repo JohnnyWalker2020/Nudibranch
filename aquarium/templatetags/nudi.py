@@ -105,6 +105,11 @@ ICONS = {
         '<path d="M3 21h18" stroke="#4ade80" stroke-width="2" stroke-linecap="round"/>'
         '<path d="M5 20.2l.6-1.6M8 20.3l.4-1.3M16.3 20.3l.4-1.4M19 20.2l.5-1.5" stroke="#4ade80" stroke-width="1" stroke-linecap="round"/>'
     ),
+    # A card squeezed flat between two arrows, for folding cards down to one line.
+    'fold': (
+        '<rect x="3" y="10" width="18" height="4" rx="1.5" fill="#22d3ee"/>'
+        '<path d="M8 3.5l4 3.5 4-3.5M8 20.5l4-3.5 4 3.5" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+    ),
     # Stacked cards with the middle one lifted out, for Arrange.
     'arrange': (
         '<rect x="3" y="3.5" width="18" height="5" rx="1.5" fill="#64748b"/>'

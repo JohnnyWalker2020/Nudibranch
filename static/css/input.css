@@ -58,6 +58,49 @@
   .act:hover .nudi-icon {
     @apply -rotate-6 scale-110;
   }
+  /* Folded cards (static/js/arrange.js): a card with a [data-card-mini] line can fold down to just that line.
+     The line carries the hidden attribute too, so the card's space-y spacing skips it while it's open. */
+  [data-card-mini] {
+    @apply hidden;
+  }
+  [data-card].card-folded {
+    @apply p-0 bg-transparent border-0 shadow-none;
+  }
+  [data-card].card-folded > :not([data-card-mini]):not(.arrange-bar) {
+    @apply hidden;
+  }
+  [data-card].card-folded > [data-card-mini] {
+    @apply flex;
+  }
+  .card-mini {
+    @apply w-full flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2 text-left bg-slate-900 border border-slate-800 rounded-xl hover:border-cyan-500/40 transition-colors;
+  }
+  .card-mini-title {
+    @apply inline-flex items-center gap-1.5 text-xs font-bold text-white shrink-0;
+  }
+  /* On phones the numbers get their own full-width line under the title; wider, they sit beside it */
+  .card-mini-data {
+    @apply order-last basis-full sm:order-none sm:basis-auto flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0 sm:flex-1 text-[11px] text-slate-400;
+  }
+  .card-mini-data > span {
+    @apply max-w-full whitespace-nowrap overflow-hidden text-ellipsis;
+  }
+  .card-mini-data .mini-bar {
+    @apply inline-block align-middle w-8 h-1.5 mx-0.5 rounded-full bg-slate-800 overflow-hidden;
+  }
+  /* Folded cards sit closer together */
+  [data-arrange] > [data-card].card-folded + [data-card].card-folded {
+    @apply mt-2;
+  }
+  .card-mini-data b {
+    @apply font-bold text-slate-100;
+  }
+  .card-fold {
+    @apply inline-flex items-center justify-center w-6 h-6 -ml-1 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-slate-800 transition-colors shrink-0;
+  }
+  .arranging > [data-card].card-folded > [data-card-mini] {
+    @apply hidden;
+  }
   /* Arrange mode (static/js/arrange.js) */
   .arranging > [data-card] {
     @apply relative outline-2 outline-dashed outline-cyan-500/50 outline-offset-4 rounded-2xl;

@@ -1189,6 +1189,30 @@ class DosingReservoir(models.Model):
         pct = (self.level_now / float(self.capacity)) * 100
         return max(0, min(100, round(pct)))
 
+    FILL_TIMER_EARLY_MINUTES = 5
+
+    @cached_property
+    def fill_time(self):
+        """For an ATO container: roughly how long the default RO/DI takes to top it back up to full.
+        None for dosing containers or when no RO/DI system is saved."""
+        if self.reservoir_type != 'ato_freshwater':
+            return None
+        from . import fill
+        system = ROSystem.objects.first()  # the default comes first
+        if system is None:
+            return {'system': None}
+        gph = fill.estimated_gph(system.rated_gpd, system.rated_psi, system.rated_temp_f,
+                                 system.feed_psi, system.feed_temp_f, system.measured_gph)
+        space = max(0.0, float(self.capacity) - self.level_now)
+        estimate = fill.fill_estimate(fill.to_gallons(space, self.unit), gph)
+        if estimate is None:
+            return {'system': None}
+        # The quick-set timer goes off 5 minutes early, since this is only an estimate. Too short a fill, or over a day, gets none.
+        timer_minutes = int(estimate['minutes']) - self.FILL_TIMER_EARLY_MINUTES
+        timer = timer_minutes if 1 <= timer_minutes <= 24 * 60 else None
+        return {'system': system, 'label': estimate['hours_label'], 'full': space <= 0, 'measured': bool(system.measured_gph),
+                'timer_minutes': timer, 'timer_label': fill.format_duration(timer * 60) if timer else ''}
+
     @property
     def days_remaining(self):
         if not self.counts_down:

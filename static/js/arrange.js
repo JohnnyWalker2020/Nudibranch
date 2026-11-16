@@ -87,3 +87,56 @@
     }
   });
 })();
+
+// Folding: a card with a [data-card-mini] line folds down to just that line, and its fold button
+// ([data-card-fold]) or the line itself opens and closes it. Which cards are folded is kept in this
+// browser only, per page; partials/arrange_apply.html folds them again as the page loads.
+(function () {
+  function key(box) { return 'nudi-folded:' + box.dataset.arrange; }
+  function foldable(box) {
+    return Array.from(box.children).filter(el => el.hasAttribute('data-card') && el.querySelector(':scope > [data-card-mini]'));
+  }
+  function remember(box) {
+    const folded = foldable(box).filter(c => c.classList.contains('card-folded')).map(c => c.dataset.card);
+    try { localStorage.setItem(key(box), JSON.stringify(folded)); } catch (e) { /* folds just won't be remembered */ }
+    refreshAll(box);
+  }
+  function setFolded(card, folded) {
+    card.classList.toggle('card-folded', folded);
+    const fold = card.querySelector('[data-card-fold]');
+    if (fold) fold.setAttribute('aria-expanded', folded ? 'false' : 'true');
+  }
+  function refreshAll(box) {
+    const button = document.querySelector(`[data-fold-all="${box.dataset.arrange}"]`);
+    if (!button) return;
+    const all = foldable(box);
+    const allFolded = all.length && all.every(c => c.classList.contains('card-folded'));
+    button.querySelector('[data-fold-all-label]').textContent = allFolded ? 'Unfold all' : 'Fold all';
+    button.hidden = !all.length;
+  }
+
+  document.addEventListener('click', e => {
+    const all = e.target.closest('[data-fold-all]');
+    if (all) {
+      const box = document.querySelector(`[data-arrange="${all.dataset.foldAll}"]`);
+      if (!box) return;
+      const cards = foldable(box);
+      const fold = !cards.every(c => c.classList.contains('card-folded'));
+      cards.forEach(c => setFolded(c, fold));
+      remember(box);
+      return;
+    }
+    const toggle = e.target.closest('[data-card-fold], [data-card-mini]');
+    if (!toggle) return;
+    const card = toggle.closest('[data-card]');
+    const box = card && card.parentElement;
+    if (!box || !box.hasAttribute('data-arrange') || box.classList.contains('arranging')) return;
+    const folding = toggle.hasAttribute('data-card-fold');
+    setFolded(card, folding);
+    remember(box);
+    // Keep the card where the reader is looking
+    if (!folding) card.scrollIntoView({ block: 'nearest' });
+    else (card.querySelector('[data-card-mini]') || card).focus({ preventScroll: true });
+  });
+  document.querySelectorAll('[data-arrange]').forEach(refreshAll);
+})();

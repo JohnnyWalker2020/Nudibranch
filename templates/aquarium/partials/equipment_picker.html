@@ -2,15 +2,15 @@
 The "Add gear" menu for one spot on the tank page: new equipment, something not placed anywhere, or something to move
 from elsewhere. Needs `picker` (from _equipment_picker). Optional `label`.
 {% endcomment %}
-<form method="POST" action="{% url 'equipment_place' %}" class="inline-block">
+<form method="POST" action="{% url 'equipment_place' %}" class="inline-block min-w-0 max-w-full">
   {% csrf_token %}
   <input type="hidden" name="location" value="{{ picker.location }}">
   <input type="hidden" name="next" value="{{ request.path }}">
-  <label class="act act-add cursor-pointer focus-within:ring-2 focus-within:ring-cyan-500">{% icon 'box' %}
+  <label class="act act-add max-w-full cursor-pointer focus-within:ring-2 focus-within:ring-cyan-500">{% icon 'box' %}
   <select name="equipment" aria-label="Add equipment here"
           data-new="{% url 'equipment_create' %}?location={{ picker.location }}{% if picker.category %}&category={{ picker.category }}{% endif %}&next={{ request.path|urlencode }}"
           onchange="if (this.value === 'new') { window.location.href = this.dataset.new; } else if (this.value) { this.form.submit(); }"
-          class="appearance-none cursor-pointer max-w-[10rem] bg-transparent border-0 p-0 pr-1 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-0">
+          class="appearance-none cursor-pointer min-w-0 max-w-[10rem] truncate bg-transparent border-0 p-0 pr-1 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-0">
     <option value="">{{ label|default:'Add gear' }}</option>
     <option value="new">＋ New equipment…</option>
     {% if picker.unplaced %}

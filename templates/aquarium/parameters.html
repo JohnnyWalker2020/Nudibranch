@@ -20,7 +20,7 @@
 
   {% if not selected_code %}{% include 'aquarium/partials/water_quality_card.html' %}{% endif %}
 
-  <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+  <div class="flex items-center gap-2 flex-wrap py-1">
     <a href="{% url 'parameters' %}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors">All tests</a>
     {% for pt in chip_types %}
       <a href="{% url 'parameters' %}?param={{ pt.code }}" class="px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_code == pt.code %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-300 hover:text-white{% endif %} transition-colors flex items-center gap-2">

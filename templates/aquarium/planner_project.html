@@ -49,7 +49,7 @@
         <tr class="border-b border-slate-800">
           <th class="p-3 text-left text-[10px] uppercase text-slate-500">Compare</th>
           {% for row in rows %}
-          <th class="p-3 text-left min-w-40 align-top">
+          <th class="p-3 text-left sm:min-w-40 align-top break-words">
             <a href="{% url 'plan_detail' row.plan.id %}" class="font-bold text-white hover:text-cyan-400">{{ row.plan.name }}</a>
             {% if row.plan.tracked_tank %}<span class="block mt-1 w-fit text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Tracking</span>{% endif %}
           </th>

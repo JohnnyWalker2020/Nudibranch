@@ -47,7 +47,7 @@
     </form>
 
     <!-- Category Pills -->
-    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+    <div class="flex items-center gap-2 flex-wrap pt-1">
       <a href="{% url 'species_catalog' %}{% if search_query %}?q={{ search_query }}{% endif %}" 
          class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_category == 'all' %}bg-cyan-500 text-slate-950{% else %}bg-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">
         All Species

@@ -11,8 +11,8 @@
       <h1 class="text-2xl font-black text-white tracking-tight">Equipment</h1>
       <p class="text-xs text-slate-400 mt-0.5">Hardware, service intervals, and pump power settings that drive the flow estimates</p>
     </div>
-    <div class="flex items-center gap-2">
-      <a href="{% url 'tanks' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🏛️ Tanks &amp; Sumps</a>
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{% url 'tanks' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🏛️ Tank systems</a>
       {% include 'aquarium/partials/arrange_button.html' with page='equipment' %}
       <button type="button" onclick="openModal('add-equipment-modal')" title="Add Hardware" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>Add Hardware</span></button>
     </div>
@@ -21,7 +21,7 @@
   <!-- Filters -->
   <div class="space-y-2 pt-1">
     {% if tanks|length > 1 %}
-    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+    <div class="flex items-center gap-2 flex-wrap py-0.5">
       <span class="text-[10px] uppercase font-bold text-slate-500 px-1 shrink-0">Show:</span>
       <a href="{% url 'equipment' %}?tank=all{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap {% if not selected_tank_id %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %}">All tanks</a>
       {% for t in tanks %}
@@ -31,7 +31,12 @@
     {% endif %}
 
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+      <!-- On a phone the long list of categories is a dropdown, so nothing runs off the side -->
+      <select aria-label="Show a category" onchange="location.href = this.value" class="sm:hidden w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm font-semibold text-white">
+        <option value="{% url 'equipment' %}?tank={{ tank_param }}">All Gear</option>
+        {% for cat_key, cat_name in categories %}<option value="{% url 'equipment' %}?category={{ cat_key }}&tank={{ tank_param }}"{% if selected_category == cat_key %} selected{% endif %}>{{ cat_name }}</option>{% endfor %}
+      </select>
+      <div class="hidden sm:flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
         <a href="{% url 'equipment' %}?tank={{ tank_param }}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if not selected_category %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">All Gear</a>
         {% for cat_key, cat_name in categories %}
           <a href="{% url 'equipment' %}?category={{ cat_key }}&tank={{ tank_param }}" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap {% if selected_category == cat_key %}bg-cyan-500 text-slate-950{% else %}bg-slate-900 border border-slate-800 text-slate-400 hover:text-white{% endif %} transition-colors">{{ cat_name }}</a>
@@ -94,7 +99,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <label class="text-[11px] text-slate-400 shrink-0" for="power-{{ eq.id }}">Power</label>
-                <input type="range" min="1" max="100" value="{{ eq.power_setting_percent }}" class="flex-1 accent-cyan-500" oninput="this.nextElementSibling.value=this.value" aria-label="Power setting">
+                <input type="range" min="1" max="100" value="{{ eq.power_setting_percent }}" class="flex-1 min-w-[3rem] accent-cyan-500" oninput="this.nextElementSibling.value=this.value" aria-label="Power setting">
                 <input type="number" name="power" id="power-{{ eq.id }}" min="1" max="100" value="{{ eq.power_setting_percent }}" class="w-14 px-1.5 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs text-center" oninput="this.previousElementSibling.value=this.value">
                 <span class="text-[11px] text-slate-400">%</span>
                 <button type="submit" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-lg border border-slate-700">Set</button>
