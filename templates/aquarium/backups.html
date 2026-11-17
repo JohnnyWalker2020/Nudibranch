@@ -2,7 +2,7 @@
 
 {% block title %}Backups | Nudibranch{% endblock %}
 
-{% block content %}
+{% block content %}{% url 'export' as export_url %}{% url 'import_tests' as import_url %}
 <div class="space-y-6">
   {% include 'aquarium/partials/system_tabs.html' with active='tools' %}
 
@@ -14,7 +14,7 @@
     <form method="POST" action="{% url 'backup_create' %}" class="flex items-center gap-3">
       {% csrf_token %}
       <label class="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" name="include_timelapse" checked class="rounded"> Include time-lapse</label>
-      <button class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl">Back up now</button>
+      <button class="act act-primary"><span>Back up now</span></button>
     </form>
   </div>
 
@@ -37,6 +37,17 @@
     {% empty %}
     <p class="p-8 text-center text-xs text-slate-500">No backups yet. Best to make one before you need it.</p>
     {% endfor %}
+  </div>
+
+  <div id="export" class="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+    <div>
+      <h2 class="text-sm font-bold text-white">⬇ Export or import your records</h2>
+      <p class="text-xs text-slate-400">Water tests, water changes and doses as spreadsheet files, to read and chart, and water tests back in from one. A backup is still the way to move the whole app.</p>
+    </div>
+    <span class="flex flex-wrap gap-2">
+      <a href="{{ export_url }}" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400">Export</a>
+      <a href="{{ import_url }}" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400">Import tests</a>
+    </span>
   </div>
 
   <form method="POST" action="{% url 'backup_restore' %}" enctype="multipart/form-data" class="bg-slate-900 border border-rose-500/30 rounded-2xl p-5 space-y-3">

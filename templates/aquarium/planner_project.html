@@ -12,9 +12,9 @@
         <p class="text-xs text-slate-400">Everything here is still a plan. Nothing becomes real until you track that one tank.</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <a href="{% url 'project_edit' project.id %}" title="Edit project" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit project</span></a>
-      <a href="{% url 'plan_create' %}?project={{ project.id }}" title="New tank" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>New tank</span></a>
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{% url 'project_edit' project.id %}" title="Edit project" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">{% icon 'glue' 'w-4 h-4' %}<span>Edit project</span></a>
+      <a href="{% url 'plan_create' %}?project={{ project.id }}" title="New tank" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>New tank</span></a>
     </div>
   </div>
 

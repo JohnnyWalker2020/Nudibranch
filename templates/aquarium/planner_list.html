@@ -12,9 +12,9 @@
       <p class="text-xs text-slate-400 mt-0.5">Try out a tank or stocking list before spending anything. When you like it, start tracking it.</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <a href="{% url 'wishlist' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs text-center">💜 Wishlist</a>
-      <a href="{% url 'project_create' %}" title="New project" class="act act-add">{% icon 'box' 'w-4 h-4' %}<span>New project</span></a>
-      <a href="{% url 'plan_create' %}" title="New plan" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>New plan</span></a>
+      <a href="{% url 'wishlist' %}" class="pill inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors"><span aria-hidden="true">💜</span><span>Wishlist</span></a>
+      <a href="{% url 'project_create' %}" title="Group plans to compare and budget them together" class="pill inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">{% icon 'box' 'w-4 h-4' %}<span>New project</span></a>
+      <a href="{% url 'plan_create' %}" title="New plan" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>New plan</span></a>
     </div>
   </div>
 

@@ -19,7 +19,7 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from . import backups, events, fill, planner, power, retire, timelapse, wishlist
-from .active import COOKIE_MAX_AGE, COOKIE_NAME, get_active_tank
+from .active import COOKIE_MAX_AGE, COOKIE_NAME, default_tank, get_active_tank
 from .icons import character_icons, default_stem, url_for_stem, young_version
 from .themes import THEMES
 from .forms_tools import (
@@ -660,6 +660,10 @@ def integrations_view(request):
         'settings_obj': settings_obj,
         'api_key_set': bool(getattr(settings, 'API_SECRET_KEY', '')),
         'event_types': events.EVENT_TYPES,
+        # For the "Log tests from a device" help: the address to post to, and which tank gets readings without one
+        'api_log_url': request.build_absolute_uri(reverse('api_parameter_log')),
+        'api_default_tank': default_tank(),
+        'api_tanks': Tank.objects.filter(is_archived=False),
     })
 
 

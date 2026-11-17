@@ -12,9 +12,9 @@
       <p class="text-xs text-slate-400 mt-0.5">Hardware, service intervals, and pump power settings that drive the flow estimates</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <a href="{% url 'tanks' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🏛️ Tank systems</a>
+      <a href="{% url 'tanks' %}" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🏛️ Tank systems</a>
       {% include 'aquarium/partials/arrange_button.html' with page='equipment' %}
-      <button type="button" onclick="openModal('add-equipment-modal')" title="Add Hardware" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>Add Hardware</span></button>
+      <button type="button" onclick="openModal('add-equipment-modal')" title="Add Hardware" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>Add Hardware</span></button>
     </div>
   </div>
 

@@ -13,8 +13,8 @@
     </div>
     <div class="flex flex-wrap items-center gap-2">
 {% include 'aquarium/partials/arrange_button.html' with page='tools' %}
-      <a href="{% url 'app_settings' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⚙️ Settings</a>
-      <form method="POST" action="{% url 'logout' %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">Sign out</button></form>
+      <a href="{% url 'app_settings' %}" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⚙️ Settings</a>
+      <form method="POST" action="{% url 'logout' %}">{% csrf_token %}<button class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">Sign out</button></form>
     </div>
   </div>
 

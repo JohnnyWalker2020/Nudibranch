@@ -13,8 +13,8 @@
     </div>
     <div class="flex flex-wrap items-center gap-2">
       {% include 'aquarium/partials/arrange_button.html' with page='routines' %}
-      <button type="button" onclick="openModal('add-routine-modal')" title="Add Routine" class="act act-add">{% icon 'box' 'w-4 h-4' %}<span>Add Routine</span></button>
-      <button type="button" onclick="openModal('log-wc-modal')" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">Log Water Change</button>
+      <button type="button" onclick="openModal('add-routine-modal')" title="Add Routine" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">{% icon 'box' 'w-4 h-4' %}<span>Add Routine</span></button>
+      <button type="button" onclick="openModal('log-wc-modal')" title="Log Water Change" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>Log Water Change</span></button>
     </div>
   </div>
 

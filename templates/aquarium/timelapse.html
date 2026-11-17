@@ -12,7 +12,7 @@
         <p class="text-xs text-slate-400">{% if feed.timelapse_enabled %}A frame every {{ feed.timelapse_interval_minutes }} min, kept for {{ feed.timelapse_keep_days }} days{% else %}Scheduled capture is off{% endif %}</p>
       </div>
     </div>
-    <a href="{% url 'webcam_edit' feed.id %}?next={% url 'timelapse' feed.id %}" class="shrink-0 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Settings</a>
+    <a href="{% url 'webcam_edit' feed.id %}?next={% url 'timelapse' feed.id %}" class="pill shrink-0 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Settings</a>
   </div>
 
   {% if feed.last_capture_error %}

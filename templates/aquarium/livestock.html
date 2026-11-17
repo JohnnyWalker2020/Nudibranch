@@ -10,13 +10,13 @@
       <p class="text-xs text-slate-400 mt-0.5">Fish, corals, invertebrates, and cleanup crew</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <a href="{% url 'species_catalog' %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">📖 Browse Common Species</a>
+      <a href="{% url 'species_catalog' %}" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">📖 Browse Common Species</a>
       {% if selected_status == 'deceased' %}
-        <a href="{% url 'livestock' %}" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 text-white border border-slate-700 rounded-xl font-semibold text-xs">{% icon 'headstone' %}Hide deceased</a>
+        <a href="{% url 'livestock' %}" class="pill inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 text-white border border-slate-700 rounded-xl font-semibold text-xs">{% icon 'headstone' %}Hide deceased</a>
       {% elif departed_count %}
-        <a href="{% url 'livestock' %}?status=deceased" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">{% icon 'headstone' %}Show deceased ({{ departed_count }})</a>
+        <a href="{% url 'livestock' %}?status=deceased" class="pill inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">{% icon 'headstone' %}Show deceased ({{ departed_count }})</a>
       {% endif %}
-      {% url 'groups_manage' as groups_url %}{% act 'edit' groups_url label='Edit categories' extra='py-2.5 rounded-xl' %}
+      {% url 'groups_manage' as groups_url %}{% act 'edit' groups_url label='Edit categories' extra='pill px-3.5 py-2.5 rounded-xl bg-slate-900 border-slate-800 hover:bg-slate-800' %}
       {% include 'aquarium/partials/arrange_button.html' with page='livestock' %}
       {% url 'animal_create' as add_url %}{% act 'add_livestock' add_url label='Add specimen' primary=True %}
     </div>
@@ -40,7 +40,7 @@
   <!-- Cards -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-arrange="livestock">
     {% for card in cards %}{% with animal=card.lead herd=card.members|length|add:'-1' %}
-      <div data-card="{{ card.key }}" data-card-title="{% if herd %}{{ card.members|length }}× {{ animal.name }}{% else %}{{ animal.nickname|default:animal.name }}{% endif %}" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between shadow-sm">
+      <div id="card-{{ card.key }}" data-card="{{ card.key }}" data-card-title="{% if herd %}{{ card.members|length }}× {{ animal.name }}{% else %}{{ animal.nickname|default:animal.name }}{% endif %}" class="scroll-mt-32 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between shadow-sm">
         <div>
           <form id="photo-form-{{ animal.id }}" method="POST" action="{% url 'animal_upload_photo' animal.id %}" enctype="multipart/form-data" class="hidden">
             {% csrf_token %}
@@ -106,12 +106,23 @@
               {% for g in animal.groups.all %}<span class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 border-l-2" style="border-left-color: {{ g.color }}">{{ g.icon }} {{ g.name }}</span>{% empty %}{% if not animal.tank %}<span class="text-[10px] text-slate-500">No category</span>{% endif %}{% endfor %}
             </div>
             {% if herd %}
+              {% if card.unnamed > 1 %}
+                {% url 'animal_herd_silly_names' animal.id as name_all_url %}<form method="POST" action="{{ name_all_url }}" class="flex justify-end -mb-1">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.get_full_path }}#card-{{ card.key }}">
+                  <button type="submit" class="text-[11px] font-semibold text-cyan-400 hover:underline">🎲 Name all {{ card.unnamed }}</button>
+                </form>
+              {% endif %}
               <ul class="divide-y divide-slate-800/80 rounded-xl bg-slate-950/40 border border-slate-800/60">
                 {% for a in card.members %}
                   <li class="flex items-center gap-2 px-2 py-1.5">
                     {% if a.photo %}<img loading="lazy" src="{{ a.photo.url }}" alt="" class="w-7 h-7 rounded-lg object-cover">{% else %}<span class="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500">#{{ forloop.counter }}</span>{% endif %}
                     <span class="min-w-0 flex-1">
-                      <span class="block text-xs font-bold text-white truncate">{{ a.nickname|default:'No name yet' }}</span>
+                      {% if a.nickname %}<span class="block text-xs font-bold text-white truncate">{{ a.nickname }}</span>
+                      {% elif a.status == 'deceased' or a.status == 'rehomed' %}<span class="block text-xs font-bold text-slate-500 truncate">No name</span>
+                      {% else %}<span class="flex items-center gap-1.5 text-xs"><span class="font-bold text-slate-500">No name yet</span>
+                        <form method="POST" action="{% url 'animal_silly_name' a.id %}" class="inline-flex">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#card-{{ card.key }}"><button type="submit" title="Give this one a silly name" class="text-[11px] font-semibold text-cyan-400 hover:underline">🎲 Silly name</button></form></span>
+                      {% endif %}
                       <span class="block text-[10px] {% if a.status == 'healthy' %}text-emerald-400{% elif a.status == 'quarantine' %}text-amber-400{% elif a.status == 'monitoring' %}text-rose-400{% else %}text-slate-500{% endif %}">{{ a.get_status_display }}{% if a.sump_id %} · {{ a.sump.name }}{% endif %}</span>
                     </span>
                     {% url 'animal_edit' a.id as a_edit %}{% act 'edit' a_edit compact=True title='Edit '|add:a.name suffix='?next=/livestock/' %}

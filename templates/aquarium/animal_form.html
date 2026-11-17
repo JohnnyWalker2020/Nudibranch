@@ -15,7 +15,16 @@
       </div>
     </div>
     {% if is_edit %}
-      {% url 'animal_delete' animal.id as flush_url %}{% act 'delete' flush_url label='Delete for good' suffix='?next=/livestock/' %}
+      {% if animal.status == 'deceased' %}
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400">{% icon 'headstone' %} Flushed: it has a headstone</span>
+      {% else %}
+        <form method="POST" action="{% url 'animal_flush' animal.id %}" class="inline-flex"
+              onsubmit="return confirm('Flush {{ animal.nickname|default:animal.name|escapejs }}? It gets marked deceased, with a headstone. Anything you changed on this page and haven't saved is lost.')">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next|default:'/livestock/' }}">
+          {% act 'flush' button=True title='Flush '|add:animal.name|add:': it died' extra='pill px-3.5 py-2.5 rounded-xl bg-slate-900 border-slate-800 hover:bg-slate-800' %}
+        </form>
+      {% endif %}
     {% endif %}
   </div>
 
@@ -157,11 +166,22 @@
       {{ form.notes }}
     </div>
 
-    <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-      <a href="{{ next|default:'/livestock/' }}" class="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors">Cancel</a>
-      <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">Save</button>
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
+      {% if is_edit %}<button type="submit" form="delete-animal" class="act act-delete" title="Delete {{ animal.name }} for good">{% icon 'bin' %}<span>Delete for good</span></button>{% endif %}
+      <span class="flex items-center gap-3 ml-auto">
+        <a href="{{ next|default:'/livestock/' }}" class="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors">Cancel</a>
+        <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">Save</button>
+      </span>
     </div>
   </form>
+  {% if is_edit %}
+  <!-- Outside the edit form, which its Delete button submits with form="delete-animal" -->
+  <form id="delete-animal" method="POST" action="{% url 'animal_delete' animal.id %}" class="hidden"
+        onsubmit="return confirm('Delete {{ animal.nickname|default:animal.name|escapejs }} for good? It and its photos, timeline and quarantine notes are removed, and this can't be undone. If it died, Flush it instead to keep a headstone.')">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="/livestock/">
+  </form>
+  {% endif %}
 </div>
 {% endblock %}
 

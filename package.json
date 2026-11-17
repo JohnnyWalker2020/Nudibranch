@@ -5,11 +5,12 @@
   "scripts": {
     "build": "npm run css && npm run vendor",
     "css": "tailwindcss -c tailwind.config.js -i static/css/input.css -o static/css/tailwind.css --minify",
-    "vendor": "mkdir -p static/vendor && cp node_modules/htmx.org/dist/htmx.min.js static/vendor/ && cp node_modules/chart.js/dist/chart.umd.js static/vendor/ && sed -i '/sourceMappingURL=/d' static/vendor/chart.umd.js"
+    "vendor": "mkdir -p static/vendor && cp node_modules/htmx.org/dist/htmx.min.js static/vendor/ && cp node_modules/chart.js/dist/chart.umd.js static/vendor/ && cp node_modules/swagger-ui-dist/swagger-ui-bundle.js node_modules/swagger-ui-dist/swagger-ui.css static/vendor/ && sed -i '/sourceMappingURL=/d' static/vendor/chart.umd.js static/vendor/swagger-ui-bundle.js static/vendor/swagger-ui.css"
   },
   "devDependencies": {
     "chart.js": "4.5.1",
     "htmx.org": "1.9.12",
+    "swagger-ui-dist": "5.17.14",
     "tailwindcss": "3.4.18"
   }
 }

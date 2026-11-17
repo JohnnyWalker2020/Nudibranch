@@ -14,7 +14,7 @@ PUBLIC_PATHS = ('/sw.js', '/favicon.ico', '/manifest.json')
 # This endpoint checks the API key itself.
 KEY_CHECKED_PATHS = ('/api/parameters/log/',)
 # This one also works for a device holding the key.
-KEY_ALLOWED_PATHS = ('/api/parameters/types/',)
+KEY_ALLOWED_PATHS = ('/api/parameters/types/', '/api/openapi.json')
 
 
 def has_valid_api_key(request):

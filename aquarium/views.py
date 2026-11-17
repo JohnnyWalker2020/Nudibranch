@@ -30,6 +30,7 @@ from .calculators import (
 )
 from .conversions import PARAMETER_UNIT_SUGGESTIONS, convert_value, unit_choices
 from .dashboard_widgets import COUNTDOWN_PRESETS, get_dashboard_layout, reset_dashboard_layout, save_dashboard_layout
+from .imports import converter as import_converter
 from .silly_names import announcement, silly_name
 from .tank_presets import TANK_PRESETS
 from .forms import (
@@ -739,6 +740,7 @@ def api_parameter_log(request):
                 'notes': request.POST.get('notes', ''),
                 'measured_at': request.POST.get('measured_at'),
                 'tank': request.POST.get('tank'),
+                'unit': request.POST.get('unit'),
             }
     except Exception as e:
         return JsonResponse({'error': f'Invalid JSON payload: {str(e)}'}, status=400)
@@ -804,21 +806,34 @@ def api_parameter_log(request):
             ptype = name_map.get(param_identifier.lower())
 
         if not ptype:
-            valid_codes = list(code_map.keys())
+            valid_codes = ', '.join(sorted(pt.code for pt in ParameterType.objects.in_use()))
             errors.append(f"Reading #{index + 1}: Unknown parameter '{param_identifier}'. Valid codes: {valid_codes}")
             continue
 
-        # Parse timestamp or default to now
+        # A reading in another unit (a probe reporting °C, say) is converted to the test's own unit
+        unit = str(r.get('unit') or (payload.get('unit') if isinstance(payload, dict) and len(readings) == 1 else '') or '').strip()
+        if unit:
+            convert = import_converter(unit, ptype)
+            if convert is None:
+                errors.append(f"Reading #{index + 1} ({param_identifier}): can't convert {unit} to {ptype.unit}. "
+                              f"Send it in {ptype.unit}, or leave out 'unit'.")
+                continue
+            val_decimal = Decimal(str(round(convert(float(val_decimal)), 4)))
+
+        # Parse timestamp or default to now. One that can't be read is refused rather than logged at the wrong time.
         measured_at = timezone.now()
         if timestamp_raw:
             try:
                 parsed_dt = parse_datetime(str(timestamp_raw))
             except ValueError:
                 parsed_dt = None
-            if parsed_dt:
-                if timezone.is_naive(parsed_dt):
-                    parsed_dt = timezone.make_aware(parsed_dt, timezone.get_current_timezone())
-                measured_at = parsed_dt
+            if parsed_dt is None:
+                errors.append(f"Reading #{index + 1} ({param_identifier}): can't read the time '{str(timestamp_raw)[:40]}'. "
+                              "Use ISO 8601, like 2026-11-04T22:30:00Z, or leave out 'measured_at' for now.")
+                continue
+            if timezone.is_naive(parsed_dt):
+                parsed_dt = timezone.make_aware(parsed_dt, timezone.get_current_timezone())
+            measured_at = parsed_dt
 
         tank = default_system
         if r.get('tank') and r.get('tank') != (payload.get('tank') if isinstance(payload, dict) else None):
@@ -1059,6 +1074,32 @@ def animal_silly_name_view(request, animal_id):
     return redirect(_safe_next(request, 'livestock'))
 
 
+@require_POST
+def animal_herd_silly_names_view(request, animal_id):
+    """Names every unnamed, living individual on a split card in one go. Ones with a name are left alone."""
+    animal = get_object_or_404(Animal, id=animal_id)
+    if animal.herd is None:
+        return redirect(_safe_next(request, 'livestock'))
+    members = Animal.objects.filter(herd=animal.herd).exclude(status__in=Animal.GONE_STATUSES)
+    taken = set(members.exclude(nickname='').values_list('nickname', flat=True))
+    named = []
+    for member in members.filter(nickname='').order_by('id'):
+        name = silly_name(f"{member.name} {member.species}")
+        for _ in range(10):  # no two the same on one card, if it can be helped
+            if name not in taken:
+                break
+            name = silly_name(f"{member.name} {member.species}")
+        member.nickname = name
+        member.save(update_fields=['nickname'])
+        taken.add(name)
+        named.append(name)
+    if len(named) == 1:
+        messages.success(request, f"🎲 {announcement(animal.name, named[0])}")
+    elif named:
+        messages.success(request, f"🎲 Introducing the {animal.name} crew: {', '.join(named)}!")
+    return redirect(_safe_next(request, 'livestock'))
+
+
 def livestock_cards(animals):
     """One card per animal, except individuals of one herd, which share a card in the order they were added."""
     cards, by_herd = [], {}
@@ -1074,6 +1115,7 @@ def livestock_cards(animals):
         card['members'].sort(key=lambda a: a.id)
         card['lead'] = card['members'][0]
         card['photos'] = [a for a in card['members'] if a.photo]
+        card['unnamed'] = sum(1 for a in card['members'] if not a.nickname and a.status not in Animal.GONE_STATUSES)
     return cards
 
 

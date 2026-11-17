@@ -11,16 +11,10 @@
       <p class="text-xs text-slate-400 mt-0.5">Live metrics and latest measurements</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <button type="button" onclick="openCustomizeModal()" class="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">
-        <span>🧩</span><span class="hidden sm:inline">Customize</span>
-      </button>
-      <button type="button" onclick="openModal('log-wc-modal')" class="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-bold text-sm transition-colors">
-        <span>💧</span> Water Change
-      </button>
-      <button type="button" onclick="openQuickLogModal()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-        Quick Add Test
-      </button>
+      <a href="{% url 'tanks' %}" title="Tank systems" aria-label="Tank systems" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors"><span aria-hidden="true">🏛️</span><span class="hidden sm:inline">Tank systems</span></a>
+      <button type="button" onclick="openCustomizeModal()" title="Customize the dashboard" aria-label="Customize" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors"><span aria-hidden="true">🧩</span><span class="hidden sm:inline">Customize</span></button>
+      <button type="button" onclick="openModal('log-wc-modal')" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors"><span aria-hidden="true">💧</span><span>Water Change</span></button>
+      <button type="button" onclick="openQuickLogModal()" title="Quick Add Test" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>Quick Add Test</span></button>
     </div>
   </div>
 

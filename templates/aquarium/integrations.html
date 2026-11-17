@@ -2,7 +2,7 @@
 
 {% block title %}Phone Alerts &amp; Webhooks | Nudibranch{% endblock %}
 
-{% block content %}
+{% block content %}{% url 'api_docs' as api_docs_url %}
 <div class="space-y-6">
   {% include 'aquarium/partials/system_tabs.html' with active='tools' %}
 
@@ -11,7 +11,7 @@
       <h1 class="text-2xl font-black text-white tracking-tight">Phone Alerts &amp; Webhooks</h1>
       <p class="text-xs text-slate-400 mt-0.5">Send what happens in your tank to your phone, Home Assistant, or your own devices</p>
     </div>
-    <a href="{% url 'webhook_create' %}" title="Add connection" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>Add connection</span></a>
+    <a href="{% url 'webhook_create' %}" title="Add connection" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>Add connection</span></a>
   </div>
 
   {% include 'aquarium/partials/mute_card.html' %}
@@ -23,9 +23,34 @@
     </div>
     <div class="p-4 rounded-2xl border {% if api_key_set %}bg-emerald-500/10 border-emerald-500/30{% else %}bg-amber-500/10 border-amber-500/30{% endif %}">
       <p class="text-sm font-bold {% if api_key_set %}text-emerald-300{% else %}text-amber-300{% endif %}">Parameter logging API: {% if api_key_set %}key required{% else %}no key set{% endif %}</p>
-      <p class="text-xs text-slate-400 mt-1">{% if api_key_set %}Only callers with the key can log readings.{% else %}Anyone on your network can post readings, and a false reading could trigger your webhooks. Set <code>API_SECRET_KEY</code> in a <code>.env</code> file beside docker-compose.yml.{% endif %}</p>
+      <p class="text-xs text-slate-400 mt-1">{% if api_key_set %}Only callers with the key can log readings.{% else %}It's switched off: nothing can log readings until you set <code>API_SECRET_KEY</code> in the <code>.env</code> file beside docker-compose.yml and restart.{% endif %}</p>
     </div>
   </div>
+
+  <details class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 group">
+    <summary class="cursor-pointer list-none flex items-center justify-between gap-3">
+      <span class="text-sm font-bold text-white">📡 Log tests from a device or script</span>
+      <span class="text-xs font-semibold text-cyan-400 group-open:hidden">Show how</span>
+    </summary>
+    <div class="mt-4 space-y-3 text-xs text-slate-300">
+      <p>Probes, test kits, Home Assistant or your own scripts can add water tests by sending them here:</p>
+      <p class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-cyan-300 break-all">POST {{ api_log_url }}</p>
+      <ul class="space-y-1.5 list-disc pl-5 text-slate-400">
+        <li>Send your <code>API_SECRET_KEY</code> (from the <code>.env</code> file) in an <code>X-API-Key</code> header. The app never shows the key.</li>
+        <li>Readings without a <code>"tank"</code> go into <strong class="text-slate-200">{{ api_default_tank.name|default:'your primary tank' }}</strong>, your primary tank.{% if api_tanks|length > 1 %} Name another with <code>"tank"</code>: {% for t in api_tanks %}<code>{{ t.name }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}</li>
+        <li><code>"unit"</code> is optional. A reading in another unit, like <code>°C</code> or <code>SG</code>, is converted to the test's own unit.</li>
+        <li><code>"measured_at"</code> is optional (ISO 8601, like <code>2026-11-04T22:30:00Z</code>). Without it, the time is now.</li>
+        <li>A device on your network that can't use Tailscale needs <code>BIND_ADDRESS=0.0.0.0</code> in <code>.env</code> to reach the app.</li>
+      </ul>
+      <pre class="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 whitespace-pre-wrap break-all">curl -X POST {{ api_log_url }}   -H "X-API-Key: YOUR-API-KEY"   -H "Content-Type: application/json"   -d '{"readings": [{"parameter": "alkalinity", "value": 8.4},
+                   {"parameter": "temperature", "value": 25.6, "unit": "°C"}]}'</pre>
+      <div>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Test codes</p>
+        <div class="flex flex-wrap gap-1.5">{% for pt in parameters %}<span class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px]"><code class="text-cyan-300">{{ pt.code }}</code> <span class="text-slate-500">{{ pt.unit }}</span></span>{% endfor %}</div>
+      </div>
+      <p class="text-slate-500"><a href="{{ api_docs_url }}" class="font-semibold text-cyan-400 hover:underline">Open the API docs →</a> to see every field and try it out. The README has Python examples too.</p>
+    </div>
+  </details>
 
   <div class="space-y-3">
     {% for endpoint in endpoints %}

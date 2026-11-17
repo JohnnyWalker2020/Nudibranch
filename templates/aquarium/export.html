@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Export | Nudibranch{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+  <div class="flex items-center gap-3">
+    <a href="{% url 'parameters' %}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <div>
+      <h1 class="text-2xl font-black text-white tracking-tight">Export</h1>
+      <p class="text-xs text-slate-400">Your measurements and logs as spreadsheet (CSV) files for Excel, Numbers or Google Sheets</p>
+    </div>
+  </div>
+
+  <a href="{% url 'import_tests' %}" class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-900 border border-slate-800 hover:border-cyan-500/40 rounded-2xl transition-colors">
+    <span class="text-sm text-slate-200">⬆ <b class="text-white">Import</b> water tests from a spreadsheet</span>
+    <span class="text-xs font-semibold text-cyan-400">Import →</span>
+  </a>
+
+  <!-- Water tests: pick the tank, the layout and the tests -->
+  <form method="GET" action="{% url 'export_tests' %}" id="export-tests" class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xl">
+    <h2 class="text-base font-bold text-white">🧪 Water tests</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <fieldset>
+        <legend class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">From</legend>
+        <div class="space-y-1.5 text-sm text-slate-200">
+          <label class="flex items-center gap-2"><input type="radio" name="tank" value="" checked class="accent-cyan-500"> {{ active_tank.name|default:'This tank' }}</label>
+          <label class="flex items-center gap-2"><input type="radio" name="tank" value="all" class="accent-cyan-500"> Every tank</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Layout</legend>
+        <div class="space-y-1.5 text-sm text-slate-200">
+          <label class="flex items-start gap-2"><input type="radio" name="layout" value="" checked class="accent-cyan-500 mt-1"> <span>One reading per row <span class="block text-[11px] text-slate-500">With each reading's notes</span></span></label>
+          <label class="flex items-start gap-2"><input type="radio" name="layout" value="grid" class="accent-cyan-500 mt-1"> <span>Grid, a column per test <span class="block text-[11px] text-slate-500">Tests taken at the same time share a row, handy for charts</span></span></label>
+        </div>
+      </fieldset>
+    </div>
+
+    <fieldset>
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <legend class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Tests to include</legend>
+        <span class="flex items-center gap-3 text-[11px] font-semibold">
+          <button type="button" data-pick="all" class="text-cyan-400 hover:underline">All</button>
+          <button type="button" data-pick="logged" class="text-cyan-400 hover:underline">With readings</button>
+          <button type="button" data-pick="none" class="text-cyan-400 hover:underline">None</button>
+        </span>
+      </div>
+      <!-- Always sent, so ticking nothing exports nothing rather than everything -->
+      <input type="hidden" name="p" value="">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {% for t in tests %}
+          <label class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-800 hover:border-slate-700 cursor-pointer">
+            <input type="checkbox" name="p" value="{{ t.type.id }}" data-here="{{ t.here }}" data-everywhere="{{ t.everywhere }}" {% if t.here %}checked{% endif %} class="accent-cyan-500">
+            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ t.type.color }}"></span>
+            <span class="min-w-0 flex-1 truncate text-sm text-slate-200">{{ t.type.name }}{% if t.type.unit and t.type.unit|lower != t.type.name|lower %} <span class="text-slate-500 text-xs">{{ t.type.unit }}</span>{% endif %}</span>
+            <span data-count class="shrink-0 text-[11px] {% if t.here %}text-slate-400{% else %}text-slate-600{% endif %}">{{ t.here }}</span>
+          </label>
+        {% empty %}
+          <p class="text-xs text-slate-500">No tests set up yet.</p>
+        {% endfor %}
+      </div>
+      <p class="text-[11px] text-slate-500 mt-2">The number is how many readings each has. The ones with readings start ticked.</p>
+    </fieldset>
+
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
+      <p id="export-summary" class="text-xs text-slate-400"></p>
+      <button type="submit" id="export-download" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none">⬇ Download</button>
+    </div>
+  </form>
+
+  <!-- The other logs: one file each -->
+  <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
+    <h2 class="text-base font-bold text-white">Other logs</h2>
+    {% with link='px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-400' %}
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span class="text-sm text-slate-200">🪣 Water changes</span>
+      <span class="flex flex-wrap gap-2"><a href="{% url 'export_water_changes' %}" class="{{ link }}" download>{{ active_tank.name|default:'This tank' }}</a><a href="{% url 'export_water_changes' %}?tank=all" class="{{ link }}" download>Every tank</a></span>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span class="text-sm text-slate-200">💧 Doses</span>
+      <span class="flex flex-wrap gap-2"><a href="{% url 'export_doses' %}" class="{{ link }}" download>{{ active_tank.name|default:'This tank' }}</a><a href="{% url 'export_doses' %}?tank=all" class="{{ link }}" download>Every tank</a></span>
+    </div>
+    {% endwith %}
+    <p class="text-[11px] text-slate-500">To move the whole app somewhere else, use a <a href="{% url 'backups' %}" class="text-cyan-400 hover:underline">backup</a>. A tank's setup (gear and livestock) exports from its own page.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const form = document.getElementById('export-tests');
+  const boxes = Array.from(form.querySelectorAll('input[type=checkbox][name=p]'));
+  const scope = () => form.querySelector('input[name=tank]:checked').value === 'all' ? 'everywhere' : 'here';
+  let touched = false;  // once you tick or untick something yourself, switching tanks leaves your choice alone
+
+  function refresh() {
+    const key = scope();
+    let readings = 0, picked = 0;
+    boxes.forEach(box => {
+      const n = Number(box.dataset[key]);
+      const count = box.closest('label').querySelector('[data-count]');
+      count.textContent = n;
+      count.classList.toggle('text-slate-400', n > 0);
+      count.classList.toggle('text-slate-600', n === 0);
+      if (box.checked) { picked += 1; readings += n; }
+    });
+    form.querySelector('#export-summary').textContent = picked
+      ? `${picked} test${picked === 1 ? '' : 's'}, ${readings} reading${readings === 1 ? '' : 's'}`
+      : 'Tick at least one test';
+    form.querySelector('#export-download').disabled = picked === 0;
+  }
+  function pick(which) {
+    const key = scope();
+    boxes.forEach(box => { box.checked = which === 'all' || (which === 'logged' && Number(box.dataset[key]) > 0); });
+  }
+
+  form.addEventListener('change', e => {
+    if (e.target.name === 'p') touched = true;
+    if (e.target.name === 'tank' && !touched) pick('logged');
+    refresh();
+  });
+  form.querySelectorAll('[data-pick]').forEach(button => button.addEventListener('click', () => {
+    pick(button.dataset.pick);
+    touched = true;
+    refresh();
+  }));
+  refresh();
+})();
+</script>
+{% endblock %}

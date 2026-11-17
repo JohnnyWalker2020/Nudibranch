@@ -11,10 +11,10 @@
       <h1 class="text-2xl font-black text-white tracking-tight">Tank systems</h1>
       <p class="text-xs text-slate-400 mt-0.5">Display tanks, their sumps and refugium chambers, and estimated water turnover</p>
     </div>
-    <div class="flex items-center gap-2">
-    <a href="{% url 'tank_import' %}" class="inline-flex items-center justify-center px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⬆ Import a tank</a>
+    <div class="flex flex-wrap items-center gap-2">
+    <a href="{% url 'tank_import' %}" class="pill inline-flex items-center justify-center px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">⬆ Import a tank</a>
     {% include 'aquarium/partials/arrange_button.html' with page='tanks' %}
-    <a href="{% url 'tank_create' %}" title="Add Tank" class="act act-add act-primary">{% icon 'box' 'w-5 h-5' %}<span>Add Tank</span></a>
+    <a href="{% url 'tank_create' %}" title="Add Tank" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>Add Tank</span></a>
     </div>
   </div>
 

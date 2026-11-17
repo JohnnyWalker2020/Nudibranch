@@ -1,5 +1,5 @@
 from django.urls import path
-from . import exports, views, views_tools as tools
+from . import exports, imports, openapi, views, views_tools as tools
 
 urlpatterns = [
     # Dashboard & Parameters
@@ -23,6 +23,8 @@ urlpatterns = [
     path('api/parameters/chart-data/all/', views.api_all_chart_data, name='api_all_chart_data'),
     path('api/parameters/types/', views.api_parameter_types, name='api_parameter_types'),
     path('api/parameters/log/', views.api_parameter_log, name='api_parameter_log'),
+    path('api/openapi.json', openapi.openapi_json, name='openapi_json'),
+    path('tools/settings/api/', openapi.api_docs_view, name='api_docs'),
 
     # Livestock GUI
     path('livestock/', views.livestock_view, name='livestock'),
@@ -41,6 +43,7 @@ urlpatterns = [
     path('livestock/<int:animal_id>/another/', views.animal_add_another_view, name='animal_add_another'),
     path('livestock/silly-name/', views.silly_name_view, name='silly_name'),
     path('livestock/<int:animal_id>/silly-name/', views.animal_silly_name_view, name='animal_silly_name'),
+    path('livestock/<int:animal_id>/silly-names/', views.animal_herd_silly_names_view, name='animal_herd_silly_names'),
     path('livestock/<int:animal_id>/epitaph/', tools.animal_epitaph_view, name='animal_epitaph'),
 
     # Common Species Catalog
@@ -52,6 +55,9 @@ urlpatterns = [
     path('dosing/', views.dosing_view, name='dosing'),
     path('dosing/add/', views.dosing_create_view, name='dosing_create'),
     path('dosing/doses/add/', views.dose_log_create, name='dose_log_create'),
+    path('export/', exports.export_page, name='export'),
+    path('import/', imports.import_view, name='import_tests'),
+    path('import/add/', imports.import_confirm_view, name='import_tests_confirm'),
     path('export/water-tests.csv', exports.export_tests, name='export_tests'),
     path('export/water-changes.csv', exports.export_water_changes, name='export_water_changes'),
     path('export/doses.csv', exports.export_doses, name='export_doses'),

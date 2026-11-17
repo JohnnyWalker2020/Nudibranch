@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API docs | Nudibranch</title>
+  {% comment %}A page of its own, without the app's stylesheet, so its styles (8-bit buttons included) leave Swagger alone.{% endcomment %}
+  <link rel="stylesheet" href="/static/vendor/swagger-ui.css">
+  <style>
+    body { margin: 0; background: #fff; }
+    .nudi-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+                padding: 12px 16px; background: #0f172a; color: #e2e8f0; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
+    .nudi-bar a { color: #22d3ee; font-weight: 600; text-decoration: none; }
+    .nudi-bar a:hover { text-decoration: underline; }
+    .nudi-bar strong { color: #fff; font-size: 16px; }
+    .nudi-bar span { color: #94a3b8; font-size: 12px; }
+    /* Long URLs and JSON wrap instead of pushing the page sideways on a phone */
+    .swagger-ui .opblock .opblock-summary-path { word-break: break-all; }
+    .swagger-ui .microlight, .swagger-ui pre { white-space: pre-wrap !important; word-break: break-word; }
+    .swagger-ui .wrapper { padding: 0 12px; }
+  </style>
+</head>
+<body>
+  <div class="nudi-bar">
+    <div><a href="{% url 'app_settings' %}#advanced">← Settings</a></div>
+    <div><strong>📡 API docs</strong> <span>Log water tests from devices and scripts</span></div>
+    <div><a href="{% url 'openapi_json' %}" download="nudibranch-openapi.json">Download openapi.json</a></div>
+  </div>
+  <div id="swagger"></div>
+  <script src="/static/vendor/swagger-ui-bundle.js"></script>
+  <script>
+    SwaggerUIBundle({
+      url: '{% url "openapi_json" %}',
+      dom_id: '#swagger',
+      deepLinking: true,
+      persistAuthorization: false,   // the key is forgotten when the page closes
+      defaultModelsExpandDepth: 0,
+      docExpansion: 'list',
+      syntaxHighlight: { activate: true, theme: 'agate' },
+    });
+  </script>
+</body>
+</html>

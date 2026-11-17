@@ -153,7 +153,7 @@ def act(kind, href='', label=None, title='', primary=False, button=False, compac
         css += ' act-compact'
     if extra:
         css += ' ' + extra
-    img = icon(picture, 'w-5 h-5' if primary else 'w-4 h-4')
+    img = icon(picture, 'w-4 h-4')  # the same size in every button, so header rows line up
     text = format_html('<span class="sr-only">{}</span>', label) if compact else format_html('<span>{}</span>', label)
     if button:
         named = format_html(' name="{}" value="{}"', name, value) if name else ''

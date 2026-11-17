@@ -2,7 +2,7 @@
 
 {% block title %}Settings | Nudibranch{% endblock %}
 
-{% block content %}
+{% block content %}{% url 'api_docs' as api_docs_url %}
 <div class="max-w-xl mx-auto space-y-6">
   <div class="flex items-center gap-3">
     <a href="{{ back_url }}" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Back">
@@ -19,6 +19,7 @@
       <a href="#{{ section.anchor }}" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">{{ section.title }}</a>
     {% endfor %}
     <a href="#advanced" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">🛠️ Advanced</a>
+    <a href="{{ api_docs_url }}" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">📡 API docs</a>
   </nav>
 
   <form method="POST" class="space-y-4">
@@ -67,7 +68,10 @@
       <h2 class="text-base font-bold text-white">🛠️ Advanced</h2>
       <p class="text-[11px] text-slate-500">Rarely needed.</p>
     </div>
-    <a href="/admin/" class="inline-flex px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors">Open Django admin</a>
+    <div class="flex flex-wrap gap-2">
+      <a href="/admin/" class="inline-flex px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors">Open Django admin</a>
+      <a href="{{ api_docs_url }}" class="inline-flex px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors">📡 API docs (Swagger)</a>
+    </div>
     <p class="text-[11px] text-amber-300">Django admin edits the database directly and skips the checks the app's own pages make, so a mistake there can break things. Take a backup first (Tools &gt; Backups), and use the app's pages for anything they can do.</p>
   </section>
 </div>

@@ -2,19 +2,20 @@
 
 {% block title %}Water Quality | Nudibranch{% endblock %}
 
-{% block content %}
+{% block content %}{% url 'export' as export_url %}
 <div class="space-y-6">
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
       <h1 class="text-2xl font-black text-white tracking-tight">Water Quality</h1>
       <p class="text-xs text-slate-400 mt-0.5">Historical measurements, trends, and the full log</p>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{{ export_url }}" class="pill inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors" title="Download your test results as a spreadsheet file, or bring some in">⬇ Export / ⬆ Import</a>
       {% if selected_param %}
-        <a href="{% url 'parameter_settings' selected_param.id %}" class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors" title="Change units, decimals and ideal range">⚙️ {{ selected_param.name }} settings</a>
+        <a href="{% url 'parameter_settings' selected_param.id %}" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors" title="Change units, decimals and ideal range">⚙️ {{ selected_param.name }} settings</a>
       {% endif %}
       {% include 'aquarium/partials/arrange_button.html' with page='parameters' %}
-      <button type="button" onclick="openQuickLogModal({% if selected_param and selected_code %}{{ selected_param.id }}{% endif %})" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">+ Log Test</button>
+      <button type="button" onclick="openQuickLogModal({% if selected_param and selected_code %}{{ selected_param.id }}{% endif %})" title="Log Test" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>Log Test</span></button>
     </div>
   </div>
 
@@ -58,7 +59,7 @@
       <h3 class="text-base font-bold text-white">Log History</h3>
       <span class="flex items-center gap-3 text-xs">
         <span class="text-slate-500">newest first</span>
-        <a href="{% url 'export_tests' %}" class="font-semibold text-slate-400 hover:text-cyan-400" title="Every test for this tank, as a spreadsheet file">Export CSV</a>
+        <a href="{{ export_url }}" class="font-semibold text-slate-400 hover:text-cyan-400" title="Download your test results as a spreadsheet file">Export</a>
       </span>
     </div>
     <div id="recent-logs-list" class="space-y-1.5">

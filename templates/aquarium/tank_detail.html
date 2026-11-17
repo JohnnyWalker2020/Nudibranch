@@ -19,12 +19,12 @@
     </div>
     <div class="flex flex-wrap items-center gap-2">
       {% if tank.is_archived %}
-      <form method="POST" action="{% url 'tank_restore' tank.id %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Bring back</button></form>
+      <form method="POST" action="{% url 'tank_restore' tank.id %}">{% csrf_token %}<button class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Bring back</button></form>
       {% else %}
-      <form method="POST" action="{% url 'tank_archive' tank.id %}" onsubmit="return confirm('Retire {{ tank.name|escapejs }}? All its data is kept, but it stops sending alerts and running schedules. You can bring it back at any time.')">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Retire</button></form>
+      <form method="POST" action="{% url 'tank_archive' tank.id %}" onsubmit="return confirm('Retire {{ tank.name|escapejs }}? All its data is kept, but it stops sending alerts and running schedules. You can bring it back at any time.')">{% csrf_token %}<button class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">🧓 Retire</button></form>
       {% endif %}
       <a href="{% url 'tank_look' tank.id %}" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">🎨 Icon &amp; colours</a>
-      <span class="inline-flex rounded-xl border border-slate-800 bg-slate-900 overflow-hidden text-xs font-semibold">
+      <span class="pill-group inline-flex rounded-xl border border-slate-800 bg-slate-900 overflow-hidden text-xs font-semibold">
         <a href="{% url 'tank_export' tank.id %}" title="Download this tank's setup as a YAML file you can import or share (no prices)" class="pill px-3.5 py-2.5 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">⬇ Export</a>
         {% if costs_enabled %}<a href="{% url 'tank_export' tank.id %}?prices=1" title="The same file with what you paid for each thing" class="pill px-3 py-2.5 border-l border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">with prices</a>{% endif %}
       </span>
@@ -82,9 +82,8 @@
   <!-- The display tank: its gear and who lives in it -->
   <div data-card="display" data-card-title="Display tank" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
     <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Display tank">
-      <span class="card-mini-title">{% icon 'tank' %} Display tank</span>
+      <span class="card-mini-title">{% include 'aquarium/partials/card_mini_chevron.html' %}{% icon 'tank' %} Display tank</span>
       <span class="card-mini-data"><span><b>{{ tank.volume_gallons }}</b> gal</span>{% for section in livestock_sections %}<span>{{ section.icon }} <b>{{ section.items|length }}</b> {{ section.title|lower }}</span>{% endfor %}<span>⚙️ <b>{{ display_equipment|length }}</b> gear</span></span>
-      {% include 'aquarium/partials/card_mini_chevron.html' %}
     </button>
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
@@ -143,9 +142,8 @@
   <!-- Flow & turnover -->
   <div data-card="flow" data-card-title="Flow &amp; water turnover" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
     <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Flow and water turnover">
-      <span class="card-mini-title"><span>🌊</span> Flow</span>
+      <span class="card-mini-title">{% include 'aquarium/partials/card_mini_chevron.html' %}<span>🌊</span> Flow</span>
       <span class="card-mini-data"><span>Return <b class="{% if flow.return_status == 'ok' %}text-emerald-400{% elif flow.return_status == 'unknown' %}text-slate-500{% else %}text-amber-400{% endif %}">{% if flow.return_turnover %}{{ flow.return_turnover }}×{% else %}—{% endif %}</b>/hr</span><span>Circulation <b class="{% if flow.circulation_status == 'ok' %}text-emerald-400{% elif flow.circulation_status == 'unknown' %}text-slate-500{% else %}text-amber-400{% endif %}">{% if flow.circulation_turnover %}{{ flow.circulation_turnover }}×{% else %}—{% endif %}</b>/hr</span><span><b>{{ flow.return_gph }}</b> + <b>{{ flow.wavemaker_gph }}</b> gph</span></span>
-      {% include 'aquarium/partials/card_mini_chevron.html' %}
     </button>
     <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
       <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Flow and water turnover' %}<span>🌊</span> Flow &amp; Water Turnover</h2>
@@ -230,9 +228,8 @@
   <!-- Sumps -->
   <div data-card="sumps" data-card-title="Sump{{ sump_rows|length|pluralize }}" class="space-y-6">
     <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Sumps">
-      <span class="card-mini-title">{% icon 'sump' %} Sump{{ sump_rows|length|pluralize }}</span>
+      <span class="card-mini-title">{% include 'aquarium/partials/card_mini_chevron.html' %}{% icon 'sump' %} Sump{{ sump_rows|length|pluralize }}</span>
       <span class="card-mini-data">{% for row in sump_rows %}{% with sump=row.sump %}<span>{% if sump_rows|length > 1 %}{{ sump.name }} {% endif %}<b data-sump-gal="{{ sump.id }}">{{ sump.volume_gallons }}</b> gal{% if row.chambers %} · {{ row.chambers|length }} chamber{{ row.chambers|length|pluralize }}{% endif %} · <span class="mini-bar"><span class="block h-full" style="width: {{ sump.fill_percent|floatformat:0 }}%; background: #22d3ee;"></span></span> {{ sump.fill_percent|floatformat:0 }}% full</span>{% endwith %}{% empty %}<span>No sump yet</span>{% endfor %}</span>
-      {% include 'aquarium/partials/card_mini_chevron.html' %}
     </button>
   {% for row in sump_rows %}
     {% with sump=row.sump %}
@@ -314,9 +311,8 @@
   <!-- Dosing containers and ATO: the same cards as Dosing & ATO, which has the rest (logging doses, the estimator) -->
   <div data-card="reservoirs" data-card-title="Dosing &amp; ATO" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
     <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Dosing and ATO">
-      <span class="card-mini-title"><span>💧</span> Dosing &amp; ATO</span>
+      <span class="card-mini-title">{% include 'aquarium/partials/card_mini_chevron.html' %}<span>💧</span> Dosing &amp; ATO</span>
       <span class="card-mini-data">{% for res in reservoirs %}<span>{{ res.name }} <span class="mini-bar"><span class="block h-full" style="width: {{ res.percent_remaining }}%; background: {{ res.color }};"></span></span> <b class="{% if res.is_low %}text-amber-400{% endif %}">{{ res.percent_remaining }}%</b>{% if res.days_remaining is not None %} · ~{{ res.days_remaining|floatformat:"0" }}d{% endif %}</span>{% empty %}<span>No containers yet</span>{% endfor %}</span>
-      {% include 'aquarium/partials/card_mini_chevron.html' %}
     </button>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
@@ -337,9 +333,8 @@
   <!-- Lighting -->
   <div data-card="lighting" data-card-title="Lighting" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
     <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Lighting">
-      <span class="card-mini-title"><span>💡</span> Lighting</span>
+      <span class="card-mini-title">{% include 'aquarium/partials/card_mini_chevron.html' %}<span>💡</span> Lighting</span>
       <span class="card-mini-data"><span><b>{{ lights|length }}</b> light{{ lights|length|pluralize }}</span>{% if light_summary.watts_full %}<span>~<b>{{ light_summary.watts_now }}</b> W now of {{ light_summary.watts_full }} W</span>{% endif %}</span>
-      {% include 'aquarium/partials/card_mini_chevron.html' %}
     </button>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
@@ -379,9 +374,8 @@
   <!-- Filters -->
   <div data-card="filters" data-card-title="Filters" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
     <button type="button" data-card-mini hidden class="card-mini" aria-label="Unfold Filters">
-      <span class="card-mini-title"><span>🧦</span> Filters</span>
+      <span class="card-mini-title">{% include 'aquarium/partials/card_mini_chevron.html' %}<span>🧦</span> Filters</span>
       <span class="card-mini-data"><span><b>{{ filters|length }}</b> filter{{ filters|length|pluralize }}</span>{% if filters_due %}<span><b class="text-amber-400">{{ filters_due }} change{{ filters_due|pluralize }} due</b></span>{% elif filters %}<span>nothing due</span>{% endif %}</span>
-      {% include 'aquarium/partials/card_mini_chevron.html' %}
     </button>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>

@@ -12,11 +12,11 @@
         <p class="text-xs text-slate-400">{% if plan.project %}<a href="{% url 'project_detail' plan.project.id %}" class="text-cyan-400 hover:underline">📁 {{ plan.project.name }}</a> · {% endif %}{{ plan.get_goal_display }}{% if plan.existing_tank %} · Additions to {{ plan.existing_tank.name }}{% endif %}{% if plan.tracked_tank %} · <a href="{% url 'tank_detail' plan.tracked_tank.id %}" class="text-emerald-400 hover:underline">Tracking as {{ plan.tracked_tank.name }}</a>{% endif %}</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <form method="POST" action="{% url 'plan_duplicate' plan.id %}">{% csrf_token %}<button class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl font-semibold text-xs">Copy</button></form>
-      <a href="{% url 'plan_edit' plan.id %}" title="Edit plan" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit plan</span></a>
+    <div class="flex flex-wrap items-center gap-2">
+      <form method="POST" action="{% url 'plan_duplicate' plan.id %}">{% csrf_token %}<button class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">Copy</button></form>
+      <a href="{% url 'plan_edit' plan.id %}" title="Edit plan" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors">{% icon 'glue' 'w-4 h-4' %}<span>Edit plan</span></a>
       {% if a.untracked_count or not plan.tracked_tank %}
-      <a href="{% url 'plan_track' plan.id %}" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-bold text-xs rounded-xl">{% if plan.existing_tank or plan.tracked_tank %}Add to tracking{% else %}Start tracking this tank{% endif %}</a>
+      <a href="{% url 'plan_track' plan.id %}" class="act act-primary"><span>{% if plan.existing_tank or plan.tracked_tank %}Add to tracking{% else %}Start tracking this tank{% endif %}</span></a>
       {% endif %}
     </div>
   </div>

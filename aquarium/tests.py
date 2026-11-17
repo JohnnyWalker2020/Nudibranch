@@ -5696,6 +5696,37 @@ class LivestockHerdAndFlushTests(TestCase):
         # Deleting for good is on the edit page
         self.assertContains(self.client.get(reverse('animal_edit', args=[a.pk])), 'Delete for good')
 
+    def test_edit_page_has_flush_at_the_top_and_delete_by_save(self):
+        a = Animal.objects.create(name='Blue tang', tank=self.tank)
+        page = self.client.get(reverse('animal_edit', args=[a.pk]) + '?next=/livestock/').content.decode()
+        flush = page.index(f'action="{reverse("animal_flush", args=[a.pk])}"')
+        form = page.index('enctype="multipart/form-data"')
+        delete = page.index('form="delete-animal"')
+        save = page.index('>Save</button>')
+        self.assertLess(flush, form)            # Flush is up top, outside the edit form
+        self.assertLess(form, delete)           # Delete sits down by Cancel and Save
+        self.assertLess(delete, save)
+        # Both ask first with a pop-up; Delete posts its own form, so Enter in a field can't set it off
+        self.assertEqual(page.count(f'action="{reverse("animal_delete", args=[a.pk])}"'), 1)
+        delete_form = page.split('id="delete-animal"', 1)[1].split('</form>', 1)[0]
+        self.assertIn("return confirm('Delete Blue tang for good?", delete_form)
+        self.assertIn("return confirm('Flush Blue tang?", page)
+        self.assertNotIn('is for when it dies', page)
+        # Flushing from there goes back where the page was opened from
+        response = self.client.post(reverse('animal_flush', args=[a.pk]), {'next': '/livestock/'})
+        self.assertRedirects(response, '/livestock/', fetch_redirect_response=False)
+        a.refresh_from_db()
+        self.assertEqual(a.status, 'deceased')
+        page = self.client.get(reverse('animal_edit', args=[a.pk])).content.decode()
+        self.assertNotIn(f'action="{reverse("animal_flush", args=[a.pk])}"', page)
+        self.assertIn('Flushed: it has a headstone', page)
+        # Adding a new one has neither
+        self.assertNotContains(self.client.get(reverse('animal_create')), 'Delete for good')
+        # The pop-up's yes deletes it straight away
+        response = self.client.post(reverse('animal_delete', args=[a.pk]), {'next': '/livestock/'})
+        self.assertRedirects(response, '/livestock/', fetch_redirect_response=False)
+        self.assertFalse(Animal.objects.filter(pk=a.pk).exists())
+
     def test_split_makes_individuals_on_one_card(self):
         group, _ = AnimalGroup.objects.get_or_create(name='School')
         a = Animal.objects.create(name='Chromis', tank=self.tank, count=3, paid=Decimal('10.00'))
@@ -5892,3 +5923,287 @@ class TankPageReservoirsAndFoldingTests(TestCase):
         self.assertEqual(page.context['filters_due'], 1)
         self.assertContains(page, '1 change due')
 
+
+class SplitCardSillyNameTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.crab = Animal.objects.create(name='Blue Leg Hermit Crab', species='Clibanarius tricolor', tank=self.tank, count=4)
+        self.client.post(reverse('animal_split', args=[self.crab.pk]))
+        self.crabs = list(Animal.objects.filter(herd__isnull=False).order_by('id'))
+
+    def test_each_unnamed_one_gets_a_dice_button_and_the_card_a_name_all(self):
+        page = self.client.get(reverse('livestock')).content.decode()
+        for crab in self.crabs:
+            self.assertIn(f'action="{reverse("animal_silly_name", args=[crab.pk])}"', page)
+        self.assertIn('🎲 Name all 4', page)
+        self.assertIn(f'#card-h{self.crabs[0].herd.hex[:12]}"', page)  # comes back to the same card
+
+    def test_one_at_a_time(self):
+        target = self.crabs[1]
+        response = self.client.post(reverse('animal_silly_name', args=[target.pk]), {'next': '/livestock/#card-x'})
+        self.assertRedirects(response, '/livestock/#card-x', fetch_redirect_response=False)
+        target.refresh_from_db()
+        self.assertTrue(target.nickname)
+        self.assertEqual(Animal.objects.filter(herd=target.herd, nickname='').count(), 3)
+        self.assertContains(self.client.get(reverse('livestock')), '🎲 Name all 3')
+
+    def test_name_all_names_only_the_unnamed_living_ones(self):
+        first, second, third, fourth = self.crabs
+        Animal.objects.filter(pk=first.pk).update(nickname='Pinchy')
+        Animal.objects.filter(pk=fourth.pk).update(status='deceased')
+        self.client.post(reverse('animal_herd_silly_names', args=[second.pk]))
+        names = dict(Animal.objects.filter(herd=first.herd).values_list('pk', 'nickname'))
+        self.assertEqual(names[first.pk], 'Pinchy')
+        self.assertTrue(names[second.pk] and names[third.pk])
+        self.assertNotEqual(names[second.pk], names[third.pk])
+        self.assertEqual(names[fourth.pk], '')
+        page = self.client.get(reverse('livestock')).content.decode()
+        self.assertNotIn('🎲 Name all', page)
+        self.assertNotIn(f'action="{reverse("animal_silly_name", args=[fourth.pk])}"', page)
+
+    def test_name_all_needs_a_post(self):
+        self.assertEqual(self.client.get(reverse('animal_herd_silly_names', args=[self.crabs[0].pk])).status_code, 405)
+
+
+class ExportPageTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.other = Tank.objects.create(name='Frag', volume_gallons=20)
+        self.alk = ParameterType.objects.create(name='Alkalinity', code='alk', unit='dKH', decimal_places=1, display_order=1, min_ideal=8, max_ideal=9)
+        self.ph = ParameterType.objects.create(name='pH', code='ph', unit='pH', decimal_places=2, display_order=2, min_ideal=8, max_ideal=8.4)
+        self.no3 = ParameterType.objects.create(name='Nitrate', code='no3', unit='ppm', display_order=3, min_ideal=2, max_ideal=10)
+        when = timezone.make_aware(datetime(2026, 5, 1, 9, 0))
+        ParameterLog.objects.create(tank=self.tank, parameter_type=self.alk, value=Decimal('8.4'), measured_at=when)
+        ParameterLog.objects.create(tank=self.tank, parameter_type=self.ph, value=Decimal('8.21'), measured_at=when)
+        ParameterLog.objects.create(tank=self.tank, parameter_type=self.alk, value=Decimal('8.1'), measured_at=when + timedelta(days=1))
+        ParameterLog.objects.create(tank=self.other, parameter_type=self.no3, value=Decimal('5'), measured_at=when)
+
+    def csv(self, **query):
+        return self.client.get(reverse('export_tests'), query).content.decode('utf-8-sig').strip().splitlines()
+
+    def test_tests_with_readings_start_ticked(self):
+        page = self.client.get(reverse('export'))
+        counts = {t['type'].name: (t['here'], t['everywhere']) for t in page.context['tests']}
+        self.assertEqual(counts, {'Alkalinity': (2, 2), 'pH': (1, 1), 'Nitrate': (0, 1)})
+        html = page.content.decode()
+        self.assertIn(f'value="{self.alk.pk}" data-here="2" data-everywhere="2" checked', html)
+        self.assertIn(f'value="{self.no3.pk}" data-here="0" data-everywhere="1"  class', html)
+        self.assertIn('<input type="hidden" name="p" value="">', html)
+
+    def test_only_the_ticked_tests_are_exported(self):
+        rows = self.csv(p=['', str(self.ph.pk)])
+        self.assertEqual(len(rows), 2)
+        self.assertIn('pH,8.21', rows[1])
+        # Nothing ticked: just the header, not everything
+        self.assertEqual(len(self.csv(p='')), 1)
+        # The old link with no choices still gets every test
+        self.assertEqual(len(self.csv()), 4)
+
+    def test_grid_has_a_row_per_test_time_and_a_column_per_test(self):
+        rows = self.csv(layout='grid', tank='all')
+        self.assertEqual(rows[0], 'Tank,Measured at,Alkalinity (dKH),pH,Nitrate (ppm)')
+        # In time order, and tanks by name when tested at the same time
+        self.assertEqual(rows[1:], ['Frag,2026-05-01 09:00,,,5.0', 'Main,2026-05-01 09:00,8.4,8.21,',
+                                    'Main,2026-05-02 09:00,8.1,,'])
+        picked = self.csv(layout='grid', p=['', str(self.alk.pk)])
+        self.assertEqual(picked[0], 'Tank,Measured at,Alkalinity (dKH)')
+
+    def test_pages_link_to_it(self):
+        for name in ('parameters', 'backups'):
+            self.assertContains(self.client.get(reverse(name)), f'href="{reverse("export")}"', msg_prefix=name)
+
+
+class ImportTestsTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.frag = Tank.objects.create(name='Frag', volume_gallons=20)
+        self.alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', decimal_places=1,
+                                                display_order=1, min_ideal=8, max_ideal=9)
+        self.temp = ParameterType.objects.create(name='Temperature', code='temperature', unit='°F', decimal_places=1,
+                                                 display_order=2, min_ideal=76, max_ideal=80)
+        self.sal = ParameterType.objects.create(name='Salinity', code='salinity', unit='ppt', decimal_places=1,
+                                                display_order=3, min_ideal=34, max_ideal=36)
+
+    def upload(self, text, name='tests.csv', **extra):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        data = {'file': SimpleUploadedFile(name, text.encode('utf-8'), content_type='text/csv'), 'tank': self.tank.pk,
+                'date_order': 'auto', **extra}
+        return self.client.post(reverse('import_tests'), data)
+
+    def test_preview_saves_nothing_until_add(self):
+        page = self.upload('Date,Parameter,Value,Unit\n2026-03-25 09:00,Alkalinity,8.4,dKH\n2026-03-26 09:00,Alk,8.1,\n')
+        self.assertEqual(page.context['new_count'], 2)
+        self.assertEqual(ParameterLog.objects.count(), 0)
+        self.assertContains(page, 'Add 2 readings')
+        response = self.client.post(reverse('import_tests_confirm'))
+        self.assertRedirects(response, reverse('parameters'), fetch_redirect_response=False)
+        logs = list(ParameterLog.objects.order_by('measured_at'))
+        self.assertEqual([(l.tank, l.parameter_type, l.value) for l in logs],
+                         [(self.tank, self.alk, Decimal('8.4')), (self.tank, self.alk, Decimal('8.1'))])
+        self.assertEqual(timezone.localtime(logs[0].measured_at).strftime('%Y-%m-%d %H:%M'), '2026-03-25 09:00')
+        # Add again with nothing waiting does nothing
+        self.client.post(reverse('import_tests_confirm'))
+        self.assertEqual(ParameterLog.objects.count(), 2)
+
+    def test_importing_the_same_file_twice_adds_nothing_the_second_time(self):
+        text = 'Date,Alkalinity (dKH),Temperature (°F)\n2026-03-25 09:00,8.4,78\n'
+        self.upload(text)
+        self.client.post(reverse('import_tests_confirm'))
+        page = self.upload(text)
+        self.assertEqual((page.context['new_count'], page.context['duplicate_count']), (0, 2))
+        self.assertContains(page, 'Nothing new to add.')
+
+    def test_own_export_comes_back_in_both_layouts(self):
+        when = timezone.make_aware(datetime(2026, 5, 1, 9, 0))
+        for layout in ('', 'grid'):
+            ParameterLog.objects.all().delete()
+            ParameterLog.objects.create(tank=self.frag, parameter_type=self.alk, value=Decimal('8.4'), measured_at=when, notes='=sum')
+            ParameterLog.objects.create(tank=self.tank, parameter_type=self.temp, value=Decimal('78.2'), measured_at=when)
+            text = self.client.get(reverse('export_tests'), {'tank': 'all', 'layout': layout}).content.decode('utf-8-sig')
+            ParameterLog.objects.all().delete()
+            self.upload(text)
+            self.client.post(reverse('import_tests_confirm'))
+            got = {(l.tank.name, l.parameter_type.name, l.value) for l in ParameterLog.objects.all()}
+            self.assertEqual(got, {('Frag', 'Alkalinity', Decimal('8.4')), ('Main', 'Temperature', Decimal('78.2'))}, layout)
+            if not layout:
+                # The formula guard comes off the note again
+                self.assertEqual(ParameterLog.objects.get(parameter_type=self.alk).notes, '=sum')
+
+    def test_other_apps_files(self):
+        text = ('Date;Time;Temp (°C);Salinity (SG);KH;Mystery;Notes\n'
+                '25/10/2026;8:30 PM;25,5;1,025;8,2;3;fresh mix\n'
+                '26/10/2026;08:15;26;;abc;;\n'
+                '31/12/2099;09:00;26;;;;\n')
+        page = self.upload(text)
+        self.assertEqual(page.context['new_count'], 4)
+        notes = ' '.join(page.context['notes'])
+        self.assertIn("“Mystery” isn't one of your tests", notes)
+        reasons = [p['reason'] for p in page.context['problems']]
+        self.assertIn("Alkalinity: “abc” isn't a plain number", reasons)
+        self.assertIn('Dated in the future', reasons)
+        self.client.post(reverse('import_tests_confirm'))
+        temps = {timezone.localtime(l.measured_at).strftime('%m-%d %H:%M'): l.value
+                 for l in ParameterLog.objects.filter(parameter_type=self.temp)}
+        self.assertEqual(temps, {'10-25 20:30': Decimal('77.9'), '10-26 08:15': Decimal('78.8')})
+        self.assertEqual(ParameterLog.objects.get(parameter_type=self.sal).value, Decimal('33.5'))
+        self.assertEqual(ParameterLog.objects.get(parameter_type=self.alk).notes, 'fresh mix')
+
+    def test_unclear_dates_are_read_month_first_unless_told(self):
+        text = 'Date,Alkalinity\n03/04/2026,8.4\n'
+        page = self.upload(text)
+        self.assertIn('read month first', ' '.join(page.context['notes']))
+        self.assertEqual(page.context['sample'][0]['when'].strftime('%m-%d'), '03-04')
+        page = self.upload(text, date_order='day')
+        self.assertEqual(page.context['sample'][0]['when'].strftime('%m-%d'), '04-03')
+
+    def test_units_it_cant_convert_are_left_out(self):
+        page = self.upload('Date,Alkalinity (furlongs)\n2026-03-25,8.4\n')
+        self.assertEqual(page.context['new_count'], 0)
+        self.assertIn('Alkalinity: no way to convert furlongs to dKH', page.context['problems'][0]['reason'])
+
+    def test_unknown_tank_names_go_into_the_chosen_tank(self):
+        page = self.upload('Tank,Date,Alkalinity\nSomeone else,2026-03-25,8.4\nFrag,2026-03-25,8.1\n')
+        self.assertIn("Someone else isn't one of your tanks", ' '.join(page.context['notes']))
+        self.client.post(reverse('import_tests_confirm'))
+        self.assertEqual(dict(ParameterLog.objects.values_list('tank__name', 'value')),
+                         {'Main': Decimal('8.4'), 'Frag': Decimal('8.1')})
+
+    def test_no_date_column(self):
+        page = self.upload('Alkalinity\n8.4\n')
+        self.assertIn("There's no date column", page.context['problems'][0]['reason'])
+        self.assertNotContains(page, 'Add 0 readings')
+
+    def test_export_and_backups_link_to_import(self):
+        self.assertContains(self.client.get(reverse('export')), f'href="{reverse("import_tests")}"')
+        self.assertContains(self.client.get(reverse('backups')), f'href="{reverse("import_tests")}"')
+
+
+class ApiUnitsDocsAndHelpTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.temp = ParameterType.objects.create(name='Temperature', code='temperature', unit='°F', decimal_places=1,
+                                                 display_order=1, min_ideal=76, max_ideal=80)
+        self.alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', decimal_places=1,
+                                                display_order=2, min_ideal=8, max_ideal=9)
+
+    def post(self, payload, **headers):
+        return self.client.post(reverse('api_parameter_log'), json.dumps(payload), content_type='application/json', **headers)
+
+    def test_a_reading_in_another_unit_is_converted(self):
+        response = self.post({'parameter': 'temperature', 'value': 25.6, 'unit': '°C'})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(ParameterLog.objects.get().value, Decimal('78.08'))
+        # A unit the app can't convert is refused for that reading, and the rest are still saved
+        response = self.post({'readings': [{'parameter': 'alkalinity', 'value': 3, 'unit': 'furlongs'},
+                                           {'parameter': 'alkalinity', 'value': 8.3}]})
+        self.assertEqual(response.json()['count'], 1)
+        self.assertIn("can't convert furlongs to dKH", response.json()['warnings'][0])
+
+    def test_a_time_it_cant_read_is_refused_not_logged_as_now(self):
+        response = self.post({'parameter': 'alkalinity', 'value': 8.3, 'measured_at': 'yesterday'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("can't read the time 'yesterday'", response.json()['errors'][0])
+        self.assertFalse(ParameterLog.objects.exists())
+
+    def test_unknown_test_lists_only_the_tests_in_use(self):
+        self.assertTrue(ParameterType.objects.filter(code='cobalt', is_trace=True).exists())  # an ICP element, switched off
+        message = self.post({'parameter': 'nope', 'value': 1}).json()['errors'][0]
+        self.assertIn('Valid codes: alkalinity, temperature', message)
+        self.assertNotIn('cobalt', message)
+
+    def test_the_api_description_matches_this_install(self):
+        spec = self.client.get(reverse('openapi_json')).json()
+        self.assertEqual(spec['openapi'], '3.0.3')
+        self.assertEqual(spec['servers'][0]['url'], 'http://testserver')
+        reading = spec['components']['schemas']['Reading']['properties']
+        self.assertEqual(reading['parameter']['enum'], ['temperature', 'alkalinity'])
+        self.assertEqual(reading['tank']['enum'], ['Main'])
+        examples = spec['paths']['/api/parameters/log/']['post']['requestBody']['content']['application/json']['examples']
+        # The examples log sensible values: the middle of each test's ideal range
+        self.assertEqual(examples['one']['value'], {'parameter': 'alkalinity', 'value': 8.5, 'notes': 'Hanna checker'})
+        self.assertEqual(len(examples['batch']['value']['readings']), 2)
+        self.assertIn('X-API-Key', json.dumps(spec['components']['securitySchemes']))
+
+    def test_docs_page_is_linked_from_settings_and_integrations(self):
+        page = self.client.get(reverse('api_docs')).content.decode()
+        self.assertIn('/static/vendor/swagger-ui-bundle.js', page)
+        self.assertIn(f"url: '{reverse('openapi_json')}'", page)
+        self.assertIn('persistAuthorization: false', page)
+        self.assertNotIn('/static/css/tailwind.css', page)  # the app's styles stay off it
+        self.assertContains(self.client.get(reverse('app_settings')), f'href="{reverse("api_docs")}"')
+        help_card = self.client.get(reverse('integrations')).content.decode()
+        self.assertIn(f'href="{reverse("api_docs")}"', help_card)
+        self.assertIn('POST http://testserver/api/parameters/log/', help_card)
+        self.assertIn('<strong class="text-slate-200">Main</strong>', help_card)
+
+    def test_no_key_message_says_the_api_is_off(self):
+        page = self.client.get(reverse('integrations')).content.decode()
+        self.assertIn("It's switched off: nothing can log readings", page)
+        self.assertNotIn('Anyone on your network can post readings', page)
+
+    def test_swagger_files_are_served_locally_without_map_links(self):
+        for name in ('swagger-ui-bundle.js', 'swagger-ui.css'):
+            text = (Path(settings.BASE_DIR) / 'static/vendor' / name).read_text(encoding='utf-8')
+            self.assertNotIn('sourceMappingURL', text, name)
+            self.assertGreater(len(text), 10000, name)
+
+
+@override_settings(LOGIN_REQUIRED=True, API_SECRET_KEY='device-key')
+class ApiDocsSignInTests(TestCase):
+    def test_spec_needs_sign_in_or_the_key(self):
+        self.assertEqual(self.client.get(reverse('openapi_json')).status_code, 401)
+        self.assertEqual(self.client.get(reverse('openapi_json'), HTTP_X_API_KEY='device-key').status_code, 200)
+        self.assertEqual(self.client.get(reverse('api_docs')).status_code, 302)  # to sign in
+
+
+class LogRowIconTests(TestCase):
+    def test_log_rows_use_the_app_icons_and_wrap(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9)
+        log = ParameterLog.objects.create(tank=tank, parameter_type=alk, value=Decimal('6.9'))
+        page = self.client.get(reverse('parameters')).content.decode()
+        row = page.split(f'id="log-entry-{log.pk}"', 1)[1].split('</div>\n</div>', 1)[0]
+        self.assertIn('act act-edit act-compact', row)
+        self.assertIn('class="act act-delete act-compact"', row)
+        self.assertIn('flex flex-wrap items-center gap-x-2', row)
+        self.assertIn('whitespace-nowrap px-1.5', row)

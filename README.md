@@ -461,7 +461,9 @@ X-API-Key: YOUR-API-KEY
   "measured_at": "2026-11-04T22:30:00Z"
 }
 ```
-*(Note: `parameter` matches case-insensitively by code, name, or ID. `measured_at` and `notes` are optional; the time defaults to now).*
+*(Note: `parameter` matches case-insensitively by code, name, or ID. `measured_at`, `unit` and `notes` are optional; the time defaults to now. A `measured_at` that can't be read is refused rather than logged at the wrong time.)*
+
+Add `"unit"` when a reading isn't in the test's own unit, such as a probe reporting `°C` or a refractometer in `SG`. It's converted the same way as an import; a unit the app can't convert is refused for that reading. **Tools › Phone Alerts & Webhooks** shows your address, tank names and test codes under *Log tests from a device or script*.
 
 To log to a specific tank, add `"tank"` (ID or name), on each reading or once for a whole batch. Without it, readings go to your primary tank. Retired tanks don't accept new readings.
 
@@ -572,7 +574,7 @@ docker compose run --rm --no-deps -e DATA_DIR=/tmp/testdata --entrypoint python 
 - `aquarium/species_catalog.csv`: the built-in species list.
 - `static/icons/nudibranch/`: character icons, two PNG files per character. To add a character, copy the naming of an existing pair and restart. Small copies are generated at startup in `thumbs/`.
 - `.env.example`: the settings to copy into your private `.env`.
-- `static/css/tailwind.css` and `static/vendor/`: the styling and libraries, served from the app so it works without internet. The app doesn't need Node. If you change the classes used in a template, rebuild the CSS (below).
+- `static/css/tailwind.css` and `static/vendor/`: the styling and libraries (htmx, Chart.js, and Swagger UI for the API docs page, under the Apache 2.0 licence), served from the app so it works without internet. The app doesn't need Node. If you change the classes used in a template, rebuild the CSS (below).
 - `static/fonts/`: the Press Start 2P pixel font used by the 8-bit style, by The Press Start 2P Project Authors under the SIL Open Font License (its licence is beside it).
 - [CHANGES.md](CHANGES.md): what changed in each round.
 - `.github/workflows/docker-image.yml`: runs the tests and builds the image on GitHub (see below).
