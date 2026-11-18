@@ -58,5 +58,6 @@
       <button type="submit" class="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 active:scale-95 transition-all">Save</button>
     </div>
   </form>
+  {% if after_form %}{% include after_form %}{% endif %}
 </div>
 {% endblock %}

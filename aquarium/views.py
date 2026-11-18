@@ -1378,6 +1378,7 @@ def webcam_create_view(request):
     return render(request, 'aquarium/generic_form.html', {
         'form': form, 'title': 'Add Webcam Feed',
         'subtitle': 'MJPEG/snapshot URL, a go2rtc stream, or an embeddable player',
+        'after_form': 'aquarium/partials/webcam_help.html',  # below the form: only for those who need it
         'back_url': '/webcams/',
     })
 

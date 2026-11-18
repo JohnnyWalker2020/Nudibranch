@@ -6581,6 +6581,13 @@ class WebcamRotationTests(TestCase):
         css = (Path(settings.BASE_DIR) / 'static/css/tailwind.css').read_text(encoding='utf-8')
         self.assertIn('cam-rotate-90', css)
 
+    def test_setup_help_is_on_the_add_page_only(self):
+        self.assertNotContains(self.client.get(reverse('webcams')), 'What to paste in')
+        add = self.client.get(reverse('webcam_create')).content.decode()
+        self.assertIn('What to paste in', add)
+        self.assertGreater(add.index('What to paste in'), add.index('name="feed_url"'))  # below the form, out of the way
+        self.assertNotContains(self.client.get(reverse('webcam_edit', args=[self.cam.pk])), 'What to paste in')
+
     def test_it_can_be_set_on_the_edit_page(self):
         page = self.client.get(reverse('webcam_edit', args=[self.cam.pk])).content.decode()
         self.assertIn('Quarter turn left (270°)', page)

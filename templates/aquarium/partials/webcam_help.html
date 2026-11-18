@@ -1,0 +1,11 @@
+<!-- Shown above the Add Webcam Feed form: what to paste in, for the common kinds of camera. -->
+<div class="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-2.5">
+  <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider">💡 What to paste in</h2>
+  <ul class="text-xs text-slate-400 leading-relaxed space-y-1.5 list-disc pl-4">
+    <li><b class="text-slate-300">A camera with a web stream</b> (MJPEG or a snapshot): paste its address, like <code class="text-cyan-400 break-all">http://192.168.1.50:8080/video</code>, and pick <b class="text-slate-300">MJPEG Stream / Snapshot URL</b>.</li>
+    <li><b class="text-slate-300">An old Android phone:</b> install the IP Webcam app and tap <b class="text-slate-300">Start server</b>. Its stream is the address it shows, plus <code class="text-cyan-400">/video</code> (no slash at the end).</li>
+    <li><b class="text-slate-300">A security or IP camera</b> using RTSP (<code class="text-cyan-400 break-all">rtsp://user:pass@192.168.1.50:554/stream</code>): browsers can't play that. Run <b class="text-slate-300">go2rtc</b> beside the app to turn it into MJPEG, then paste go2rtc's address.</li>
+    <li><b class="text-slate-300">Away from home:</b> a camera's home address only works at home. go2rtc shared through Tailscale works anywhere. <code class="text-cyan-400">go2rtc.yaml</code>, beside <code class="text-cyan-400">docker-compose.yml</code>, has the steps.</li>
+  </ul>
+  <p class="text-[11px] text-slate-500">A camera mounted sideways or upside down can be turned with <b class="text-slate-400">Rotation</b> above, or later with ↻ Rotate on the Webcams page.</p>
+</div>
