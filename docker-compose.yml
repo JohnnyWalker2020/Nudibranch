@@ -22,17 +22,17 @@ services:
       # Devices that log readings must send this key. Set it in .env.
       - API_SECRET_KEY=${API_SECRET_KEY:-}
 
-  # Optional Webcam Streaming Engine (go2rtc):
-  # Converts RTSP/USB cameras to low-latency WebRTC/MJPEG/HLS for browser viewing.
-  # Uncomment if you want to stream IP cameras into Nudibranch!
-  go2rtc:
-    image: alexxit/go2rtc:latest
-    container_name: nudibranch_go2rtc
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:1984:1984" # API / Web UI
-      # - "8554:8554" # RTSP
-      # - "8555:8555/tcp" # WebRTC
-      # - "8555:8555/udp"
-    volumes:
-      - ./go2rtc.yaml:/config/go2rtc.yaml
+  # Optional webcam relay (go2rtc): passes a camera on your home network (an old phone, an IP camera) to
+  # Nudibranch, so you can watch it anywhere through Tailscale. To use it:
+  #   1. Copy go2rtc.yaml to go2rtc.local.yaml (Git ignores that name) and add your camera there.
+  #      Make the copy first: if go2rtc.local.yaml is missing, Docker makes an empty folder with that name.
+  #   2. Uncomment the lines below and run: docker compose up -d
+  #   go2rtc.yaml explains the rest (checking it, sharing it with Tailscale, adding it in Nudibranch).
+  # go2rtc:
+  #   image: alexxit/go2rtc:latest
+  #   container_name: nudibranch_go2rtc
+  #   restart: unless-stopped
+  #   ports:
+  #     - "127.0.0.1:1984:1984"  # this computer only: go2rtc's own page has no password
+  #   volumes:
+  #     - ./go2rtc.local.yaml:/config/go2rtc.yaml

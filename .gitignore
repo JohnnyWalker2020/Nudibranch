@@ -32,3 +32,6 @@ node_modules/
 
 # Your own local Compose changes (see docker-compose.dev.yml)
 docker-compose.override.yml
+
+# Your own go2rtc cameras (go2rtc.yaml is the commented example)
+go2rtc.local.yaml
