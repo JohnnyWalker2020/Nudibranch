@@ -21,7 +21,7 @@
 
 streams:
   # An old Android phone running the IP Webcam app (Start server shows its address):
-  Main tank: http://192.168.50.244:8080/video
+  # Main tank: http://192.168.50.244:8080/video
 
   # An IP camera that speaks RTSP (the user, password and path are in its manual):
-  #sump: rtsp://user:password@192.168.1.51:554/stream1
+  #sump: rtsp://user:password@192.168.50.51:554/stream1
