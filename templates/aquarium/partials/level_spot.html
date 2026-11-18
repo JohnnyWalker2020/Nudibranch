@@ -1,0 +1,41 @@
+{% comment %}
+  One place's water level: the newest reading, the last day as a little line, and a form to log one by hand.
+  spot: from places.spot (kind, id, log, unit, spark, low, high). tank: the tank. name: what to call the place.
+{% endcomment %}
+{% if spot %}{% url 'level_log' as level_log_url %}
+<details id="level-{{ spot.kind }}-{{ spot.id|default:'display' }}" class="level-spot scroll-mt-32 min-w-0">
+  <summary class="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 cursor-pointer list-none text-[11px] text-slate-400 hover:text-white select-none">
+    <span aria-hidden="true">📏</span>
+    {% if spot.log %}
+      <b class="{% if spot.log.status == 'optimal' %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ spot.log.formatted_value }}</b><span>{{ spot.unit }}</span>
+      {% if spot.log.status != 'optimal' %}<span class="text-[10px] font-bold uppercase text-amber-400">{{ spot.log.status }}</span>{% endif %}
+      <span class="text-slate-500 whitespace-nowrap">· {{ spot.log.measured_at|timesince }} ago</span>
+      {% if spot.spark %}<svg class="w-16 h-4 text-cyan-400/80 shrink-0" viewBox="0 0 120 28" preserveAspectRatio="none" aria-label="Water level over the last day"><polyline points="{{ spot.spark }}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>{% endif %}
+    {% else %}
+      <span>Water level</span><span class="text-slate-500">· log one</span>
+    {% endif %}
+  </summary>
+  <form method="POST" action="{{ level_log_url }}" class="mt-2 flex flex-wrap items-center gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="tank" value="{{ tank.id }}">
+    <input type="hidden" name="kind" value="{{ spot.kind }}">
+    <input type="hidden" name="place" value="{{ spot.id }}">
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <label class="sr-only" for="level-value-{{ spot.kind }}-{{ spot.id }}">Water level in {{ name }}</label>
+    <input id="level-value-{{ spot.kind }}-{{ spot.id }}" name="value" type="number" step="any" min="0" inputmode="decimal" required
+           placeholder="Level" class="w-24 min-w-0 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:border-cyan-500 focus:outline-none">
+    <select name="unit" aria-label="Unit" class="px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white">
+      <option value="mm"{% if spot.unit == 'mm' %} selected{% endif %}>mm</option>
+      <option value="cm"{% if spot.unit == 'cm' %} selected{% endif %}>cm</option>
+      <option value="in"{% if spot.unit == 'in' %} selected{% endif %}>in</option>
+    </select>
+    <button type="submit" class="pill px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold">Save</button>
+  </form>
+  <p class="mt-1.5 text-[10px] text-slate-500">
+    {% if spot.kind == 'display' %}The display's level is a regular test: set its range on the Water page.
+    {% elif spot.low is not None or spot.high is not None %}Flagged {% if spot.low is not None %}below {{ spot.low|floatformat:"-1" }} mm{% endif %}{% if spot.low is not None and spot.high is not None %} or {% endif %}{% if spot.high is not None %}above {{ spot.high|floatformat:"-1" }} mm{% endif %}. Change it on this {{ spot.kind }}'s edit page.
+    {% else %}Set levels to be warned about on this {{ spot.kind }}'s edit page.{% endif %}
+    A sensor can send these too: see the API docs.
+  </p>
+</details>
+{% endif %}

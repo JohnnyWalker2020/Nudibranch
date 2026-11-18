@@ -15,11 +15,11 @@
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     {% for cam in feeds %}
       <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between">
-        <div class="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
+        <div class="cam-frame cam-rotate-{{ cam.rotation|default:0 }} relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
           {% if cam.feed_type == 'mjpeg' %}
-            <img src="{{ cam.feed_url }}" alt="{{ cam.name }}" class="w-full h-full object-contain" onerror="this.outerHTML='<div class=&quot;text-center p-6 text-slate-500 text-xs&quot;>Camera feed offline or unavailable.<br>Check camera power or stream URL.</div>'">
+            <img src="{{ cam.feed_url }}" alt="{{ cam.name }}" class="cam-media w-full h-full object-contain" onerror="this.outerHTML='<div class=&quot;text-center p-6 text-slate-500 text-xs&quot;>Camera feed offline or unavailable.<br>Check camera power or stream URL.</div>'">
           {% elif cam.feed_type == 'iframe' %}
-            <iframe src="{{ cam.feed_url }}" class="w-full h-full border-0" allow="fullscreen; autoplay"></iframe>
+            <iframe src="{{ cam.feed_url }}" class="cam-media w-full h-full border-0" allow="fullscreen; autoplay"></iframe>
           {% else %}
             <div class="p-6 text-center space-y-3">
               <span class="text-3xl">📹</span>
@@ -31,12 +31,17 @@
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>LIVE
           </div>
         </div>
-        <div class="p-4 flex items-center justify-between border-t border-slate-800 bg-slate-900/60">
-          <div>
-            <h3 class="text-sm font-bold text-white">{{ cam.name }}</h3>
-            <span class="text-xs text-slate-400">{{ cam.get_feed_type_display }}</span>
+        <div class="p-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-slate-800 bg-slate-900/60">
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-white truncate">{{ cam.name }}</h3>
+            <span class="text-xs text-slate-400">{{ cam.get_feed_type_display }}{% if cam.rotation %} · turned {{ cam.rotation }}°{% endif %}</span>
           </div>
-          <div class="flex items-center gap-3 text-xs font-semibold">
+          <div class="flex flex-wrap items-center gap-3 text-xs font-semibold">
+            {% url 'webcam_rotate' cam.id as rotate_url %}{% if rotate_url and cam.feed_type != 'webrtc' %}
+            <form method="POST" action="{{ rotate_url }}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+              <button type="submit" title="Turn the picture a quarter turn clockwise" aria-label="Rotate {{ cam.name }} a quarter turn" class="text-slate-400 hover:text-cyan-400">↻ Rotate</button>
+            </form>
+            {% endif %}
             <a href="{% url 'timelapse' cam.id %}" class="text-slate-400 hover:text-cyan-400">🎞️ Time-lapse</a>
             <a href="{% url 'webcam_edit' cam.id %}" title="Edit" class="act act-edit">{% icon 'glue' 'w-4 h-4' %}<span>Edit</span></a>
             <a href="{% url 'webcam_delete' cam.id %}" title="Delete" class="act act-delete">{% icon 'bin' 'w-4 h-4' %}<span>Delete</span></a>

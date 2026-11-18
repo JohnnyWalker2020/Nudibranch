@@ -68,6 +68,8 @@ class Command(BaseCommand):
             {"name": "Phosphate", "code": "phosphate", "unit": "ppm", "decimal_places": 2, "low_limit": 0.01, "min_ideal": 0.03, "max_ideal": 0.10, "high_limit": 0.2, "color": "#eab308", "display_order": 6},
             {"name": "Temperature", "code": "temperature", "unit": "°F", "decimal_places": 1, "low_limit": 75.0, "min_ideal": 77.0, "max_ideal": 79.0, "high_limit": 81.0, "color": "#ef4444", "display_order": 7},
             {"name": "pH", "code": "ph", "unit": "pH", "decimal_places": 2, "low_limit": 7.8, "min_ideal": 8.0, "max_ideal": 8.4, "high_limit": 8.5, "color": "#10b981", "display_order": 8},
+            # For depth and level sensors, in mm (in and cm readings are converted). The range is wide until each tank gets its own target; no dashboard card until then.
+            {"name": "Water level", "code": "water_level", "unit": "mm", "decimal_places": 0, "min_ideal": 0, "max_ideal": 2500, "color": "#14b8a6", "display_order": 9, "show_on_dashboard": False},
         ]
 
         # Only for a brand new install: this runs on every start, and must not undo your changes

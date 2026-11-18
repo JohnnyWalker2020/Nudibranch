@@ -6195,6 +6195,406 @@ class ApiDocsSignInTests(TestCase):
         self.assertEqual(self.client.get(reverse('openapi_json'), HTTP_X_API_KEY='device-key').status_code, 200)
         self.assertEqual(self.client.get(reverse('api_docs')).status_code, 302)  # to sign in
 
+    def test_tanks_list_needs_sign_in_or_the_key(self):
+        Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.assertEqual(self.client.get(reverse('api_tanks')).status_code, 401)
+        self.assertEqual(self.client.get(reverse('api_tanks'), HTTP_X_API_KEY='wrong').status_code, 401)
+        self.assertEqual(self.client.get(reverse('api_tanks'), HTTP_AUTHORIZATION='Bearer device-key').status_code, 200)
+        # Each tank's own page takes the key too
+        tank = Tank.objects.get()
+        self.assertEqual(self.client.get(reverse('api_tank_detail', args=[tank.pk])).status_code, 401)
+        self.assertEqual(self.client.get(reverse('api_tank_detail', args=[tank.pk]), HTTP_X_API_KEY='device-key').status_code, 200)
+
+
+class ApiTanksTests(TestCase):
+    def test_lists_current_tanks_in_order(self):
+        main = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True, stage='cycled')
+        frag = Tank.objects.create(name='Frag', volume_gallons=20, is_primary=False)
+        old = Tank.objects.create(name='Old', volume_gallons=10, is_primary=False)
+        Tank.objects.filter(pk=old.pk).update(is_archived=True)
+        Sump.objects.create(tank=main, name='Sump', volume_gallons=12.5)
+        Animal.objects.create(name='Clowns', species='Amphiprion ocellaris', tank=main, count=2)
+        Animal.objects.create(name='Gone', species='Fish', tank=main, status='deceased')
+        data = self.client.get(reverse('api_tanks')).json()
+        self.assertEqual((data['count'], data['primary_tank_id']), (2, main.pk))
+        tanks = data['tanks']
+        self.assertEqual([t['name'] for t in tanks], ['Main', 'Frag'])  # archived tanks don't take readings
+        self.assertEqual(tanks[0], {'id': main.pk, 'name': 'Main', 'is_primary': True, 'stage': 'cycled',
+                                    'has_sump': True, 'sump_count': 1, 'total_gallons': 52.5,
+                                    'total_liters': main.total_system_liters, 'living_animals': 2,
+                                    'url': f'http://testserver/api/tanks/{main.pk}/'})
+        self.assertEqual((tanks[1]['id'], tanks[1]['has_sump'], tanks[1]['total_gallons']), (frag.pk, False, 20.0))
+
+    def test_detail_matches_the_tank_system_page(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True, width=36, depth=18, height=16,
+                                   substrate_amount=40, substrate_unit='lb', notes='private notes')
+        sump = Sump.objects.create(tank=tank, name='Sump', volume_gallons=20, capacity_is_manual=True,
+                                   overflow_type='corner', overflow_across='right', overflow_depth='back',
+                                   head_height=4.5)
+        SumpChamber.objects.create(sump=sump, position=1, chamber_type='inflow', share_percent=25)
+        skim = SumpChamber.objects.create(sump=sump, position=2, name='Skimmer', chamber_type='skimmer', share_percent=75)
+        Equipment.objects.create(name='Heater', category='heater', tank=tank, paid=99)
+        Equipment.objects.create(name='Nyos', category='skimmer', tank=tank, sump=sump, chamber=skim)
+        Equipment.objects.create(name='Loose pump', category='other', tank=tank, sump=sump)
+        Equipment.objects.create(name='Pump', category='return_pump', tank=tank, sump=sump, max_flow_gph=600)
+        Equipment.objects.create(name='Spare', category='other')  # not placed anywhere
+        PlumbingRun.objects.create(tank=tank, name='Return line', length=6, pipe_size='1')
+        tank.refresh_from_db()
+
+        data = self.client.get(reverse('api_tank_detail', args=['main'])).json()  # a name works, any case
+        self.assertEqual(data['water']['display_gallons'], float(tank.volume_gallons))
+        self.assertEqual(data['water']['sumps_gallons'], 20.0)
+        self.assertEqual(data['water']['total_gallons'], tank.total_system_gallons)
+        self.assertEqual(data['display']['dimensions'], {'width': 36.0, 'depth': 18.0, 'height': 16.0, 'unit': 'in'})
+        self.assertEqual(data['display']['volume_from'], 'dimensions')
+        self.assertEqual([e['name'] for e in data['display']['equipment']], ['Heater'])
+        self.assertTrue(data['has_sump'])
+        s = data['sumps'][0]
+        self.assertEqual((s['volume_from'], s['overflow'], s['head_height_ft'], s['chamber_share_total']),
+                         ('typed', 'Corner overflow, back right', 4.5, 100.0))
+        self.assertEqual(sorted(e['name'] for e in s['equipment']), ['Loose pump', 'Pump'])
+        self.assertEqual([(c['position'], c['name'], c['type'], c['volume_gallons']) for c in s['chambers']],
+                         [(1, 'Inflow / Filter Sock', 'inflow', 5.0), (2, 'Skimmer', 'skimmer', 15.0)])
+        self.assertEqual([e['name'] for e in s['chambers'][1]['equipment']], ['Nyos'])
+        self.assertEqual(data['plumbing']['runs'][0]['name'], 'Return line')
+        self.assertEqual(data['flow']['return_gph'], tank.flow_summary()['return_gph'])
+        self.assertIn(data['flow']['return_status'], ('low', 'ok', 'high', 'unknown'))
+        self.assertEqual(data['lighting']['lights'], 0)
+        text = json.dumps(data)
+        self.assertNotIn('private notes', text)
+        self.assertNotIn('Spare', text)
+        self.assertNotIn('paid', text)
+
+    def test_detail_for_an_unknown_or_archived_tank_is_404(self):
+        old = Tank.objects.create(name='Old', volume_gallons=10, is_primary=False)
+        Tank.objects.filter(pk=old.pk).update(is_archived=True)
+        self.assertEqual(self.client.get(reverse('api_tank_detail', args=[old.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse('api_tank_detail', args=['nope'])).json(), {'error': "Unknown tank 'nope'."})
+
+    def test_a_tank_without_a_sump(self):
+        tank = Tank.objects.create(name='Nano', volume_gallons=10, is_primary=True)
+        data = self.client.get(reverse('api_tank_detail', args=[tank.pk])).json()
+        self.assertEqual((data['has_sump'], data['sumps'], data['display']['dimensions']), (False, [], None))
+        self.assertEqual(data['water']['total_gallons'], 10.0)
+
+    def test_a_listed_id_is_one_the_log_endpoint_takes(self):
+        Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        frag = Tank.objects.create(name='Frag', volume_gallons=20, is_primary=False)
+        ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9)
+        tank_id = self.client.get(reverse('api_tanks')).json()['tanks'][1]['id']
+        response = self.client.post(reverse('api_parameter_log'), json.dumps({'parameter': 'alkalinity', 'value': 8.3, 'tank': tank_id}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(ParameterLog.objects.get().tank, frag)
+
+    def test_it_is_in_the_api_docs_and_help_card(self):
+        Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        spec = self.client.get(reverse('openapi_json')).json()
+        self.assertIn('/api/tanks/', spec['paths'])
+        self.assertIn('/api/tanks/{tank}/', spec['paths'])
+        for name in ('TankList', 'TankSummary', 'Tank', 'Water', 'Display', 'Sump', 'Chamber', 'PlumbingRun', 'Equipment', 'Flow'):
+            self.assertIn(name, spec['components']['schemas'])
+        # The examples are this install's own tank, not zeros
+        example = spec['paths']['/api/tanks/{tank}/']['get']['responses']['200']['content']['application/json']['example']
+        self.assertEqual((example['name'], example['water']['display_gallons']), ('Main', 40.0))
+        self.assertContains(self.client.get(reverse('integrations')), 'GET /api/tanks/')
+
+
+class WaterLevelTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.level = ParameterType.objects.create(name='Water level', code='water_level', unit='mm', decimal_places=0,
+                                                  min_ideal=0, max_ideal=2500, show_on_dashboard=False)
+
+    def test_lengths_convert(self):
+        from .conversions import convert_value
+        self.assertAlmostEqual(convert_value(19.05, 'cm', 'in'), 7.5)
+        self.assertAlmostEqual(convert_value(7.5, 'in', 'mm'), 190.5)
+        self.assertAlmostEqual(convert_value(190, 'mm', 'cm'), 19.0)
+
+    def test_a_sensor_logs_it_through_the_api_and_it_is_stored_in_mm(self):
+        def post(reading):
+            return self.client.post(reverse('api_parameter_log'), json.dumps(reading), content_type='application/json')
+        self.assertEqual(post({'parameter': 'water_level', 'value': 19.05, 'unit': 'cm', 'notes': 'Sump sensor'}).status_code, 201)
+        self.assertEqual(post({'parameter': 'water_level', 'value': 7.5, 'unit': 'in'}).status_code, 201)
+        self.assertEqual(post({'parameter': 'water_level', 'value': 190}).status_code, 201)  # already mm
+        logs = list(ParameterLog.objects.order_by('pk'))
+        self.assertEqual([log.value for log in logs], [Decimal('190.5'), Decimal('190.5'), Decimal('190')])  # exact; shown rounded
+        self.assertEqual((logs[0].tank, logs[0].parameter_type, logs[0].notes), (self.tank, self.level, 'Sump sensor'))
+        self.assertEqual(post({'parameter': 'water_level', 'value': 19.07, 'unit': 'cm'}).json()['logs'][0]['formatted_value'], '191')
+        # A percentage isn't a length, so it's refused rather than stored as mm
+        response = self.client.post(reverse('api_parameter_log'), json.dumps({'parameter': 'water_level', 'value': 60, 'unit': '%'}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_imports_read_a_level_column(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        upload = SimpleUploadedFile('levels.csv', 'Date,Level (cm)\n2026-03-25 09:00,20.32\n'.encode(), content_type='text/csv')
+        self.client.post(reverse('import_tests'), {'file': upload, 'tank': self.tank.pk, 'date_order': 'auto'})
+        self.client.post(reverse('import_tests_confirm'))
+        self.assertEqual(ParameterLog.objects.get(parameter_type=self.level).value, Decimal('203.2'))
+
+    def test_docs_and_help_card_show_it(self):
+        spec = self.client.get(reverse('openapi_json')).json()
+        examples = spec['paths']['/api/parameters/log/']['post']['requestBody']['content']['application/json']['examples']
+        self.assertEqual(examples['level']['value']['parameter'], 'water_level')
+        self.assertContains(self.client.get(reverse('integrations')), 'logs to <code>water_level</code>')
+
+
+class WaterLevelSetupTests(TestCase):
+    def test_a_new_install_gets_it_without_a_dashboard_card(self):
+        call_command('seed_reef_data', verbosity=0, stdout=io.StringIO())
+        level = ParameterType.objects.get(code='water_level')
+        self.assertEqual((level.unit, level.show_on_dashboard, float(level.min_ideal), float(level.max_ideal)), ('mm', False, 0.0, 2500.0))
+        self.assertEqual(ParameterType.objects.filter(is_trace=False).count(), 9)
+
+    def test_the_migration_adds_it_once_in_mm(self):
+        from importlib import import_module
+        from django.apps import apps
+        migration = import_module('aquarium.migrations.0044_water_level')
+        migration.add_water_level(apps, None)
+        self.assertFalse(ParameterType.objects.filter(code='water_level').exists())  # a new install: seeding adds it
+        ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9, display_order=4)
+        migration.add_water_level(apps, None)
+        migration.add_water_level(apps, None)
+        level = ParameterType.objects.get(code='water_level')
+        self.assertEqual((level.unit, level.decimal_places, float(level.max_ideal), level.display_order), ('mm', 0, 2500.0, 5))
+
+    def test_one_made_by_hand_is_left_alone(self):
+        from importlib import import_module
+        from django.apps import apps
+        ParameterType.objects.create(name='Water Level', code='level', unit='%', min_ideal=50, max_ideal=70)
+        import_module('aquarium.migrations.0044_water_level').add_water_level(apps, None)
+        self.assertEqual(ParameterType.objects.filter(name__iexact='water level').count(), 1)
+
+
+class InsideTheTankSumpTests(TestCase):
+    def test_back_chambers_come_out_of_the_display_not_on_top(self):
+        tank = Tank.objects.create(name='AIO', volume_gallons=40, is_primary=True)
+        Sump.objects.create(tank=tank, name='Back', volume_gallons=8, capacity_is_manual=True, location='inside')
+        Sump.objects.create(tank=tank, name='Sump', volume_gallons=10, capacity_is_manual=True)
+        tank = Tank.objects.prefetch_related('sumps', 'plumbing_runs').get(pk=tank.pk)
+        self.assertEqual((tank.total_system_gallons, tank.display_water_gallons), (50.0, 32.0))
+        self.assertEqual((tank.below_sump_gallons, tank.inside_sump_gallons), (10.0, 8.0))
+        self.assertEqual(tank.flow_summary()['display_gallons'], 32.0)
+        water = self.client.get(reverse('api_tank_detail', args=[tank.pk])).json()['water']
+        self.assertEqual((water['tank_gallons'], water['display_gallons'], water['inside_gallons'], water['sumps_gallons'],
+                          water['total_gallons']), (40.0, 32.0, 8.0, 10.0, 50.0))
+        page = self.client.get(reverse('tank_detail', args=[tank.pk])).content.decode()
+        self.assertIn('INSIDE THE TANK', page)
+        self.assertIn('+ 8 gal inside the tank', page)
+
+    def test_the_sump_form_offers_it_and_checks_alert_levels(self):
+        tank = Tank.objects.create(name='AIO', volume_gallons=40, is_primary=True)
+        page = self.client.get(reverse('sump_create', args=[tank.pk])).content.decode()
+        self.assertIn('Inside the main tank', page)
+        self.assertIn('data-below-only', page)
+        from .forms import SumpForm
+        form = SumpForm(data={'name': 'Back', 'location': 'inside', 'dimension_unit': 'in', 'fill_percent': 90,
+                              'capacity_is_manual': 'on', 'volume_gallons': 8, 'head_height_unit': 'ft',
+                              'level_low_mm': 150, 'level_high_mm': 100})
+        self.assertFalse(form.is_valid())
+        self.assertIn('level_high_mm', form.errors)
+
+
+class WaterLevelPlacesTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.other = Tank.objects.create(name='Frag', volume_gallons=20)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=20, capacity_is_manual=True)
+        self.ret = SumpChamber.objects.create(sump=self.sump, position=3, chamber_type='return', share_percent=40,
+                                              level_low_mm=120, level_high_mm=200)
+        self.sock = SumpChamber.objects.create(sump=self.sump, position=1, chamber_type='inflow', share_percent=60)
+        self.ato = DosingReservoir.objects.create(tank=self.tank, name='ATO', reservoir_type='ato_freshwater', capacity=5,
+                                                  current_level=5, unit='gal', daily_consumption=0.3, level_low_mm=60)
+        self.level = ParameterType.objects.create(name='Water level', code='water_level', unit='mm', decimal_places=0,
+                                                  min_ideal=0, max_ideal=2500, show_on_dashboard=False)
+        self.alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9)
+
+    def post(self, payload):
+        return self.client.post(reverse('api_parameter_log'), json.dumps(payload), content_type='application/json')
+
+    def test_a_device_can_log_a_level_at_every_kind_of_place(self):
+        self.assertEqual(self.post({'parameter': 'water_level', 'value': 150, 'chamber': self.ret.pk}).status_code, 201)
+        self.assertEqual(self.post({'parameter': 'water_level', 'value': 15, 'unit': 'cm', 'chamber': 'Sump/Return Pump'}).status_code, 201)
+        self.assertEqual(self.post({'parameter': 'water_level', 'value': 300, 'sump': 'sump'}).status_code, 201)
+        response = self.post({'parameter': 'water_level', 'value': 2, 'unit': 'in', 'reservoir': 'ATO'})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['logs'][0]['place'], {'type': 'reservoir', 'id': self.ato.pk, 'name': 'ATO'})
+        self.assertEqual(response.json()['logs'][0]['status'], 'low')  # 50.8 mm, under the ATO's 60
+        self.assertEqual(self.post({'parameter': 'water_level', 'value': 400}).json()['logs'][0]['place'], None)  # the display
+        readings = ParameterLog.everywhere.order_by('pk')
+        self.assertEqual([(r.chamber_id, r.sump_id, r.reservoir_id, r.value) for r in readings],
+                         [(self.ret.pk, None, None, Decimal('150')), (self.ret.pk, None, None, Decimal('150')),
+                          (None, self.sump.pk, None, Decimal('300')), (None, None, self.ato.pk, Decimal('50.8')),
+                          (None, None, None, Decimal('400'))])
+        self.assertTrue(all(r.tank == self.tank for r in readings))
+        # Only the display's level counts as the tank's own water level reading
+        self.assertEqual(list(ParameterLog.objects.values_list('value', flat=True)), [Decimal('400')])
+
+    def test_a_batch_can_mix_places(self):
+        response = self.post({'readings': [{'parameter': 'water_level', 'value': 140, 'chamber': self.ret.pk},
+                                           {'parameter': 'water_level', 'value': 75, 'reservoir': self.ato.pk},
+                                           {'parameter': 'alkalinity', 'value': 8.4}]})
+        self.assertEqual(response.json()['count'], 3)
+
+    def test_place_mistakes_are_explained(self):
+        def error(payload):
+            response = self.post(payload)
+            self.assertEqual(response.status_code, 400, payload)
+            return response.json()['errors'][0]
+        self.assertIn('Give one place, not chamber and sump', error({'parameter': 'water_level', 'value': 1, 'chamber': self.ret.pk, 'sump': self.sump.pk}))
+        self.assertIn("Unknown chamber 'nope'", error({'parameter': 'water_level', 'value': 1, 'chamber': 'nope'}))
+        self.assertIn('only water_level readings can name a chamber', error({'parameter': 'alkalinity', 'value': 8, 'chamber': self.ret.pk}))
+        # A chamber in another tank than the one named isn't found
+        self.assertIn("Unknown chamber", error({'parameter': 'water_level', 'value': 1, 'chamber': self.ret.pk, 'tank': 'Frag'}))
+        SumpChamber.objects.create(sump=Sump.objects.create(tank=self.other, name='Frag sump'), chamber_type='return')
+        self.assertIn("More than one chamber is called 'Return Pump'", error({'parameter': 'water_level', 'value': 1, 'chamber': 'Return Pump'}))
+        self.assertEqual(ParameterLog.everywhere.count(), 0)
+
+    def test_the_tank_api_shows_each_places_newest_level_and_targets(self):
+        self.post({'parameter': 'water_level', 'value': 100, 'chamber': self.ret.pk, 'measured_at': '2026-11-01T10:00:00Z'})
+        self.post({'parameter': 'water_level', 'value': 150, 'chamber': self.ret.pk, 'measured_at': '2026-11-01T11:00:00Z'})
+        self.post({'parameter': 'water_level', 'value': 400})
+        data = self.client.get(reverse('api_tank_detail', args=[self.tank.pk])).json()
+        ret = next(c for c in data['sumps'][0]['chambers'] if c['id'] == self.ret.pk)
+        self.assertEqual((ret['level']['value'], ret['level']['status']), (150.0, 'optimal'))
+        self.assertEqual(ret['level_targets'], {'low_mm': 120.0, 'high_mm': 200.0})
+        self.assertIsNone(next(c for c in data['sumps'][0]['chambers'] if c['id'] == self.sock.pk)['level'])
+        self.assertEqual(data['display']['level']['value'], 400.0)
+        self.assertEqual(data['sumps'][0]['location'], 'below')
+        self.assertEqual(data['reservoirs'][0]['id'], self.ato.pk)
+
+    def test_no_level_lookups_until_a_level_is_logged(self):
+        from . import places
+        self.assertFalse(AppSettings.load().has_level_readings)
+        self.post({'parameter': 'alkalinity', 'value': 8.4})
+        self.assertFalse(AppSettings.load().has_level_readings)
+        with self.assertNumQueries(1):  # the settings row, then nothing
+            self.assertEqual(places.latest_levels(self.tank), {})
+        self.post({'parameter': 'water_level', 'value': 150, 'chamber': self.ret.pk})
+        self.assertTrue(AppSettings.objects.get().has_level_readings)
+        self.assertIn(('chamber', self.ret.pk), places.latest_levels(self.tank))
+
+    def test_a_level_out_of_its_places_range_is_an_alert_of_its_own(self):
+        from .alerts import compute_alert_state
+        from .events import collect_conditions
+        self.post({'parameter': 'water_level', 'value': 90, 'chamber': self.ret.pk})
+        self.post({'parameter': 'water_level', 'value': 40, 'reservoir': self.ato.pk})
+        items = compute_alert_state(tank=self.tank)['out_of_range_params']
+        names = sorted(i['param'].name for i in items)
+        self.assertEqual(names, ['Water level · ATO', 'Water level · Sump › Return Pump'])
+        ret = next(i for i in items if 'Return' in i['param'].name)
+        self.assertEqual((ret['log'].status, float(ret['param'].min_ideal), float(ret['param'].max_ideal)), ('low', 120.0, 200.0))
+        keys = [c['key'] for c in collect_conditions() if c['type'] == 'parameter.out_of_range']
+        self.assertEqual(len(set(keys)), 2)
+        self.assertContains(self.client.get(reverse('notifications')), 'Water level · Sump › Return Pump')
+
+    def test_the_tank_page_shows_and_logs_levels(self):
+        page = self.client.get(reverse('tank_detail', args=[self.tank.pk])).content.decode()
+        self.assertIn(f'id="level-chamber-{self.ret.pk}"', page)
+        self.assertIn(f'id="level-reservoir-{self.ato.pk}"', page)
+        self.assertIn('id="level-display-display"', page)
+        response = self.client.post(reverse('level_log'), {'tank': self.tank.pk, 'kind': 'chamber', 'place': self.ret.pk,
+                                                           'value': '16', 'unit': 'cm', 'next': '/'})
+        self.assertRedirects(response, f'/#level-chamber-{self.ret.pk}', fetch_redirect_response=False)
+        ParameterLog.everywhere.update(measured_at=timezone.now() - timedelta(minutes=5))  # a point a minute: space them out
+        self.client.post(reverse('level_log'), {'tank': self.tank.pk, 'kind': 'chamber', 'place': self.ret.pk, 'value': '17', 'unit': 'cm'})
+        self.client.post(reverse('level_log'), {'tank': self.tank.pk, 'kind': 'display', 'place': '', 'value': '400', 'unit': 'mm'})
+        self.assertEqual(ParameterLog.everywhere.get(chamber=self.ret, value=Decimal('160')).tank, self.tank)
+        self.assertEqual(ParameterLog.objects.get().value, Decimal('400'))
+        page = self.client.get(reverse('tank_detail', args=[self.tank.pk])).content.decode()
+        chip = page.split(f'id="level-chamber-{self.ret.pk}"', 1)[1].split('</summary>', 1)[0]
+        self.assertIn('170', chip)
+        self.assertIn('<polyline', chip)  # two readings make a line
+
+    def test_changing_the_unit_converts_levels_at_places_too(self):
+        self.post({'parameter': 'water_level', 'value': 150, 'chamber': self.ret.pk})
+        self.client.post(reverse('parameter_settings', args=[self.level.pk]), {
+            'name': 'Water level', 'unit': 'cm', 'decimal_places': 1, 'min_ideal': 0, 'max_ideal': 250,
+            'color': '#14b8a6', 'convert_history': 'on'})
+        self.assertEqual(ParameterLog.everywhere.get().value, Decimal('15'))
+        self.assertEqual(ParameterLog.everywhere.get().status, 'optimal')  # still judged in mm: 150 is inside 120-200
+
+    def test_deleting_a_reading_at_a_place(self):
+        log = ParameterLog.objects.create(parameter_type=self.level, tank=self.tank, chamber=self.ret, value=150)
+        self.client.post(reverse('delete_log', args=[log.pk]))
+        self.assertFalse(ParameterLog.everywhere.exists())
+
+
+class MinuteChartTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.level = ParameterType.objects.create(name='Water level', code='water_level', unit='mm', decimal_places=0,
+                                                  min_ideal=0, max_ideal=2500)
+        self.sump = Sump.objects.create(tank=self.tank, name='Sump', volume_gallons=20)
+        self.chamber = SumpChamber.objects.create(sump=self.sump, chamber_type='return', share_percent=100)
+        start = timezone.now().replace(second=0, microsecond=0) - timedelta(minutes=10)
+        for seconds, value in ((5, 100), (20, 110), (50, 120), (65, 200)):
+            ParameterLog.objects.create(parameter_type=self.level, tank=self.tank, value=value,
+                                        measured_at=start + timedelta(seconds=seconds))
+            ParameterLog.objects.create(parameter_type=self.level, tank=self.tank, chamber=self.chamber, value=value,
+                                        measured_at=start + timedelta(seconds=seconds))
+
+    def test_charts_average_each_minute_by_default(self):
+        data = self.client.get(reverse('api_chart_data'), {'code': 'water_level', 'days': 1}).json()
+        self.assertEqual((data['values'], data['every_seconds']), ([110, 200], 60))
+        raw = self.client.get(reverse('api_chart_data'), {'code': 'water_level', 'days': 1, 'every': 0}).json()
+        self.assertEqual(raw['values'], [100, 110, 120, 200])
+        everything = self.client.get(reverse('api_all_chart_data'), {'days': 1}).json()['datasets']
+        self.assertEqual(everything[0]['values'], [110, 200])
+
+    def test_a_places_level_chart(self):
+        data = self.client.get(reverse('api_level_chart'), {'chamber': self.chamber.pk}).json()
+        self.assertEqual((data['values'], data['place']['type'], data['unit']), ([110, 200], 'chamber', 'mm'))
+        display = self.client.get(reverse('api_level_chart'), {'tank': self.tank.pk}).json()
+        self.assertIsNone(display['place'])
+        self.assertEqual(display['values'], [110, 200])
+        self.assertEqual(self.client.get(reverse('api_level_chart')).status_code, 400)
+
+
+class WebcamRotationTests(TestCase):
+    def setUp(self):
+        self.tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.cam = WebcamFeed.objects.create(name='Side cam', tank=self.tank, feed_url='http://cam.local/stream.mjpeg')
+
+    def test_rotate_button_turns_a_quarter_at_a_time(self):
+        page = self.client.get(reverse('webcams')).content.decode()
+        self.assertIn('cam-frame cam-rotate-0', page)
+        self.assertIn(reverse('webcam_rotate', args=[self.cam.pk]), page)
+        seen = []
+        for _ in range(4):
+            response = self.client.post(reverse('webcam_rotate', args=[self.cam.pk]), {'next': '/webcams/'})
+            self.assertRedirects(response, '/webcams/', fetch_redirect_response=False)
+            self.cam.refresh_from_db()
+            seen.append(self.cam.rotation)
+        self.assertEqual(seen, [90, 180, 270, 0])
+        self.assertEqual(self.client.get(reverse('webcam_rotate', args=[self.cam.pk])).status_code, 405)
+
+    def test_the_turn_shows_everywhere_the_camera_does(self):
+        WebcamFeed.objects.filter(pk=self.cam.pk).update(rotation=90, timelapse_enabled=True)
+        page = self.client.get(reverse('webcams')).content.decode()
+        self.assertIn('cam-frame cam-rotate-90', page)
+        self.assertIn('class="cam-media w-full h-full object-contain"', page)
+        self.assertIn('turned 90°', page)
+        self.assertIn('cam-rotate-90', self.client.get(reverse('timelapse', args=[self.cam.pk])).content.decode())
+        css = (Path(settings.BASE_DIR) / 'static/css/tailwind.css').read_text(encoding='utf-8')
+        self.assertIn('cam-rotate-90', css)
+
+    def test_it_can_be_set_on_the_edit_page(self):
+        page = self.client.get(reverse('webcam_edit', args=[self.cam.pk])).content.decode()
+        self.assertIn('Quarter turn left (270°)', page)
+
+
+class DeceasedLinkPlacementTests(TestCase):
+    def test_show_deceased_sits_at_the_bottom_of_the_display_card(self):
+        tank = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        Animal.objects.create(name='Old tang', species='Tang', tank=tank, status='deceased')
+        page = self.client.get(reverse('tank_detail', args=[tank.pk])).content.decode()
+        card = page.split('data-card="display"', 1)[1].split('data-card="flow"', 1)[0]
+        self.assertGreater(card.index('Show deceased (1)'), card.index('Sorted by livestock category'))
+        self.assertLess(card.index('Edit tank'), card.index('Show deceased (1)'))
+
 
 class LogRowIconTests(TestCase):
     def test_log_rows_use_the_app_icons_and_wrap(self):

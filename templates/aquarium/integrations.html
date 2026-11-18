@@ -37,8 +37,9 @@
       <p class="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-cyan-300 break-all">POST {{ api_log_url }}</p>
       <ul class="space-y-1.5 list-disc pl-5 text-slate-400">
         <li>Send your <code>API_SECRET_KEY</code> (from the <code>.env</code> file) in an <code>X-API-Key</code> header. The app never shows the key.</li>
-        <li>Readings without a <code>"tank"</code> go into <strong class="text-slate-200">{{ api_default_tank.name|default:'your primary tank' }}</strong>, your primary tank.{% if api_tanks|length > 1 %} Name another with <code>"tank"</code>: {% for t in api_tanks %}<code>{{ t.name }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}</li>
+        <li>Readings without a <code>"tank"</code> go into <strong class="text-slate-200">{{ api_default_tank.name|default:'your primary tank' }}</strong>, your primary tank.{% if api_tanks|length > 1 %} Name another with <code>"tank"</code>: {% for t in api_tanks %}<code>{{ t.name }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %} A device can list them with <code>GET /api/tanks/</code>, and see one tank's sumps, chambers, plumbing and flow with <code>GET /api/tanks/&lt;ID&gt;/</code>.</li>
         <li><code>"unit"</code> is optional. A reading in another unit, like <code>°C</code> or <code>SG</code>, is converted to the test's own unit.</li>
+        <li>A water level or depth sensor logs to <code>water_level</code>, stored in <code>mm</code>; send <code>"unit": "in"</code> or <code>"cm"</code> and it's converted. Say where it was read with <code>"chamber"</code>, <code>"sump"</code> or <code>"reservoir"</code> (an ID from <code>GET /api/tanks/&lt;ID&gt;/</code>); with none, it's the display's. Each place has its own alert levels on its edit page.</li>
         <li><code>"measured_at"</code> is optional (ISO 8601, like <code>2026-11-04T22:30:00Z</code>). Without it, the time is now.</li>
         <li>A device on your network that can't use Tailscale needs <code>BIND_ADDRESS=0.0.0.0</code> in <code>.env</code> to reach the app.</li>
       </ul>

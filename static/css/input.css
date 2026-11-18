@@ -238,3 +238,13 @@
 /* The style picker shows a sample of each look */
 .pixel-sample { background-color: rgb(var(--cyan-600)); border: 2px solid rgb(0 0 0 / 0.55); box-shadow: 3px 3px 0 0 rgb(0 0 0 / 0.6);
   background-image: repeating-linear-gradient(90deg, transparent 0 6px, rgb(0 0 0 / 0.3) 6px 8px); }
+
+/* Camera rotation: the picture turns inside its frame. A quarter turn makes the frame portrait (9:16),
+   no taller than most of the screen, and the picture is sized to the turned frame so nothing is cropped */
+.cam-frame.cam-rotate-90, .cam-frame.cam-rotate-270 {
+  aspect-ratio: 9 / 16; width: min(100%, calc(70vh * 9 / 16)); margin-inline: auto; }
+.cam-frame.cam-rotate-90 > .cam-media, .cam-frame.cam-rotate-270 > .cam-media {
+  position: absolute; top: 50%; left: 50%; width: 177.78%; height: 56.25%; max-width: none; }
+.cam-frame.cam-rotate-90 > .cam-media { transform: translate(-50%, -50%) rotate(90deg); }
+.cam-frame.cam-rotate-270 > .cam-media { transform: translate(-50%, -50%) rotate(270deg); }
+.cam-frame.cam-rotate-180 > .cam-media { transform: rotate(180deg); }

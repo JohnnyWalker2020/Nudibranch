@@ -17,6 +17,7 @@ from .calculators import (
     pipe_volume_gallons, FT_PER_M, LITERS_PER_GAL, PIPE_INSIDE, PIPE_SIZES, PIPE_TYPE_SHORT, PIPE_TYPES,
 )
 from . import icons
+from .conversions import convert_value
 from . import schedule as sched
 from .images import compressed_jpeg
 from .themes import DEFAULT_THEME, THEME_CHOICES, palette_from_colors
@@ -172,6 +173,16 @@ class ParameterType(models.Model):
         return 'optimal', 'ok'
 
 
+PLACE_FIELDS = ('chamber', 'sump', 'reservoir')
+
+
+class TankReadingManager(models.Manager):
+    """Readings of the tank's water as a whole: what the Water page, dashboard, charts and alerts work from.
+    Water levels taken at a place (a sump, a chamber, a reservoir) are left out; ParameterLog.everywhere has them."""
+    def get_queryset(self):
+        return super().get_queryset().filter(sump__isnull=True, chamber__isnull=True, reservoir__isnull=True)
+
+
 class ParameterLog(models.Model):
     """Historical test measurement."""
     parameter_type = models.ForeignKey(ParameterType, on_delete=models.CASCADE, related_name="logs")
@@ -180,13 +191,41 @@ class ParameterLog(models.Model):
     measured_at = models.DateTimeField(default=timezone.now)
     value = models.DecimalField(max_digits=10, decimal_places=4)
     notes = models.CharField(max_length=255, blank=True)
+    # Where in the system a water level was read. All empty means the display tank.
+    sump = models.ForeignKey('Sump', on_delete=models.CASCADE, null=True, blank=True, related_name='level_readings')
+    chamber = models.ForeignKey('SumpChamber', on_delete=models.CASCADE, null=True, blank=True, related_name='level_readings')
+    reservoir = models.ForeignKey('DosingReservoir', on_delete=models.CASCADE, null=True, blank=True, related_name='level_readings')
+
+    objects = TankReadingManager()
+    everywhere = models.Manager()
 
     class Meta:
         ordering = ['-measured_at']
+        base_manager_name = 'everywhere'
         indexes = [models.Index(fields=['tank', 'parameter_type', '-measured_at'], name='log_tank_param_time')]
 
     def __str__(self):
         return f"{self.parameter_type.name}: {self.value} {self.parameter_type.unit} @ {self.measured_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def place(self):
+        """The sump, chamber or reservoir it was read in, or None for the display tank."""
+        return self.chamber or self.sump or self.reservoir
+
+    @property
+    def value_mm(self):
+        """A water level in millimeters, whatever unit the test is kept in."""
+        return convert_value(float(self.value), self.parameter_type.unit or 'mm', 'mm')
+
+    @property
+    def place_label(self):
+        if self.chamber_id:
+            return f"{self.chamber.sump.name} › {self.chamber.plain_name}"
+        if self.sump_id:
+            return self.sump.name
+        if self.reservoir_id:
+            return self.reservoir.name
+        return 'Display tank'
 
     @property
     def formatted_value(self):
@@ -195,7 +234,9 @@ class ParameterLog(models.Model):
 
     @cached_property
     def _classification(self):
-        # Judged against the targets of the system it was measured in.
+        # A level read at a place is judged against that place's own levels; the rest against the system's targets.
+        if self.chamber_id or self.sump_id or self.reservoir_id:
+            return self.place.classify_level(self.value_mm)
         return self.parameter_type.for_system(self.tank_id).classify(self.value)
 
     @property
@@ -443,12 +484,21 @@ class WebcamFeed(models.Model):
     timelapse_keep_days = models.PositiveIntegerField(default=90, help_text="Delete frames older than this many days")
     last_capture_at = models.DateTimeField(null=True, blank=True, editable=False)
     last_capture_error = models.CharField(max_length=255, blank=True, editable=False)
+    ROTATIONS = [(0, 'Upright'), (90, 'Quarter turn right (90°)'), (180, 'Upside down (180°)'), (270, 'Quarter turn left (270°)')]
+    rotation = models.PositiveSmallIntegerField(
+        choices=ROTATIONS, default=0,
+        help_text="Turns the picture for a camera mounted sideways or upside down. Only how the app shows it: the camera is left alone")
 
     class Meta:
         ordering = ['order', 'name']
 
     def __str__(self):
         return self.name
+
+    @property
+    def next_rotation(self):
+        """A quarter turn clockwise from now, for the ↻ button."""
+        return (self.rotation + 90) % 360
 
 
 class SpeciesCatalog(models.Model):
@@ -655,7 +705,23 @@ class Tank(DimensionedVessel):
 
     @property
     def sump_gallons(self):
+        """Every sump's water, inside the tank or below it."""
         return sum(float(s.volume_gallons or 0) for s in self.sumps.all())
+
+    @property
+    def below_sump_gallons(self):
+        """Sumps below the tank: water on top of the tank's own."""
+        return sum(float(s.volume_gallons or 0) for s in self.sumps.all() if s.location != 'inside')
+
+    @property
+    def inside_sump_gallons(self):
+        """All-in-one back chambers: water that's already part of the tank's own volume."""
+        return sum(float(s.volume_gallons or 0) for s in self.sumps.all() if s.location == 'inside')
+
+    @property
+    def display_water_gallons(self):
+        """The water you see: the tank, less any back chambers inside it."""
+        return round(max(0.0, float(self.volume_gallons or 0) - self.inside_sump_gallons), 1)
 
     @property
     def plumbing_gallons(self):
@@ -668,8 +734,8 @@ class Tank(DimensionedVessel):
 
     @property
     def total_system_gallons(self):
-        """Display tank + sumps + plumbing. Used for dosing and return-pump turnover."""
-        return round(float(self.volume_gallons or 0) + self.sump_gallons + self.plumbing_gallons, 1)
+        """The tank + sumps below it + plumbing (back chambers inside the tank are already in its volume). Used for dosing and return-pump turnover."""
+        return round(float(self.volume_gallons or 0) + self.below_sump_gallons + self.plumbing_gallons, 1)
 
     @property
     def total_system_liters(self):
@@ -700,7 +766,7 @@ class Tank(DimensionedVessel):
                 return_gph += flow
             elif eq.category == 'wavemaker':
                 wave_gph += flow
-        return turnover_summary(self.volume_gallons, self.total_system_gallons, return_gph, wave_gph)
+        return turnover_summary(self.display_water_gallons, self.total_system_gallons, return_gph, wave_gph)
 
 
 class ParameterTarget(models.Model):
@@ -814,10 +880,45 @@ def spot_percent(across, depth):
     return {'left': _ACROSS_PERCENT.get(across, 50), 'top': _DEPTH_PERCENT.get(depth, 50)}
 
 
-class Sump(DimensionedVessel):
-    """A sump / refugium system plumbed to a tank. Can be split into chambers."""
+class LevelTargets(models.Model):
+    """A place a water level sensor can sit (a sump, a chamber, a reservoir), with the levels it should stay between."""
+    level_low_mm = models.DecimalField(
+        'Water level: alert below (mm)', max_digits=7, decimal_places=1, null=True, blank=True,
+        help_text="Optional. A water level reading here under this many mm is flagged low (a stuck ATO, an empty reservoir)")
+    level_high_mm = models.DecimalField(
+        'Water level: alert above (mm)', max_digits=7, decimal_places=1, null=True, blank=True,
+        help_text="Optional. A reading over this many mm is flagged high (a blocked drain, an overfilling top-off)")
+
+    class Meta:
+        abstract = True
+
+    def classify_level(self, value_mm):
+        """('low' | 'optimal' | 'high', severity) for a water level reading taken here."""
+        value = float(value_mm)
+        if self.level_low_mm is not None and value < float(self.level_low_mm):
+            return 'low', 'warning'
+        if self.level_high_mm is not None and value > float(self.level_high_mm):
+            return 'high', 'warning'
+        return 'optimal', 'ok'
+
+    @property
+    def has_level_targets(self):
+        return self.level_low_mm is not None or self.level_high_mm is not None
+
+
+class Sump(DimensionedVessel, LevelTargets):
+    """A sump / refugium system plumbed to a tank. Can be split into chambers.
+
+    It sits below the tank, or inside it: the back chambers of an all-in-one tank. An inside one is part of the
+    tank's own volume, so it moves water from the display's share into its own instead of adding to the total.
+    """
+    LOCATIONS = [('below', 'Below the tank'), ('inside', 'Inside the main tank (all-in-one back chambers)')]
     tank = models.ForeignKey(Tank, on_delete=models.CASCADE, related_name='sumps')
     name = models.CharField(max_length=100, default="Sump")
+    location = models.CharField(
+        max_length=6, choices=LOCATIONS, default='below',
+        help_text="An all-in-one tank's back chambers are inside it: their water is already part of the tank's volume, "
+                  "so it isn't added again")
     notes = models.TextField(blank=True)
 
     # Sumps run at a lower water level than their box volume, so default to a lower fill.
@@ -869,6 +970,10 @@ class Sump(DimensionedVessel):
         return f"{self.name} ({self.volume_gallons} gal)"
 
     @property
+    def is_inside(self):
+        return self.location == 'inside'
+
+    @property
     def level_moves_volume(self):
         """The water level slider sets the fill %, which only changes the volume when it's worked out from the size."""
         return self.has_dimensions and not self.capacity_is_manual
@@ -883,7 +988,7 @@ class Sump(DimensionedVessel):
         return round(sum(float(c.share_percent or 0) for c in self.chambers.all()), 1)
 
 
-class SumpChamber(models.Model):
+class SumpChamber(LevelTargets):
     """One compartment of a sump (return, skimmer, refugium, filtration...)."""
     CHAMBER_TYPES = [
         ('inflow', '⬇️ Inflow / Filter Sock'),
@@ -917,6 +1022,11 @@ class SumpChamber(models.Model):
     @property
     def volume_gallons(self):
         return round(float(self.sump.volume_gallons or 0) * float(self.share_percent or 0) / 100.0, 1)
+
+    @property
+    def plain_name(self):
+        """The name without the app's emoji, for the API and alerts."""
+        return self.name or self.get_chamber_type_display().split(' ', 1)[-1]
 
 
 class Equipment(models.Model):
@@ -1136,7 +1246,7 @@ class Equipment(models.Model):
         return (due_date - timezone.localdate()).days
 
 
-class DosingReservoir(models.Model):
+class DosingReservoir(LevelTargets):
     """Liquid additive reservoirs and ATO freshwater containers with runout estimation."""
     RESERVOIR_TYPES = [
         ('dosing_additive', '🧪 Chemical Additive (Alk, Ca, Mg, AFR)'),
@@ -1464,6 +1574,9 @@ class AppSettings(models.Model):
     last_auto_backup = models.DateTimeField(null=True, blank=True, editable=False)
     card_order = models.JSONField(default=dict, blank=True, editable=False,
                                   help_text="Card order chosen with Arrange, by page: {page: [card, ...]}")
+    has_level_readings = models.BooleanField(
+        default=False, editable=False,
+        help_text="Set by the first water level reading. Until then pages skip looking up levels altogether")
 
     class Meta:
         verbose_name_plural = 'App settings'
@@ -2116,3 +2229,19 @@ def _delete_replaced_image(sender, instance, raw=False, **kwargs):
     image = getattr(instance, field)
     if previous and previous != (image.name if image else ''):
         image.storage.delete(previous)
+
+
+def note_level_readings():
+    """The first water level reading switches on the level lookups (tank page, tank API). Until then they're skipped."""
+    app = AppSettings.load()
+    if not app.has_level_readings:
+        AppSettings.objects.filter(pk=app.pk).update(has_level_readings=True)
+        app.has_level_readings = True
+
+
+@receiver(post_save, sender=ParameterLog)
+def _first_level_reading(sender, instance, created, raw=False, **kwargs):
+    if raw or not created or AppSettings.load().has_level_readings:
+        return  # once switched on, nothing more to check
+    if instance.chamber_id or instance.sump_id or instance.reservoir_id or instance.parameter_type.code == 'water_level':
+        note_level_readings()

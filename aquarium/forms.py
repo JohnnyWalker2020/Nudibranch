@@ -784,11 +784,15 @@ class PlumbingRunForm(forms.ModelForm):
 class SumpForm(VesselFormMixin, forms.ModelForm):
     class Meta:
         model = Sump
-        fields = ['name', 'dimension_unit', 'width', 'depth', 'height',
+        fields = ['name', 'location', 'dimension_unit', 'width', 'depth', 'height',
                   'fill_percent', 'capacity_is_manual', 'volume_gallons', 'head_height', 'head_height_unit',
-                  'overflow_type', 'overflow_across', 'overflow_depth', 'notes']
+                  'overflow_type', 'overflow_across', 'overflow_depth', 'level_low_mm', 'level_high_mm', 'notes']
         widgets = {
             **VESSEL_WIDGETS,
+            'location': forms.Select(attrs={'class': INPUT}),
+            'level_low_mm': forms.NumberInput(attrs={'class': INPUT, 'step': '1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'e.g. 120'}),
+            'level_high_mm': forms.NumberInput(attrs={'class': INPUT, 'step': '1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'e.g. 180'}),
+
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Basement Sump, Refugium'}),
             'head_height': UnitNumberInput('head_height_unit', ('ft', 'm'),
                                            attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'e.g. 4.5'}),
@@ -799,6 +803,7 @@ class SumpForm(VesselFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         unit_pair(self, 'head_height', 'head_height_unit')
         _spot_selects(self, {'overflow_type': 'Overflow', 'overflow_across': 'Across', 'overflow_depth': 'Front to back'})
+        self.fields['location'].required = False  # left out (an older form or a script): it stays where it was, or below
 
     def clean_head_height(self):
         value = self.cleaned_data.get('head_height')
@@ -809,12 +814,21 @@ class SumpForm(VesselFormMixin, forms.ModelForm):
     def clean_head_height_unit(self):
         return _clean_unit(self, 'head_height_unit', ('ft', 'm'))
 
+    def clean_location(self):
+        return self.cleaned_data.get('location') or (self.instance.location if self.instance.pk else 'below')
+
+    def clean(self):
+        return _clean_level_targets(super().clean())
+
 
 class SumpChamberForm(forms.ModelForm):
     class Meta:
         model = SumpChamber
-        fields = ['name', 'chamber_type', 'position', 'share_percent', 'notes']
+        fields = ['name', 'chamber_type', 'position', 'share_percent', 'level_low_mm', 'level_high_mm', 'notes']
         widgets = {
+            'level_low_mm': forms.NumberInput(attrs={'class': INPUT, 'step': '1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'e.g. 120'}),
+            'level_high_mm': forms.NumberInput(attrs={'class': INPUT, 'step': '1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'e.g. 180'}),
+
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'Optional, e.g. Chaeto refugium'}),
             'chamber_type': forms.Select(attrs={'class': INPUT}),
             'position': forms.NumberInput(attrs={'class': INPUT, 'min': '1'}),
@@ -827,6 +841,20 @@ class SumpChamberForm(forms.ModelForm):
         if value < 0 or value > 100:
             raise forms.ValidationError("Use a value between 0 and 100.")
         return value
+
+    def clean(self):
+        return _clean_level_targets(super().clean())
+
+
+def _clean_level_targets(data):
+    """Alert levels: both optional, not negative, and the low one under the high one."""
+    low, high = data.get('level_low_mm'), data.get('level_high_mm')
+    for name, value in (('level_low_mm', low), ('level_high_mm', high)):
+        if value is not None and value < 0:
+            raise forms.ValidationError({name: "A water level can't be below zero."})
+    if low is not None and high is not None and low >= high:
+        raise forms.ValidationError({'level_high_mm': "Make the high level more than the low one."})
+    return data
 
 
 def _clean_paid(value):
@@ -1050,7 +1078,8 @@ RESERVOIR_UNITS = ('ml', 'L', 'gal')
 class DosingReservoirForm(forms.ModelForm):
     class Meta:
         model = DosingReservoir
-        fields = ['tank', 'name', 'reservoir_type', 'capacity', 'current_level', 'unit', 'daily_consumption', 'color']
+        fields = ['tank', 'name', 'reservoir_type', 'capacity', 'current_level', 'unit', 'daily_consumption', 'color',
+                  'level_low_mm', 'level_high_mm']
         widgets = {
             'tank': forms.Select(attrs={'class': INPUT}),
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Alkalinity (Soda Ash), ATO RO/DI'}),
@@ -1059,6 +1088,8 @@ class DosingReservoirForm(forms.ModelForm):
             'current_level': UnitSuffixInput('unit', attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
             'daily_consumption': UnitSuffixInput('unit', attrs={'step': '0.1', 'min': '0', 'inputmode': 'decimal'}),
             'color': forms.TextInput(attrs={'class': 'w-full h-[42px] p-1 bg-slate-800 border border-slate-700 rounded-xl cursor-pointer', 'type': 'color'}),
+            'level_low_mm': forms.NumberInput(attrs={'class': INPUT, 'step': '1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'e.g. 60'}),
+            'level_high_mm': forms.NumberInput(attrs={'class': INPUT, 'step': '1', 'min': '0', 'inputmode': 'decimal', 'placeholder': 'Optional'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -1097,7 +1128,7 @@ class DosingReservoirForm(forms.ModelForm):
         rate = cleaned.get('daily_consumption')
         if rate is not None and rate < 0:
             self.add_error('daily_consumption', "Daily use can't be negative.")
-        return cleaned
+        return _clean_level_targets(cleaned)
 
 
 LITERS_PER_GALLON = Decimal('3.78541')
@@ -1207,6 +1238,16 @@ def _clean_camera_url(url):
 
 
 class WebcamFeedForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['rotation'].required = False  # left out: it keeps its turn, or starts upright
+
+    def clean_rotation(self):
+        value = self.cleaned_data.get('rotation')
+        if value in (None, ''):
+            return self.instance.rotation if self.instance.pk else 0
+        return int(value)
+
     def clean_feed_url(self):
         return _clean_camera_url(self.cleaned_data.get('feed_url'))
 
@@ -1215,13 +1256,14 @@ class WebcamFeedForm(forms.ModelForm):
 
     class Meta:
         model = WebcamFeed
-        fields = ['name', 'tank', 'feed_url', 'feed_type', 'is_active', 'order', 'timelapse_enabled', 'snapshot_url',
+        fields = ['name', 'tank', 'feed_url', 'feed_type', 'rotation', 'is_active', 'order', 'timelapse_enabled', 'snapshot_url',
                   'timelapse_interval_minutes', 'timelapse_keep_days']
         widgets = {
             'name': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'e.g. Front view'}),
             'tank': forms.Select(attrs={'class': INPUT}),
             'feed_url': forms.TextInput(attrs={'class': INPUT, 'placeholder': 'http://192.168.1.50:1984/api/stream.mjpeg?src=tank'}),
             'feed_type': forms.Select(attrs={'class': INPUT}),
+            'rotation': forms.Select(attrs={'class': INPUT}),
             'is_active': forms.CheckboxInput(attrs={'class': CHECKBOX}),
             'order': forms.NumberInput(attrs={'class': INPUT, 'min': '0'}),
             'timelapse_enabled': forms.CheckboxInput(attrs={'class': CHECKBOX}),

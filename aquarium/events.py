@@ -71,11 +71,12 @@ def collect_conditions(now=None):
         severity = 'critical' if item['critical'] else 'warning'
         event_type = 'parameter.critical' if item['critical'] else 'parameter.out_of_range'
         label = 'critically ' + log.status if item['critical'] else log.status
+        where = f":{item['place_key']}" if item.get('place_key') else ''  # a water level read at a sump, chamber or reservoir
         found.append(_condition(
-            f"param:{param.pk}:{tank_id}:{log.status}:{severity}", event_type, severity,
+            f"param:{param.pk}:{tank_id}{where}:{log.status}:{severity}", event_type, severity,
             f"{prefix}{param.name} is {label}: {log.formatted_value} {param.unit}",
             f"Target range is {param.formatted_min_ideal} to {param.formatted_max_ideal} {param.unit}.",
-            system_id=tank.pk if tank else None, subject=param.name, issue=f"param:{param.pk}:{tank_id}:{log.status}",
+            system_id=tank.pk if tank else None, subject=param.name, issue=f"param:{param.pk}:{tank_id}{where}:{log.status}",
             parameter=param.code, value=float(log.value), unit=param.unit, status=log.status,
             tank=tank.name if tank else None, tank_id=tank.pk if tank else None,
             min_ideal=float(param.min_ideal), max_ideal=float(param.max_ideal),

@@ -43,7 +43,8 @@
     </div>
     <div class="bg-slate-950/60 rounded-xl border border-slate-800/60 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Sump</span>
-      <span class="text-lg font-black text-white" data-tank-sump-gal>{{ tank.sump_gallons|floatformat:"-1" }}</span><span class="text-xs text-slate-400"> gal</span>
+      <span class="text-lg font-black text-white" data-tank-sump-gal>{% if tank.below_sump_gallons is not None and tank.below_sump_gallons != '' %}{{ tank.below_sump_gallons|floatformat:"-1" }}{% else %}{{ tank.sump_gallons|floatformat:"-1" }}{% endif %}</span><span class="text-xs text-slate-400"> gal</span>
+      {% if tank.inside_sump_gallons %}<span class="block text-[10px] text-slate-500">+ {{ tank.inside_sump_gallons|floatformat:"-1" }} gal inside the tank</span>{% endif %}
     </div>
     <div class="bg-slate-950/60 rounded-xl border border-cyan-500/30 px-3 py-2 min-w-0">
       <span class="text-[10px] text-slate-500 uppercase font-semibold block">Total water</span>
@@ -88,12 +89,10 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
         <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Display tank' %}{% icon 'tank' 'w-5 h-5' %} Display tank</h2>
-        <p class="text-xs text-cyan-400 font-semibold">{{ tank.volume_gallons }} gal{% if tank.has_dimensions %} · {{ tank.width|floatformat:"-1" }} × {{ tank.depth|floatformat:"-1" }} × {{ tank.height|floatformat:"-1" }} {{ tank.dimension_unit }}{% endif %}{% if tank.capacity_is_manual %} · manual capacity{% endif %}{% if tank.substrate_type %} · {{ tank.get_substrate_type_display|lower }}{% endif %}{% if tank.live_rock_label %} · {{ tank.live_rock_label }} live rock{% endif %}</p>
+        <p class="text-xs text-cyan-400 font-semibold">{{ tank.volume_gallons }} gal{% if tank.inside_sump_gallons %} ({{ tank.display_water_gallons }} gal in view){% endif %}{% if tank.has_dimensions %} · {{ tank.width|floatformat:"-1" }} × {{ tank.depth|floatformat:"-1" }} × {{ tank.height|floatformat:"-1" }} {{ tank.dimension_unit }}{% endif %}{% if tank.capacity_is_manual %} · manual capacity{% endif %}{% if tank.substrate_type %} · {{ tank.get_substrate_type_display|lower }}{% endif %}{% if tank.live_rock_label %} · {{ tank.live_rock_label }} live rock{% endif %}</p>
+        <div class="mt-1.5">{% include 'aquarium/partials/level_spot.html' with spot=display_level name='the display' %}</div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        {% if departed_count %}
-          <a href="{{ request.path }}{% if not show_departed %}?deceased=1{% endif %}" class="inline-flex items-center gap-1.5 px-2 text-[11px] font-semibold text-slate-400 hover:text-white">{% icon 'headstone' %}{% if show_departed %}Hide deceased{% else %}Show deceased ({{ departed_count }}){% endif %}</a>
-        {% endif %}
         {% url 'tank_edit' tank.id as tank_edit_url %}{% act 'edit' tank_edit_url label='Edit tank' %}
       </div>
     </div>
@@ -136,7 +135,12 @@
         </div>
       </div>
     {% endif %}
-    <p class="text-[10px] text-slate-500">Sorted by livestock category: anything in a coral or anemone category is Coral, cleanup crew and invertebrates are Clean up Crew, and the rest are Fish. <a href="{% url 'groups_manage' %}" class="text-cyan-400 hover:underline">Categories</a></p>
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+      <p class="text-[10px] text-slate-500 min-w-0">Sorted by livestock category: anything in a coral or anemone category is Coral, cleanup crew and invertebrates are Clean up Crew, and the rest are Fish. <a href="{% url 'groups_manage' %}" class="text-cyan-400 hover:underline">Categories</a></p>
+      {% if departed_count %}
+        <a href="{{ request.path }}{% if not show_departed %}?deceased=1{% endif %}" class="shrink-0 self-start sm:self-auto inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white">{% icon 'headstone' %}{% if show_departed %}Hide deceased{% else %}Show deceased ({{ departed_count }}){% endif %}</a>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Flow & turnover -->
@@ -237,9 +241,14 @@
      <div class="flex-1 min-w-0 space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 class="text-base font-bold text-white flex items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Sumps' %}{% icon 'sump' 'w-5 h-5' %} {{ sump.name }}</h2>
+          <h2 class="text-base font-bold text-white flex flex-wrap items-center gap-2">{% include 'aquarium/partials/card_fold.html' with title='Sumps' %}{% icon 'sump' 'w-5 h-5' %} {{ sump.name }}{% if sump.is_inside %} <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-500/15 text-violet-300 border border-violet-500/30">INSIDE THE TANK</span>{% endif %}</h2>
+          {% if sump.is_inside %}
+          <p class="text-xs text-cyan-400 font-semibold"><span data-sump-gal="{{ sump.id }}">{{ sump.volume_gallons }}</span> gal{% if sump.has_dimensions %} · {{ sump.width|floatformat:"-1" }} × {{ sump.depth|floatformat:"-1" }} × {{ sump.height|floatformat:"-1" }} {{ sump.dimension_unit }}{% endif %}{% if sump.capacity_is_manual %} · manual capacity{% endif %} · part of the tank's {{ tank.volume_gallons }} gal, so the display holds {{ tank.display_water_gallons }} gal</p>
+          {% else %}
           <p class="text-xs text-cyan-400 font-semibold"><span data-sump-gal="{{ sump.id }}">{{ sump.volume_gallons }}</span> gal{% if sump.has_dimensions %} · {{ sump.width|floatformat:"-1" }} × {{ sump.depth|floatformat:"-1" }} × {{ sump.height|floatformat:"-1" }} {{ sump.dimension_unit }}{% endif %}{% if sump.capacity_is_manual %} · manual capacity{% endif %} · {% if sump.head_height is not None %}{{ sump.head_height|floatformat:"-1" }} {{ sump.head_height_unit }} head height{% else %}<a href="{% url 'sump_edit' sump.id %}" class="underline">set head height</a>{% endif %}{% if sump.overflow_label %} · {{ sump.overflow_label }}{% endif %}</p>
+          {% endif %}
           {% if sump.notes %}<p class="text-[11px] text-slate-500 mt-0.5">{{ sump.notes }}</p>{% endif %}
+          <div class="mt-1.5">{% include 'aquarium/partials/level_spot.html' with spot=row.level name=sump.name %}</div>
         </div>
         <div class="flex flex-wrap items-center gap-2 min-w-0">
           {% if not row.chambers %}{% include 'aquarium/partials/equipment_picker.html' with picker=row.picker label='Add device' %}{% endif %}
@@ -257,6 +266,7 @@
                 <span class="text-[10px] text-slate-500 block">#{{ c.position }}</span>
                 <span class="text-xs font-bold text-white block leading-tight">{{ c.display_name }}</span>
                 <span class="text-[11px] text-cyan-400 block">{{ c.volume_gallons }} gal · {{ c.share_percent|floatformat:"-1" }}%</span>
+                {% if cr.level %}<div class="mt-1 flex justify-center text-left">{% include 'aquarium/partials/level_spot.html' with spot=cr.level name=c.plain_name %}</div>{% endif %}
               </div>
               {% for eq in cr.equipment %}
                 <div class="mt-1 flex items-center justify-between gap-1 pl-1.5 rounded bg-slate-800 {% if eq.status == 'offline' %}opacity-60{% endif %}">
@@ -302,7 +312,7 @@
     {% endwith %}
   {% empty %}
     <div class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-900 border border-dashed border-slate-800 rounded-2xl">
-      <p class="text-xs text-slate-400"><span class="font-bold text-white">🧫 No sump on this tank.</span> Add one to include its volume in dosing and turnover.</p>
+      <p class="text-xs text-slate-400"><span class="font-bold text-white">🧫 No sump on this tank.</span> Add one to include its volume in dosing and turnover. An all-in-one tank's back chambers go here too: choose <b class="text-slate-300">Inside the main tank</b>.</p>
       {% url 'sump_create' tank.id as sump_add_url %}{% act 'add' sump_add_url label='Add sump' %}
     </div>
   {% endfor %}

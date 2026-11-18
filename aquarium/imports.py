@@ -21,7 +21,7 @@ from django.views.decorators.http import require_POST
 
 from .active import get_active_tank
 from .conversions import convert_value
-from .models import ParameterLog, ParameterType, Tank
+from .models import ParameterLog, ParameterType, Tank, note_level_readings
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_READINGS = 20000
@@ -43,10 +43,12 @@ ALIASES = {
     'phosphates': 'phosphate', 'temp': 'temperature', 'sal': 'salinity', 'salt': 'salinity', 'sg': 'salinity',
     'no2': 'nitrite', 'nh3': 'ammonia', 'nh4': 'ammonia', 'k': 'potassium', 'sr': 'strontium', 'i': 'iodine',
     'fe': 'iron', 'cu': 'copper', 'b': 'boron', 'ph value': 'ph',
+    'level': 'water_level', 'water level': 'water_level', 'water depth': 'water_level', 'depth': 'water_level',
 }
 # Units that mean the same thing, written differently
 SAME_UNIT = {'mg/l': 'ppm', 'mgl': 'ppm', 'µg/l': 'ppb', 'ug/l': 'ppb', '°f': 'f', 'degf': 'f', 'deg f': 'f',
-             '°c': 'c', 'degc': 'c', 'deg c': 'c', 'dkh': 'dkh', 'psu': 'ppt', 'specific gravity': 'sg'}
+             '°c': 'c', 'degc': 'c', 'deg c': 'c', 'dkh': 'dkh', 'psu': 'ppt', 'specific gravity': 'sg',
+             'inch': 'in', 'inches': 'in', '"': 'in', 'centimeters': 'cm', 'millimeters': 'mm'}
 
 SLASH_DATE = re.compile(r'^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})'
                         r'(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]\.?)?)?$')
@@ -406,6 +408,8 @@ def import_confirm_view(request):
     logs = [ParameterLog(tank=r['tank'], parameter_type=r['ptype'], value=r['value'], measured_at=r['when'], notes=r['notes'])
             for r in readings if not r['duplicate']]
     ParameterLog.objects.bulk_create(logs, batch_size=500)
+    if any(log.parameter_type.code == 'water_level' for log in logs):
+        note_level_readings()  # bulk_create skips the save hook that does this
     skipped = len(readings) - len(logs)
     messages.success(request, f"Imported {len(logs)} reading{'' if len(logs) == 1 else 's'} from {stored['file']}."
                      + (f" {skipped} were already there." if skipped else ''))

@@ -18,6 +18,7 @@
     </div>
   </div>
 
+  {% if res.level_spot %}{% include 'aquarium/partials/level_spot.html' with spot=res.level_spot tank=res.tank name=res.name %}{% endif %}
   <p class="text-[11px] text-slate-400">
     {{ res.daily_consumption|floatformat:"-2" }} {{ res.unit }} a day
     {% if res.days_remaining is not None %}· runs out in <span class="font-bold text-white">~{{ res.days_remaining|floatformat:"-1" }} d</span> ({{ res.estimated_empty_date|date:"M j" }}){% else %}· set a daily use to count down{% endif %}

@@ -39,12 +39,19 @@ PARAMETER_UNIT_SUGGESTIONS = {
     'ph': [
         ('pH', 'pH Scale (e.g. 8.20) - default 2 decimals', 2),
     ],
+    'water_level': [
+        ('mm', 'Millimeters (mm, e.g. 190) - default 0 decimals', 0),
+        ('cm', 'Centimeters (cm, e.g. 19.0) - default 1 decimal', 1),
+        ('in', 'Inches (in, e.g. 7.5) - default 1 decimal', 1),
+    ],
 }
 
 _PPT_UNITS = ['ppt', 'psu', 'parts per thousand']
 _SG_UNITS = ['sg', 'specific gravity']
 _MS_UNITS = ['ms/cm', 'ms']
 _MEQ_UNITS = ['meq/l', 'meq']
+# Lengths (water level sensors), as millimeters per unit
+_MM_PER = {'in': 25.4, 'inch': 25.4, 'inches': 25.4, '"': 25.4, 'cm': 10.0, 'mm': 1.0}
 
 
 def convert_value(val_float: float, from_unit: str, to_unit: str, code: str = '') -> float:
@@ -124,6 +131,10 @@ def convert_value(val_float: float, from_unit: str, to_unit: str, code: str = ''
     # 6. ppm <-> mg/L (1:1)
     if (from_u == 'ppm' and to_u == 'mg/l') or (from_u == 'mg/l' and to_u == 'ppm'):
         return val_float
+
+    # 7. Lengths (in <-> cm <-> mm), for water level
+    if from_u in _MM_PER and to_u in _MM_PER:
+        return val_float * _MM_PER[from_u] / _MM_PER[to_u]
 
     # Default fallback: cannot convert automatically, return original
     return val_float

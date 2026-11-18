@@ -1,5 +1,5 @@
 from django.urls import path
-from . import exports, imports, openapi, views, views_tools as tools
+from . import api_tanks, exports, imports, openapi, views, views_tools as tools
 
 urlpatterns = [
     # Dashboard & Parameters
@@ -21,6 +21,10 @@ urlpatterns = [
     # REST API Endpoints
     path('api/parameters/chart-data/', views.api_chart_data, name='api_chart_data'),
     path('api/parameters/chart-data/all/', views.api_all_chart_data, name='api_all_chart_data'),
+    path('api/tanks/', api_tanks.api_tanks, name='api_tanks'),
+    path('api/tanks/<str:identifier>/', api_tanks.api_tank_detail, name='api_tank_detail'),
+    path('api/levels/chart/', views.level_chart_api, name='api_level_chart'),
+    path('levels/log/', views.level_log_view, name='level_log'),
     path('api/parameters/types/', views.api_parameter_types, name='api_parameter_types'),
     path('api/parameters/log/', views.api_parameter_log, name='api_parameter_log'),
     path('api/openapi.json', openapi.openapi_json, name='openapi_json'),
@@ -116,6 +120,7 @@ urlpatterns = [
     path('webcams/add/', views.webcam_create_view, name='webcam_create'),
     path('webcams/<int:cam_id>/edit/', views.webcam_edit_view, name='webcam_edit'),
     path('webcams/<int:cam_id>/delete/', views.webcam_delete_view, name='webcam_delete'),
+    path('webcams/<int:cam_id>/rotate/', views.webcam_rotate_view, name='webcam_rotate'),
 
     # Notifications & Alerts Center
     path('notifications/', views.notifications_view, name='notifications'),

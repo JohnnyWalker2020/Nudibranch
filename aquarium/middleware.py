@@ -13,8 +13,9 @@ PUBLIC_PREFIXES = ('/login/', '/setup/', '/static/', '/admin/', '/app-icon/')
 PUBLIC_PATHS = ('/sw.js', '/favicon.ico', '/manifest.json')
 # This endpoint checks the API key itself.
 KEY_CHECKED_PATHS = ('/api/parameters/log/',)
-# This one also works for a device holding the key.
+# These also work for a device holding the key (/api/tanks/ covers each tank's own page too).
 KEY_ALLOWED_PATHS = ('/api/parameters/types/', '/api/openapi.json')
+KEY_ALLOWED_PREFIXES = ('/api/tanks/', '/api/levels/')
 
 
 def has_valid_api_key(request):
@@ -53,4 +54,5 @@ class LoginRequiredMiddleware:
             return True
         if path.startswith(PUBLIC_PREFIXES):
             return True
-        return path in KEY_ALLOWED_PATHS and has_valid_api_key(request)
+        key_path = path in KEY_ALLOWED_PATHS or path.startswith(KEY_ALLOWED_PREFIXES)
+        return key_path and has_valid_api_key(request)

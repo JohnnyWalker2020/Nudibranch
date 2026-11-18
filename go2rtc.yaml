@@ -1,0 +1,27 @@
+# go2rtc settings, for the optional webcam relay in docker-compose.yml (the go2rtc service).
+#
+# go2rtc picks up a camera's stream on your home network and passes it on, so Nudibranch can show it
+# anywhere through Tailscale, even though the camera itself only answers at home.
+#
+# Everything here is commented out. To use it:
+#   1. Uncomment the go2rtc service in docker-compose.yml.
+#   2. Uncomment "streams:" below and one camera line, with your camera's address.
+#      Give the camera a fixed IP in your router (a DHCP reservation) so the address doesn't change.
+#   3. docker compose up -d
+#   4. Check it at http://127.0.0.1:1984 on this computer: your stream should be listed with a preview.
+#   5. Share it on your Tailscale address (once):  tailscale serve --bg --https=8443 http://127.0.0.1:1984
+#   6. In Nudibranch, Webcams > Add Webcam Feed:
+#        Feed URL:      https://<your-pc>.<your-tailnet>.ts.net:8443/api/stream.mjpeg?src=tank
+#        Type:          MJPEG Stream / Snapshot URL
+#        Snapshot URL:  http://go2rtc:1984/api/frame.jpeg?src=tank   (time-lapse; fetched from inside Docker)
+#      A camera mounted sideways or upside down can be turned with Rotate on the Webcams page.
+#
+# The name before the colon (tank, sump...) is what goes after ?src= in those addresses.
+# More camera types: https://github.com/AlexxIT/go2rtc#configuration
+
+streams:
+  # An old Android phone running the IP Webcam app (Start server shows its address):
+  Main tank: http://192.168.50.244:8080/video
+
+  # An IP camera that speaks RTSP (the user, password and path are in its manual):
+  #sump: rtsp://user:password@192.168.1.51:554/stream1

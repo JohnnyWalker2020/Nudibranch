@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from . import places
 from .active import get_active_tank
 from .models import (
     ANY, ParameterType, DosingReservoir, MaintenanceRoutine, Equipment, Animal, Tank, in_system,
@@ -60,7 +61,7 @@ def compute_alert_state(request=None, tank=ANY):
     out_of_range, stale_params = [], []
     for bucket in (log_buckets() if tank is ANY else [tank]):
         bad, stale = _parameter_problems(bucket, param_types, now)
-        out_of_range += bad
+        out_of_range += bad + places.level_problems(bucket)  # no queries until a level has ever been logged
         stale_params += stale
     out_of_range.sort(key=lambda item: not item['critical'])  # critical first
     critical_params = sum(1 for item in out_of_range if item['critical'])

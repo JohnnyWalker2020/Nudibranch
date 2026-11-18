@@ -19,7 +19,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from . import retire, tank_files, water_quality
+from . import charting, places, retire, tank_files, water_quality
 from .active import default_tank, get_active_tank
 from .alert_history import alert_summary
 from .alerts import compute_alert_state
@@ -101,7 +101,7 @@ def safe_json(value):
 
 def _edit_object(request, model, form_class, pk, *, title, subtitle='', back_url, delete_url=None):
     """Generic edit page used by most models."""
-    obj = get_object_or_404(model, pk=pk)
+    obj = get_object_or_404(model._base_manager.all(), pk=pk)  # the base manager: water levels read at a place too
     next_url = _safe_next(request, back_url)
     if request.method == 'POST':
         form = form_class(request.POST, request.FILES or None, instance=obj)
@@ -372,7 +372,7 @@ def parameter_settings_view(request, param_id):
     effective = old.for_system(tank)
     several_systems = Tank.objects.count() > 1
     suggestions = PARAMETER_UNIT_SUGGESTIONS.get(ptype.code, [])
-    logs_count = old.logs.count()
+    logs_count = ParameterLog.everywhere.filter(parameter_type=old).count()
     range_initial = {field: getattr(effective, field) for field in RANGE_FIELDS}
 
     if request.method == 'POST':
@@ -387,11 +387,11 @@ def parameter_settings_view(request, param_id):
 
             with transaction.atomic():
                 if converting:
-                    logs = list(old.logs.all())
+                    logs = list(ParameterLog.everywhere.filter(parameter_type=old))  # levels read at a place too
                     for log in logs:
                         new_val = convert_value(float(log.value), old_unit, new_unit, code)
                         log.value = Decimal(f"{new_val:.4f}")
-                    ParameterLog.objects.bulk_update(logs, ['value'], batch_size=500)
+                    ParameterLog.everywhere.bulk_update(logs, ["value"], batch_size=500)
                     shared = _converted_ranges(shared, old_unit, new_unit, code)
                     for target in old.targets.all():
                         for field, value in _converted_ranges(_ranges_of(target), old_unit, new_unit, code).items():
@@ -519,7 +519,7 @@ def parameter_icp_remove_view(request, param_id):
     if AppSettings.load().icp_enabled:
         messages.success(request, f"{pt.name} is off your own list, but it still shows while all ICP elements are switched on.")
     else:
-        messages.success(request, f"{pt.name} is off your list. Its {pt.logs.count()} logged tests are kept, and come back if you add it again.")
+        messages.success(request, f"{pt.name} is off your list. Its {ParameterLog.everywhere.filter(parameter_type=pt).count()} logged tests are kept, and come back if you add it again.")
     return redirect('/parameters/')
 
 
@@ -527,7 +527,7 @@ def parameter_type_delete_view(request, param_id):
     pt = get_object_or_404(ParameterType, id=param_id)
     return _delete_object(
         request, ParameterType, param_id, label=pt.name, back_url='/parameters/',
-        warning=f"This also deletes all {pt.logs.count()} logged measurements for {pt.name}.")
+        warning=f"This also deletes all {ParameterLog.everywhere.filter(parameter_type=pt).count()} logged measurements for {pt.name}.")
 
 
 def log_edit_view(request, log_id):
@@ -560,12 +560,9 @@ def api_chart_data(request):
     logs = in_system(ParameterLog.objects.filter(
         parameter_type=ptype,
         measured_at__gte=start_date
-    ), tank).order_by('measured_at')
-
-    local = timezone.localtime
-    labels = [local(log.measured_at).strftime('%m/%d %H:%M') for log in logs]
-    timestamps = [int(log.measured_at.timestamp() * 1000) for log in logs]
-    values = [round(float(log.value), ptype.decimal_places) if ptype.decimal_places > 0 else round(float(log.value)) for log in logs]
+    ), tank)
+    # Sensor readings are averaged into one point a minute unless ?every= asks for something else
+    chart = charting.points(logs, ptype.decimal_places, charting.every_seconds(request))
 
     return JsonResponse({
         'parameter': {
@@ -580,9 +577,7 @@ def api_chart_data(request):
             'formatted_max': ptype.formatted_max_ideal,
             'color': ptype.color,
         },
-        'labels': labels,
-        'timestamps': timestamps,
-        'values': values,
+        **chart,
     })
 
 
@@ -590,15 +585,15 @@ def api_all_chart_data(request):
     """JSON API endpoint returning all parameter datasets for multi-line Chart.js rendering."""
     days = _to_int(request.GET.get('days'), 30, 1, 3650)
     start_date = timezone.now() - timedelta(days=days)
-    local = timezone.localtime
     tank = _chart_tank(request)
 
+    every = charting.every_seconds(request)
     datasets = []
     for base in ParameterType.objects.filter(is_trace=False).prefetch_related('targets'):
         ptype = base.for_system(tank)
-        logs = list(in_system(ParameterLog.objects.filter(
-            parameter_type=ptype, measured_at__gte=start_date), tank).order_by('measured_at'))
-        if not logs:
+        chart = charting.points(in_system(ParameterLog.objects.filter(
+            parameter_type=ptype, measured_at__gte=start_date), tank), ptype.decimal_places, every)
+        if not chart['values']:
             continue
         datasets.append({
             'code': ptype.code,
@@ -609,13 +604,9 @@ def api_all_chart_data(request):
             'max_ideal': float(ptype.max_ideal),
             'low_limit': float(ptype.low_limit) if ptype.low_limit is not None else None,
             'high_limit': float(ptype.high_limit) if ptype.high_limit is not None else None,
-            'labels': [local(log.measured_at).strftime('%m/%d %H:%M') for log in logs],
-            'timestamps': [int(log.measured_at.timestamp() * 1000) for log in logs],
-            'values': [
-                round(float(log.value), ptype.decimal_places) if ptype.decimal_places > 0
-                else round(float(log.value))
-                for log in logs
-            ],
+            'labels': chart['labels'],
+            'timestamps': chart['timestamps'],
+            'values': chart['values'],
         })
 
     return JsonResponse({'datasets': datasets, 'days': days})
@@ -652,10 +643,68 @@ def quick_log_create(request):
     return redirect('dashboard')
 
 
+def level_log_view(request):
+    """Logs a water level at one place from the tank page: the display, a sump, a chamber or a reservoir."""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    tank = get_object_or_404(Tank, pk=_to_int(request.POST.get('tank'), None))
+    back = _safe_next(request, reverse('tank_detail', args=[tank.pk]))
+    level = ParameterType.objects.filter(code=places.LEVEL_CODE).first()
+    value = _to_decimal(request.POST.get('value'))
+    if level is None or value is None or not value.is_finite() or not 0 <= value < 100000:
+        messages.warning(request, "Type the water level as a number.")
+        return redirect(back)
+    unit = (request.POST.get('unit') or level.unit).strip()
+    convert = import_converter(unit, level)
+    if convert is None:
+        messages.warning(request, f"Can't convert {unit} to {level.unit}.")
+        return redirect(back)
+    kind = request.POST.get('kind')
+    try:
+        place = places.resolve({kind: request.POST.get('place')}, tank) if kind in places.PLACE_KEYS else {}
+    except places.PlaceError as problem:
+        messages.warning(request, str(problem))
+        return redirect(back)
+    log = ParameterLog.objects.create(parameter_type=level, tank=tank, value=Decimal(str(round(convert(float(value)), 4))),
+                                      notes=(request.POST.get('notes') or '')[:255], **place)
+    messages.success(request, f"Logged {log.place_label.lower() if not place else log.place_label} water level: "
+                              f"{log.formatted_value} {level.unit}.")
+    return redirect(back + '#' + ('card-display' if not place else f"level-{kind}-{log.place.pk}"))
+
+
+def level_chart_api(request):
+    """GET /api/levels/chart/ - one place's water levels for a chart, one averaged point a minute by default.
+    ?chamber=<id> / ?sump=<id> / ?reservoir=<id>, or ?tank=<id> alone for the display; ?days=1; ?every=60."""
+    level = ParameterType.objects.filter(code=places.LEVEL_CODE).first()
+    if level is None:
+        return JsonResponse({'error': 'There is no water_level test.'}, status=404)
+    tank = _api_tank(request.GET['tank']) if request.GET.get('tank') else None
+    try:
+        place = places.resolve(request.GET, tank)
+    except places.PlaceError as problem:
+        return JsonResponse({'error': str(problem)}, status=400)
+    if place:
+        tank = places.tank_of(place)
+    if tank is None:
+        return JsonResponse({'error': 'Give a tank, or a chamber, sump or reservoir.'}, status=400)
+    days = _to_int(request.GET.get('days'), 1, 1, 3650)
+    readings = ParameterLog.everywhere.filter(parameter_type=level, tank=tank, measured_at__gte=timezone.now() - timedelta(days=days),
+                                              chamber=place.get('chamber'), sump=place.get('sump'), reservoir=place.get('reservoir'))
+    obj = next(iter(place.values()), None)
+    return JsonResponse({
+        'tank': tank.name,
+        'place': {'type': next(iter(place)), 'id': obj.pk, 'name': ParameterLog(tank=tank, **place).place_label} if place else None,
+        'unit': level.unit,
+        'low_mm': float(obj.level_low_mm) if obj is not None and obj.level_low_mm is not None else None,
+        'high_mm': float(obj.level_high_mm) if obj is not None and obj.level_high_mm is not None else None,
+        **charting.points(readings, level.decimal_places, charting.every_seconds(request)),
+    })
+
+
 def delete_log(request, log_id):
     """Delete a log entry (supports HTMX delete)."""
     if request.method in ['POST', 'DELETE']:
-        log = get_object_or_404(ParameterLog, id=log_id)
+        log = get_object_or_404(ParameterLog.everywhere, id=log_id)
         log.delete()
         if getattr(request, 'htmx', False):
             response = HttpResponse("")
@@ -741,6 +790,7 @@ def api_parameter_log(request):
                 'measured_at': request.POST.get('measured_at'),
                 'tank': request.POST.get('tank'),
                 'unit': request.POST.get('unit'),
+                **{key: request.POST.get(key) for key in places.PLACE_KEYS if request.POST.get(key)},
             }
     except Exception as e:
         return JsonResponse({'error': f'Invalid JSON payload: {str(e)}'}, status=400)
@@ -842,13 +892,28 @@ def api_parameter_log(request):
                 errors.append(f"Reading #{index + 1}: Unknown tank '{r.get('tank')}'.")
                 continue
 
+        # A water level can say where it was read: a sump, one of its chambers, or a reservoir. Its tank follows.
+        try:
+            named_tank = tank if (r.get('tank') or (isinstance(payload, dict) and payload.get('tank'))) else None
+            place = places.resolve(r, named_tank)
+        except places.PlaceError as problem:
+            errors.append(f"Reading #{index + 1} ({param_identifier}): {problem}")
+            continue
+        if place and ptype.code != places.LEVEL_CODE:
+            errors.append(f"Reading #{index + 1} ({param_identifier}): only water_level readings can name a "
+                          f"{next(iter(place))}. Other tests are for the tank's water as a whole.")
+            continue
+        if place:
+            tank = places.tank_of(place)
+
         # Create log record
         log = ParameterLog.objects.create(
             parameter_type=ptype,
             tank=tank,
             value=val_decimal,
             notes=notes,
-            measured_at=measured_at
+            measured_at=measured_at,
+            **place,
         )
 
         created_logs.append({
@@ -856,6 +921,7 @@ def api_parameter_log(request):
             'parameter': ptype.name,
             'code': ptype.code,
             'tank': tank.name if tank else None,
+            'place': places.describe(log),
             'value': float(log.value),
             'formatted_value': log.formatted_value,
             'unit': ptype.unit,
@@ -1321,6 +1387,16 @@ def webcam_edit_view(request, cam_id):
                         back_url='/webcams/', delete_url=f'/webcams/{cam_id}/delete/')
 
 
+def webcam_rotate_view(request, cam_id):
+    """The ↻ button: turns a camera's picture a quarter turn clockwise, and back to upright after four."""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    cam = get_object_or_404(WebcamFeed, id=cam_id)
+    cam.rotation = cam.next_rotation
+    cam.save(update_fields=['rotation'])
+    return redirect(_safe_next(request, 'webcams'))
+
+
 def webcam_delete_view(request, cam_id):
     cam = get_object_or_404(WebcamFeed, id=cam_id)
     return _delete_object(request, WebcamFeed, cam_id, label=cam.name, back_url='/webcams/')
@@ -1378,7 +1454,7 @@ def tank_volume_choices(tank):
     if tank is None:
         return None
     return {'id': tank.id, 'name': tank.name, 'display': float(tank.volume_gallons or 0),
-            'sump': round(tank.sump_gallons, 1), 'system': tank.total_system_gallons}
+            'sump': round(tank.below_sump_gallons, 1), 'system': tank.total_system_gallons}
 
 
 def dosing_view(request):
@@ -1639,6 +1715,17 @@ def tank_detail_view(request, tank_id):
         )
     ]
 
+    # Water levels at each place: the display, each sump and chamber, each reservoir
+    levels = places.spots(tank)
+    for row in sumps:
+        row['level'] = places.spot(levels, 'sump', row['sump'])
+        for cr in row['chambers']:
+            cr['level'] = places.spot(levels, 'chamber', cr['chamber'])
+    reservoirs = sorted(DosingReservoir.objects.filter(tank=tank).select_related('tank'),
+                        key=lambda r: (r.reservoir_type != 'ato_freshwater', r.name.lower()))
+    for res in reservoirs:
+        res.level_spot = places.spot(levels, 'reservoir', res)
+
     here = f'tank:{tank.id}'
     first_sump = next(iter(tank.sumps.all()), None)
     filter_home = f'sump:{first_sump.id}' if first_sump else here  # filters usually live in the sump
@@ -1667,8 +1754,8 @@ def tank_detail_view(request, tank_id):
         'filters': [eq for eq in all_equipment if eq.category in FILTER_CATEGORIES],
         'filters_due': sum(1 for eq in all_equipment if eq.category in FILTER_CATEGORIES and eq.is_service_due),
         # Its dosing containers and ATO, the same cards as on Dosing & ATO (ATO first)
-        'reservoirs': sorted(DosingReservoir.objects.filter(tank=tank).select_related('tank'),
-                             key=lambda r: (r.reservoir_type != 'ato_freshwater', r.name.lower())),
+        'reservoirs': reservoirs,
+        'display_level': places.spot(levels, 'display', None),
         'flow_sketch': _flow_sketch(tank, _tank_equipment_flow(tank)),
         'filter_picker': _equipment_picker(everything, filter_home, categories=FILTER_CATEGORIES, tank=tank),
         'livestock_sections': livestock_sections,
@@ -1694,7 +1781,7 @@ def sump_level_view(request, sump_id):
         'fill_percent': float(sump.fill_percent),
         'volume_gallons': float(sump.volume_gallons),
         'moves_volume': sump.level_moves_volume,
-        'sump_gallons': round(tank.sump_gallons, 1),
+        'sump_gallons': round(tank.below_sump_gallons, 1),
         'total_gallons': tank.total_system_gallons,
         'total_liters': tank.total_system_liters,
     })
@@ -1866,7 +1953,7 @@ def tank_delete_view(request, tank_id):
     tank = get_object_or_404(Tank, id=tank_id)
     warning = (f"This also deletes its {tank.sumps.count()} sump(s), {tank.reservoirs.count()} dosing/ATO reservoir(s), "
                f"{tank.routines.count()} routine(s), {tank.water_changes.count()} water change log(s) and "
-               f"{tank.parameter_logs.count()} water test(s). "
+               f"{ParameterLog.everywhere.filter(tank=tank).count()} water test(s). "
                f"{tank.animals.count()} animal(s) and {tank.equipment.count()} equipment item(s) are kept but unassigned.")
     response = _delete_object(request, Tank, tank_id, label=tank.name, back_url='/tanks/', warning=warning)
     if request.method == 'POST':

@@ -23,9 +23,9 @@
   {% endif %}
 
   <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-    <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center">
+    <div class="cam-frame cam-rotate-{{ feed.rotation|default:0 }} relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center">
       {% if frame_count %}
-        <img id="frame" alt="Time-lapse frame" class="w-full h-full object-contain">
+        <img id="frame" alt="Time-lapse frame" class="cam-media w-full h-full object-contain">
         <span id="frame-time" class="absolute top-3 left-3 px-2.5 py-1 bg-slate-950/80 rounded-lg text-[11px] font-bold text-white"></span>
       {% else %}
         <p class="text-xs text-slate-500 p-6 text-center">No frames in this period yet.</p>

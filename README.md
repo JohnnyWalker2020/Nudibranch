@@ -319,7 +319,7 @@ Under **Tools > Backups**, make a zip of your database and photos, download it, 
 Backups are stored in `data/backups` on the same drive as your data, so copy one somewhere else now and then. They don't include your `.env` file.
 
 ### Webcams
-Add MJPEG, snapshot or embedded camera feeds (under **Tools** on a phone), and assign each to a tank or show it on all of them. **Time-lapse** captures frames on a schedule and plays them back in the browser. RTSP cameras need a converter such as [go2rtc](https://github.com/AlexxIT/go2rtc), and an example is commented out in `docker-compose.yml`.
+Add MJPEG, snapshot or embedded camera feeds (under **Tools** on a phone), and assign each to a tank or show it on all of them. **Time-lapse** captures frames on a schedule and plays them back in the browser. RTSP cameras need a converter such as [go2rtc](https://github.com/AlexxIT/go2rtc), and an example is commented out in `docker-compose.yml`. A camera mounted sideways or upside down can be turned with **↻ Rotate** under its picture (a quarter turn each tap) or on its edit page; the live view, the dashboard and the time-lapse all follow. Only the picture in the app turns: the camera itself is left alone.
 
 > ⚠️ **Handle with care.** Some nudibranchs steal stinging cells from the prey they eat and use them for defence. This one is no different: touch it three times and it stings. Mostly your wallet.
 
@@ -409,7 +409,11 @@ You can change measurement units and customize decimal places for any parameter:
     - **Alkalinity**: `dKH` ↔ `meq/L` ↔ `ppm CaCO3`
     - **Phosphate**: `ppm PO4` ↔ `ppb Phosphorus P` (for Hanna HI736 Checkers)
     - **Nitrate**: `ppm` ↔ `ppb`
+    - **Water level**: `in` ↔ `cm` ↔ `mm`
 - **Target ranges** apply to the selected tank, and can differ per tank. Units and decimals are shared by all of them.
+- **Water level** is there for depth and level sensors (ultrasonic, float or pressure), logged like any test and stored in millimeters (readings in inches or cm are converted). It starts with a wide range that flags nothing and has no dashboard card. A level can be read at any place in the system: the display, a sump, any of its chambers, or an ATO or dosing reservoir. Each place shows its newest level and the last day as a small line on the Tank system page, where you can also log one by hand, and each has its own **alert below / above** levels on its edit page (a return chamber dropping means a stuck ATO; one rising means a blocked drain). The display's own range is set on the Water page like any test. Levels read at a place stay off the Water page's charts and dashboard, so a sump at 150 mm and a display at 400 mm never share a line. Until the first level is logged, pages don't look any up.
+- **Sumps inside the tank**: an all-in-one tank's back chambers are a sump set to **Inside the main tank**. Their water is already part of the tank's volume, so they move water from the display's share instead of adding to the total used for dosing; circulation turnover uses the display's share. They skip the overflow and head height questions.
+- **Charts** average readings into one point a minute, so a sensor sending every few seconds still draws a clean line. Add `?every=<seconds>` to the chart APIs for another spacing (`0` for every reading).
 
 ---
 
@@ -421,7 +425,38 @@ You can log parameter readings programmatically via HTTP POST requests from auto
 
 **Reaching the app from a device:** a script on the same computer can use `http://localhost:8000`, and a device running Tailscale can use your `https://` Tailscale address. A device that can't run Tailscale, such as an ESP32, needs `BIND_ADDRESS=0.0.0.0` in `.env`, which opens port 8000 to your whole local network.
 
-### 1. View Available Parameter Types
+### 1. View Your Tanks
+```http
+GET /api/tanks/
+X-API-Key: YOUR-API-KEY
+```
+Lists your current tanks, so a device knows which `id` or `name` to send as `"tank"`. Readings sent without one go to `primary_tank_id`. Archived tanks aren't listed because they don't take new readings.
+
+**Example Response:**
+```json
+{
+  "count": 2,
+  "primary_tank_id": 1,
+  "tanks": [
+    {"id": 1, "name": "Main Display Tank", "is_primary": true, "stage": "cycled", "has_sump": true, "sump_count": 1,
+     "total_gallons": 52.9, "total_liters": 200.2, "living_animals": 14, "url": "http://localhost:8000/api/tanks/1/"},
+    {"id": 2, "name": "Frag Tank", "is_primary": false, "stage": "uncycled", "has_sump": false, "sump_count": 0,
+     "total_gallons": 20.0, "total_liters": 75.7, "living_animals": 3, "url": "http://localhost:8000/api/tanks/2/"}
+  ]
+}
+```
+
+**One tank's whole system:** `GET /api/tanks/<ID or name>/` returns what the Tank system page shows:
+- `water`: display, sumps, plumbing and the total used for dosing.
+- `display`: its size, substrate, live rock and the equipment in it.
+- `sumps`: each sump's size, overflow and head height, and its `chambers` in the order the water flows through them, with each chamber's share, volume and equipment.
+- `plumbing`, `flow` (turnover, with `low`/`ok`/`high`) and `lighting`.
+
+Notes and prices are left out. The API docs page (Settings › Advanced) shows every field, with your own first tank as the example.
+
+---
+
+### 2. View Available Parameter Types
 ```http
 GET /api/parameters/types/
 X-API-Key: YOUR-API-KEY
@@ -446,7 +481,7 @@ Add `?tank=<ID or name>` to get that tank's target ranges. ICP elements are list
 
 ---
 
-### 2. Log a Single Parameter
+### 3. Log a Single Parameter
 ```http
 POST /api/parameters/log/
 Content-Type: application/json
@@ -496,9 +531,17 @@ curl -X POST http://localhost:8000/api/parameters/log/ \
 }
 ```
 
+**A water level sensor** logs the same way. It's stored in mm; send `in` or `cm` as the unit and it's converted (19.0 cm is stored as 190 mm). Say where it was read with `chamber`, `sump` or `reservoir`: an ID from `GET /api/tanks/<ID>/`, or a name only one place has (`"Sump/Return Pump"` for a chamber). The tank follows from the place. With none, it's the display's level:
+```json
+{"parameter": "water_level", "value": 19.0, "unit": "cm", "tank": "Main Display Tank", "notes": "Display level sensor"}
+{"parameter": "water_level", "value": 152, "chamber": 3, "notes": "Return chamber sensor"}
+{"parameter": "water_level", "value": 9.5, "unit": "in", "reservoir": "ATO RO/DI"}
+```
+`GET /api/tanks/<ID>/` shows each place's newest `level` and its `level_targets`. `GET /api/levels/chart/?chamber=3&days=1` gives one place's levels for a chart (`?sump=`, `?reservoir=`, or `?tank=` alone for the display), one averaged point a minute.
+
 ---
 
-### 3. Log Multiple Parameters (Batch)
+### 4. Log Multiple Parameters (Batch)
 You can log multiple readings in a single API call:
 ```json
 {
@@ -525,7 +568,7 @@ curl -X POST http://localhost:8000/api/parameters/log/ \
 
 ---
 
-### 4. Python Integration Example
+### 5. Python Integration Example
 ```python
 import requests
 
@@ -545,7 +588,7 @@ print(response.status_code, response.json())
 
 ---
 
-### 5. Sending the API Key
+### 6. Sending the API Key
 Either of these headers works:
 ```bash
 curl -H "X-API-Key: YOUR-API-KEY" ...

@@ -8,11 +8,11 @@
 
   {% if active_cameras %}
     {% with cam=active_cameras.0 %}
-      <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-slate-800">
+      <div class="cam-frame cam-rotate-{{ cam.rotation|default:0 }} relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-slate-800">
         {% if cam.feed_type == 'mjpeg' %}
-          <img src="{{ cam.feed_url }}" alt="{{ cam.name }}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full text-xs text-slate-500\'>Camera feed unreachable</div>'">
+          <img src="{{ cam.feed_url }}" alt="{{ cam.name }}" class="cam-media w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\'flex items-center justify-center h-full text-xs text-slate-500\'>Camera feed unreachable</div>'">
         {% elif cam.feed_type == 'iframe' %}
-          <iframe src="{{ cam.feed_url }}" class="w-full h-full border-0"></iframe>
+          <iframe src="{{ cam.feed_url }}" class="cam-media w-full h-full border-0"></iframe>
         {% else %}
           <div class="flex flex-col items-center justify-center h-full text-slate-400 p-4 text-center">
             <p class="text-xs font-semibold">{{ cam.name }} ({{ cam.get_feed_type_display }})</p>

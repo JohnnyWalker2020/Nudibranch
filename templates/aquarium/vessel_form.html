@@ -43,6 +43,14 @@
       {% for err in form.name.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}
     </div>
 
+    {% if kind == 'sump' and form.location %}
+      <div class="space-y-1.5">
+        <label for="{{ form.location.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Where it is</label>
+        {{ form.location }}
+        <p class="text-[11px] text-slate-500">{{ form.location.help_text }}. Its water then comes out of the display's share, so dosing still uses the tank's own volume.</p>
+      </div>
+    {% endif %}
+
     {% if kind == 'tank' %}
       <label class="flex items-start gap-3 cursor-pointer">
         <span class="mt-0.5">{{ form.is_primary }}</span>
@@ -124,6 +132,7 @@
     </div>
 
     {% if kind == 'sump' %}
+      <div data-below-only class="space-y-6">
       <!-- Head height -->
       <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
         <label for="{{ form.head_height.id_for_label }}" class="block text-xs font-bold uppercase tracking-wider text-cyan-400">Head height</label>
@@ -142,6 +151,21 @@
         </div>
         <p class="text-[11px] text-slate-500">Where water leaves the display for this sump, seen from the front. It's drawn on the tank page's flow sketch.</p>
       </div>
+      </div>
+
+      {% if form.level_low_mm %}
+      <!-- Water level alerts -->
+      <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
+        <span class="block text-xs font-bold uppercase tracking-wider text-cyan-400">📏 Water level alerts</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label for="{{ form.level_low_mm.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">{{ form.level_low_mm.label }}</label>{{ form.level_low_mm }}
+            {% for err in form.level_low_mm.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}</div>
+          <div><label for="{{ form.level_high_mm.id_for_label }}" class="block text-[11px] text-slate-400 mb-1">{{ form.level_high_mm.label }}</label>{{ form.level_high_mm }}
+            {% for err in form.level_high_mm.errors %}<p class="text-xs text-rose-400">{{ err }}</p>{% endfor %}</div>
+        </div>
+        <p class="text-[11px] text-slate-500">For a level sensor sending readings for the sump as a whole, or ones you log on the tank page. Each chamber has its own, on its edit page. Measure from the bottom of the sump.</p>
+      </div>
+      {% endif %}
     {% endif %}
 
     {% if kind == 'tank' %}
@@ -241,6 +265,14 @@
       });
     }
 
+    // Back chambers inside an all-in-one tank have no overflow pipe or head height to set
+    const where = $('id_location');
+    const belowOnly = document.querySelector('[data-below-only]');
+    if (where && belowOnly) {
+      const show = () => { belowOnly.hidden = where.value === 'inside'; };
+      where.addEventListener('change', show);
+      show();
+    }
   })();
 </script>
 {% if kind == 'sump' and sump %}{% include 'aquarium/partials/sump_chambers_js.html' %}{% endif %}
