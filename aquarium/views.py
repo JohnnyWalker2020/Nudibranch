@@ -172,6 +172,12 @@ def dashboard_view(request):
         if pt.current_log:
             pt.current_log.parameter_type = pt
     layout = get_dashboard_layout()
+    # Other tanks: the card only makes sense with more than one, so it hides itself otherwise
+    from . import request_cache  # the tank menu reads the same list
+    everyone = request_cache.get('all_tanks', lambda: list(Tank.objects.all()))
+    others = sorted((t for t in everyone if not t.is_archived and t.pk != getattr(tank, 'pk', None)), key=lambda t: (t.position, t.pk))
+    if not others:
+        layout = [w for w in layout if w['key'] != 'other_tanks']
     enabled_keys = {w['key'] for w in layout if w['enabled']}
 
     context = {
@@ -210,8 +216,13 @@ def dashboard_view(request):
         context['total_animals'] = active.aggregate(total=Sum('count'))['total'] or 0
         context['groups'] = _groups_with_counts(tank)
         context['featured_animals'] = active[:6]
-    if 'webcam' in enabled_keys:
-        context['active_cameras'] = in_system(WebcamFeed.objects.filter(is_active=True), tank)[:2]
+    if 'other_tanks' in enabled_keys:
+        context['other_tanks'] = [_other_tank_glance(other) for other in others]
+    if 'quick_tasks' in enabled_keys:
+        filters = in_system(Equipment.objects.filter(category='filter').exclude(status='offline'), tank)
+        context['quick_filters'] = list(filters.order_by('name'))
+        context['last_water_change'] = (WaterChangeLog.objects.filter(tank=tank).order_by('-performed_at')
+                                        .values_list('performed_at', flat=True).first() if tank else None)
     if 'reservoirs' in enabled_keys:
         context['reservoirs'] = in_system(DosingReservoir.objects.select_related('tank'), tank)
     if 'tank_summary' in enabled_keys:
@@ -219,6 +230,15 @@ def dashboard_view(request):
         context['tank_summaries'] = [{'tank': t, 'flow': t.flow_summary()} for t in tanks]
 
     return render(request, 'aquarium/dashboard.html', context)
+
+
+def _other_tank_glance(tank):
+    """What the Other tanks card shows for one tank: its alerts and when it was last tested."""
+    state = compute_alert_state(tank=tank)
+    last = ParameterLog.objects.filter(tank=tank).order_by('-measured_at').values_list('measured_at', flat=True).first()
+    return {'tank': tank, 'alerts': state['total_alerts'],
+            'critical': sum(1 for item in state['out_of_range_params'] if item['critical']),
+            'last_test': last, 'health': state['health_score']}
 
 
 @require_POST
@@ -2151,6 +2171,7 @@ def service_equipment_view(request, eq_id):
     eq.last_serviced_date = timezone.localdate()
     eq.status = 'operational'
     eq.save()
+    messages.success(request, f"{eq.name} marked {'cleaned' if eq.category == 'filter' else 'serviced'} today.")
     return redirect(_safe_next(request, 'equipment'))
 
 
@@ -2255,10 +2276,11 @@ def water_change_context(tank):
     for name in ('tank', 'salt_brand', 'notes', 'performed_at'):
         # Menus keep their own arrow; the date box drops the phone's default styling so it fits.
         form.fields[name].widget.attrs['class'] = WC_POPUP_FIELD.replace(' appearance-none', '') if name in ('tank', 'salt_brand') else WC_POPUP_FIELD
+    # The menu's own tanks (current ones, with sumps and plumbing loaded), read once: the menu then reuses this list
+    tanks = form.fields['tank'].queryset
     return {
         'wc_form': form,
-        'wc_tank_volumes': {str(t.pk): t.total_system_gallons
-                            for t in Tank.objects.filter(is_archived=False).prefetch_related('sumps', 'plumbing_runs')},
+        'wc_tank_volumes': {str(t.pk): t.total_system_gallons for t in tanks},
     }
 
 

@@ -30,7 +30,7 @@ from .themes import theme_css
 from .schedule import parse_step
 from . import backups, compatibility, events, fill, planner, power, silly_names, timelapse
 from .models import (
-    DoseLog, PlumbingRun, SumpChamber,
+    DashboardWidget, DoseLog, PlumbingRun, SumpChamber,
     QuickTimer,
     WaterChangeLog,
     AlertRecord, Animal, AnimalGroup, AppSettings, CostEntry, ParameterTarget, DosingReservoir, Equipment, EventState, FillTimer, MaintenanceRoutine,
@@ -6591,6 +6591,149 @@ class WebcamRotationTests(TestCase):
     def test_it_can_be_set_on_the_edit_page(self):
         page = self.client.get(reverse('webcam_edit', args=[self.cam.pk])).content.decode()
         self.assertIn('Quarter turn left (270°)', page)
+
+
+class DashboardCameraCardsTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.frag = Tank.objects.create(name='Frag', volume_gallons=20)
+        self.front = WebcamFeed.objects.create(name='Front', tank=self.main, feed_url='http://cam.local/front.mjpeg', order=1)
+        self.frag_cam = WebcamFeed.objects.create(name='Frag cam', tank=self.frag, feed_url='http://cam.local/frag.mjpeg',
+                                                  order=2, rotation=90)
+        WebcamFeed.objects.create(name='Off', feed_url='http://cam.local/off.mjpeg', is_active=False)
+
+    def page(self):
+        return self.client.get(reverse('dashboard')).content.decode()
+
+    def test_every_active_camera_gets_its_own_card_from_any_tank(self):
+        self.client.post(reverse('system_select'), {'tank': self.main.pk})
+        page = self.page()
+        self.assertIn(f'data-widget="webcam:{self.front.pk}"', page)
+        self.assertIn(f'data-widget="webcam:{self.frag_cam.pk}"', page)  # the other tank's camera too
+        self.assertNotIn('Off', page.split('data-widget="webcam:')[1][:3000])
+        frag_card = page.split(f'data-widget="webcam:{self.frag_cam.pk}"', 1)[1].split('data-widget=', 1)[0]
+        self.assertIn('Frag cam', frag_card)
+        self.assertIn('Frag</span>', frag_card)  # says which tank it is
+        self.assertIn('cam-rotate-90', frag_card)
+
+    def test_cards_can_be_hidden_and_moved_in_customize(self):
+        from .dashboard_widgets import get_dashboard_layout
+        keys = [w['key'] for w in get_dashboard_layout()]
+        front, frag = f'webcam:{self.front.pk}', f'webcam:{self.frag_cam.pk}'
+        order = [frag] + [k for k in keys if k != frag]
+        self.client.post(reverse('dashboard_customize'), {'order': ','.join(order),
+                                                          'enabled': [k for k in keys if k != front]})
+        layout = get_dashboard_layout()
+        self.assertEqual(layout[0]['key'], frag)
+        self.assertFalse(next(w for w in layout if w['key'] == front)['enabled'])
+        self.assertNotIn(f'data-widget="{front}"', self.page())
+
+    def test_the_cameras_own_switch_is_the_same_setting(self):
+        from .dashboard_widgets import camera_shown
+        data = {'name': 'Front', 'tank': self.main.pk, 'feed_url': 'http://cam.local/front.mjpeg', 'feed_type': 'mjpeg',
+                'rotation': 0, 'is_active': 'on', 'order': 1, 'timelapse_interval_minutes': 60, 'timelapse_keep_days': 90,
+                'on_dashboard_shown': '1'}
+        self.client.post(reverse('webcam_edit', args=[self.front.pk]), data)  # box left unticked
+        self.assertFalse(camera_shown(self.front))
+        self.assertNotIn(f'data-widget="webcam:{self.front.pk}"', self.page())
+        self.client.post(reverse('webcam_edit', args=[self.front.pk]), {**data, 'on_dashboard': 'on'})
+        self.assertTrue(camera_shown(self.front))
+        # A form without the switch on it (an older page, a script) leaves the card alone
+        data.pop('on_dashboard_shown')
+        self.client.post(reverse('webcam_edit', args=[self.front.pk]), data)
+        self.assertTrue(camera_shown(self.front))
+        self.assertContains(self.client.get(reverse('webcam_create')), 'Show on the dashboard')
+
+    def test_a_deleted_camera_takes_its_card_with_it(self):
+        from .dashboard_widgets import get_dashboard_layout
+        get_dashboard_layout()
+        self.frag_cam.delete()
+        self.assertNotIn(f'webcam:{self.frag_cam.pk}', [w['key'] for w in get_dashboard_layout()])
+        self.assertFalse(DashboardWidget.objects.filter(key=f'webcam:{self.frag_cam.pk}').exists())
+
+    def test_the_old_single_card_becomes_one_per_camera(self):
+        from importlib import import_module
+        from django.apps import apps
+        DashboardWidget.objects.create(key='webcam', position=70, enabled=False)
+        import_module('aquarium.migrations.0047_camera_dashboard_cards').split_webcam_card(apps, None)
+        rows = dict(DashboardWidget.objects.filter(key__startswith='webcam').values_list('key', 'enabled'))
+        self.assertEqual(rows, {f'webcam:{self.front.pk}': False, f'webcam:{self.frag_cam.pk}': False})
+
+
+class OtherTanksCardTests(TestCase):
+    def test_shows_the_other_tanks_alerts_and_switches_to_them(self):
+        main = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        frag = Tank.objects.create(name='Frag', volume_gallons=20)
+        alk = ParameterType.objects.create(name='Alkalinity', code='alkalinity', unit='dKH', min_ideal=8, max_ideal=9,
+                                           low_limit=7)
+        ParameterLog.objects.create(tank=frag, parameter_type=alk, value=Decimal('6.5'))
+        self.client.post(reverse('system_select'), {'tank': main.pk})
+        card = self.client.get(reverse('dashboard')).content.decode().split('data-widget="other_tanks"', 1)[1]
+        card = card.split('data-widget=', 1)[0].split('<!-- Customize dashboard modal -->', 1)[0]
+        self.assertIn('Frag', card)
+        self.assertNotIn('>Main<', card)
+        self.assertIn('1 critical', card)
+        self.assertIn('tested', card)
+        response = self.client.post(reverse('system_select'), {'tank': frag.pk, 'next': reverse('dashboard')})
+        self.assertRedirects(response, reverse('dashboard'), fetch_redirect_response=False)
+
+    def test_hidden_with_only_one_tank(self):
+        Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.assertNotContains(self.client.get(reverse('dashboard')), 'data-widget="other_tanks"')
+
+
+class QuickTasksCardTests(TestCase):
+    def setUp(self):
+        self.main = Tank.objects.create(name='Main', volume_gallons=40, is_primary=True)
+        self.other = Tank.objects.create(name='Frag', volume_gallons=20)
+
+    def card(self):
+        page = self.client.get(reverse('dashboard')).content.decode()
+        return page.split('data-widget="quick_tasks"', 1)[1].split('data-widget=', 1)[0].split('<!-- Customize dashboard modal -->', 1)[0]
+
+    def test_water_change_and_this_tanks_filters(self):
+        sock = Equipment.objects.create(tank=self.main, name='Filter sock', category='filter', maintenance_interval_days=3,
+                                        last_serviced_date=timezone.localdate() - timedelta(days=5))
+        Equipment.objects.create(tank=self.other, name='Frag sponge', category='filter')
+        Equipment.objects.create(tank=self.main, name='Old mat', category='filter', status='offline')
+        Equipment.objects.create(tank=self.main, name='Return', category='return_pump')
+        WaterChangeLog.objects.create(tank=self.main, gallons=5, performed_at=timezone.now() - timedelta(days=2))
+        card = self.card()
+        self.assertIn("openModal('log-wc-modal')", card)
+        self.assertIn('Last one 2', card)
+        self.assertIn('Clean Filter sock', card)
+        self.assertIn('Due now', card)
+        self.assertIn(reverse('service_equipment', args=[sock.pk]), card)
+        for name in ('Frag sponge', 'Old mat', 'Return'):
+            self.assertNotIn(name, card)
+
+    def test_marking_a_filter_cleaned_returns_to_the_dashboard(self):
+        sock = Equipment.objects.create(tank=self.main, name='Filter sock', category='filter')
+        response = self.client.post(reverse('service_equipment', args=[sock.pk]), {'next': reverse('dashboard')}, follow=True)
+        self.assertRedirects(response, reverse('dashboard'))
+        self.assertContains(response, 'Filter sock marked cleaned today.')
+        sock.refresh_from_db()
+        self.assertEqual(sock.last_serviced_date, timezone.localdate())
+
+    def test_no_filters_points_to_equipment(self):
+        card = self.card()
+        self.assertIn('None logged yet', card)
+        self.assertIn(reverse('equipment'), card)
+
+    def test_top_buttons_are_gone_and_tests_keep_their_card(self):
+        page = self.client.get(reverse('dashboard')).content.decode()
+        header = page.split('class="grid grid-cols-1 lg:grid-cols-2 gap-6"', 1)[0]
+        self.assertNotIn('Quick Add Test', header)
+        self.assertNotIn("openModal('log-wc-modal')", header)
+        self.assertNotIn('quick_measure', self.card())
+        self.assertIn('data-widget="quick_measure"', page)
+
+    def test_existing_layouts_get_it_near_the_top(self):
+        from .dashboard_widgets import get_dashboard_layout, save_dashboard_layout
+        save_dashboard_layout(['alerts', 'water_quality', 'countdown'], ['alerts', 'water_quality', 'countdown'])
+        DashboardWidget.objects.filter(key='quick_tasks').delete()  # a layout saved before the card existed
+        keys = [w['key'] for w in get_dashboard_layout()]
+        self.assertEqual(keys[:3], ['alerts', 'water_quality', 'quick_tasks'])
 
 
 class DeceasedLinkPlacementTests(TestCase):

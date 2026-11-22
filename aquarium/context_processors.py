@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 
+from . import request_cache
 from .active import get_active_tank
 from .alerts import compute_alert_state
 from .forms import QuickParameterLogForm
@@ -73,7 +74,7 @@ def system_processor(request):
         active = get_active_tank(request)
         settings_obj = AppSettings.load()
         systems = []
-        tanks = list(Tank.objects.all())
+        tanks = request_cache.get('all_tanks', lambda: list(Tank.objects.all()))  # shared with the dashboard
         current_count = sum(1 for tank in tanks if not tank.is_archived)
         for tank in tanks:
             # Alerts on other systems stay visible here, so switching away can't hide a problem.

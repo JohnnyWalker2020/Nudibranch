@@ -1238,9 +1238,27 @@ def _clean_camera_url(url):
 
 
 class WebcamFeedForm(forms.ModelForm):
+    on_dashboard = forms.BooleanField(
+        label='Show on the dashboard', required=False,
+        help_text="Gives this camera its own dashboard card, whichever tank you're looking at. Also under Customize on the dashboard",
+        widget=forms.CheckboxInput(attrs={'class': CHECKBOX}))
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['rotation'].required = False  # left out: it keeps its turn, or starts upright
+        from .dashboard_widgets import camera_shown
+        self.fields['on_dashboard'].initial = camera_shown(self.instance) if self.instance.pk else True
+        if self.is_bound and 'on_dashboard_shown' not in self.data:
+            self._dashboard_untouched = True  # an older form or a script: leave the card as it is
+        self.fields['on_dashboard_shown'] = forms.CharField(required=False, initial='1', widget=forms.HiddenInput)
+        self.order_fields(['name', 'tank', 'feed_url', 'feed_type', 'rotation', 'is_active', 'on_dashboard'])
+
+    def save(self, commit=True):
+        camera = super().save(commit=commit)
+        if commit and not getattr(self, '_dashboard_untouched', False):
+            from .dashboard_widgets import set_camera_shown
+            set_camera_shown(camera, bool(self.cleaned_data.get('on_dashboard')))
+        return camera
 
     def clean_rotation(self):
         value = self.cleaned_data.get('rotation')

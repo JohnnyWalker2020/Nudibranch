@@ -1,0 +1,36 @@
+{% comment %}Everyday chores in one tap: log a water change, or mark a filter cleaned. Tests have their own Quick measurements card.{% endcomment %}
+<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm h-full">
+  <div class="flex items-center justify-between gap-3 mb-3">
+    <h3 class="text-base font-bold text-white flex items-center gap-2"><span>✅</span> Quick tasks</h3>
+    <span class="text-[11px] text-slate-500">Chores, done in a tap</span>
+  </div>
+  <div class="space-y-2">
+    <div class="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl">
+      <span class="w-9 h-9 flex items-center justify-center text-xl shrink-0" aria-hidden="true">💧</span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-sm font-bold text-white">Water change</span>
+        <span class="block text-[11px] text-slate-400">{% if last_water_change %}Last one {{ last_water_change|timesince }} ago{% else %}None logged yet{% endif %}</span>
+      </span>
+      <button type="button" onclick="openModal('log-wc-modal')" class="shrink-0 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl active:scale-95 transition-all">Log it</button>
+    </div>
+
+    {% for eq in quick_filters %}
+      <div class="flex items-center gap-3 p-3 bg-slate-950/60 border {% if eq.is_service_due %}border-amber-500/40{% else %}border-slate-800{% endif %} rounded-xl" data-filter="{{ eq.id }}">
+        <span class="w-9 h-9 flex items-center justify-center text-xl shrink-0" aria-hidden="true">🧦</span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-bold text-white truncate">Clean {{ eq.name }}</span>
+          <span class="block text-[11px] text-slate-400">
+            {% if eq.is_service_due %}<b class="text-amber-400">Due now</b>{% elif eq.days_until_service is not None %}Due in ~{{ eq.days_until_service }}d{% else %}Never cleaned{% endif %}{% if eq.last_serviced_date %} · last {{ eq.last_serviced_date|date:"M j" }}{% endif %}
+          </span>
+        </span>
+        <form method="POST" action="{% url 'service_equipment' eq.id %}" class="shrink-0">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{% url 'dashboard' %}">
+          <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs rounded-xl border border-slate-700 active:scale-95 transition-all">✓ Cleaned</button>
+        </form>
+      </div>
+    {% empty %}
+      <p class="p-3 text-[11px] text-slate-500 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">🧦 Add your filter sock, roller mat or sponge as a <b>Filter</b> on the <a href="{% url 'equipment' %}" class="text-cyan-400 hover:underline">Equipment</a> page and it gets a one-tap "cleaned" button here.</p>
+    {% endfor %}
+  </div>
+</div>

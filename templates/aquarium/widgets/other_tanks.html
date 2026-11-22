@@ -1,0 +1,27 @@
+{% comment %}Each other tank at a glance: does it need attention, when was it last tested. Switching to it shows its own dashboard.{% endcomment %}
+<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm h-full">
+  <div class="flex items-center justify-between gap-3 mb-3">
+    <h3 class="text-base font-bold text-white flex items-center gap-2"><span>🗂️</span> Other tanks</h3>
+    <a href="{% url 'tanks' %}" class="text-xs font-semibold text-cyan-400 hover:underline whitespace-nowrap">All tanks →</a>
+  </div>
+  <div class="space-y-2">
+    {% for item in other_tanks %}
+      <form method="POST" action="{% url 'system_select' %}">
+        {% csrf_token %}
+        <input type="hidden" name="tank" value="{{ item.tank.id }}">
+        <input type="hidden" name="next" value="{% url 'dashboard' %}">
+        <button type="submit" title="Switch to {{ item.tank.name }}" class="w-full flex items-center gap-3 p-3 text-left bg-slate-950/60 border {% if item.critical %}border-rose-500/40{% elif item.alerts %}border-amber-500/30{% else %}border-slate-800{% endif %} hover:border-cyan-500/40 rounded-xl transition-colors">
+          {% if item.tank.icon_url %}<img src="{{ item.tank.icon_url }}" alt="" class="w-9 h-9 rounded-lg object-cover shrink-0">{% else %}<span class="w-9 h-9 flex items-center justify-center text-xl shrink-0">🐠</span>{% endif %}
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-bold text-white truncate">{{ item.tank.name }}</span>
+            <span class="block text-[11px] text-slate-400">
+              {% if item.critical %}<b class="text-rose-400">{{ item.critical }} critical</b> · {% endif %}{% if item.alerts %}<b class="text-amber-400">{{ item.alerts }} alert{{ item.alerts|pluralize }}</b>{% else %}<span class="text-emerald-400">All good</span>{% endif %}
+              · {% if item.last_test %}tested {{ item.last_test|timesince }} ago{% else %}no tests yet{% endif %}
+            </span>
+          </span>
+          <span class="shrink-0 text-xs font-semibold text-cyan-400">Switch →</span>
+        </button>
+      </form>
+    {% endfor %}
+  </div>
+</div>

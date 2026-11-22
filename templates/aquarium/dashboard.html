@@ -13,8 +13,6 @@
     <div class="flex flex-wrap items-center gap-2">
       <a href="{% url 'tanks' %}" title="Tank systems" aria-label="Tank systems" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors"><span aria-hidden="true">🏛️</span><span class="hidden sm:inline">Tank systems</span></a>
       <button type="button" onclick="openCustomizeModal()" title="Customize the dashboard" aria-label="Customize" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors"><span aria-hidden="true">🧩</span><span class="hidden sm:inline">Customize</span></button>
-      <button type="button" onclick="openModal('log-wc-modal')" class="pill px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl font-semibold text-xs transition-colors"><span aria-hidden="true">💧</span><span>Water Change</span></button>
-      <button type="button" onclick="openQuickLogModal()" title="Quick Add Test" class="act act-add act-primary">{% icon 'box' 'w-4 h-4' %}<span>Quick Add Test</span></button>
     </div>
   </div>
 
@@ -64,6 +62,7 @@
           </li>
         {% endfor %}
       </ul>
+      <p class="text-[11px] text-slate-500">📹 Each camera gets a card of its own, from any tank. Add cameras on the <a href="{% url 'webcams' %}" class="text-cyan-400 hover:underline">Webcams</a> page.</p>
 
       <!-- Which water test cards show. ICP elements start off. -->
       <input type="hidden" name="cards_shown" value="1">

@@ -237,12 +237,12 @@ Add the `https://` address it shows to `CSRF_TRUSTED_ORIGINS` in `.env` and run 
 ### Dashboard and getting around
 - **On a phone,** the bar at the bottom has Home, Water, Livestock, Tanks and Tools. Calculators, timers, webcams, phone alerts and backups are under Tools.
 - **Water quality rating:** a 0–100 score and grade on the dashboard and Water page, from your latest test of each parameter in the last 30 days against that tank's targets (core parameters count double). It lists what's pulling it down and what hasn't been tested lately. A confidence level (High, Medium or Low) sits under the grade: tests up to 7 days old count fully, then count less until 30 days, and it names the oldest tests to redo. Old tests lower the confidence, not the score. It summarises your own tests; it isn't a lab result.
-- **The dashboard** shows your alerts, timers, a card for each water test, charts, reservoir levels and more. **Quick Add Test** and **Water Change** at the top log either in a couple of taps.
+- **The dashboard** shows your alerts, timers, a card for each water test, charts, reservoir levels and more. The **Quick tasks** card logs a water change or marks a filter cleaned in one tap, and **Quick measurements** (or **Log Test** at the top of every page) logs a test.
 - **Trend arrows:** each water test card shows the change since the test before. Green means it moved toward the ideal range, amber away from it, and grey that it held steady or moved within the range.
-- **Customize** picks which sections show and their order, and under **Water test cards**, which parameters get a card.
+- **Customize** picks which sections show and their order, and under **Water test cards**, which parameters get a card. Each camera gets a dashboard card of its own, from any tank, so you can watch several at once (switch one off here or with **Show on the dashboard** on its edit page). With more than one tank, **Other tanks** shows each of the others: its alerts, when it was last tested, and a tap to switch to it.
 
 ### Multiple tanks
-Pick a tank from the **Tank** menu at the top of any page (beside the logo on a phone). The dashboard, water tests, charts, livestock, equipment, dosing, routines, webcams, alerts and calculators then show just that tank. Your choice is remembered per device, and the menu flags other tanks that have alerts.
+Pick a tank from the **Tank** menu at the top of any page (beside the logo on a phone). The dashboard, water tests, charts, livestock, equipment, dosing, routines, webcams page, alerts and calculators then show just that tank (camera cards on the dashboard show whichever cameras you picked). Your choice is remembered per device, and the menu flags other tanks that have alerts.
 
 - **Sizes shown:** wherever a tank is named, its size is the total water: display, sumps and plumbing. The tank's own page still breaks it down.
 - **Order:** the ↑ and ↓ buttons on the **Tanks** page set the order of the tanks there and in the Tank menu.
@@ -254,7 +254,7 @@ Pick a tank from the **Tank** menu at the top of any page (beside the logo on a 
 
 ### Water quality
 - Log tests by hand or through the [API](#-parameter-logging-rest-api), with charts and optimal and alert ranges. The **Water** page shows your last 10 readings, and **Load more** walks back through the rest.
-- **Quick Add Test** logs a test for the selected tank, or pick another tank in its menu.
+- **Log Test** at the top of every page logs a test for the selected tank, or pick another tank in its menu.
 - **Test reminders:** on a parameter's settings page, set **Remind me to test every N days**. When a test is overdue, **Time to test** shows on the Alerts page and the dashboard, and can notify your phone. (A probe check in hours, under **Phone Alerts**, works the same way.)
 - **ICP elements:** an ICP test is a lab test of a mailed-in water sample that reports 30 or more elements at once. Turn on **Enable ICP elements** under **⚙️ Settings** to add 29 of them, such as boron, iodine, strontium, copper and tin. Until then they don't appear anywhere, unless you add a few on their own: **+ Add a test** on the Water page lists them under **From an ICP test** to tick, with units and target ranges built in. **Take off my list** on an element's settings page hides it again and keeps its tests. Once on, they're listed after your regular tests, chart from the **ICP** menu beside the parameter buttons rather than on the All chart, and get a dashboard card only if you tick it under **Customize > Water test cards** or on the element's settings page. Their ranges are rough, mostly natural seawater levels, and labs set their own, so adjust them to match your lab's report.
 - **Export CSV** on the Water page downloads every test for the selected tank as a spreadsheet file. Add `?tank=all` to the address for every tank. Water changes and doses have their own Export CSV links.

@@ -44,7 +44,14 @@ def compute_alert_state(request=None, tank=ANY):
         if hasattr(request, '_alert_state'):
             return request._alert_state
         tank = get_active_tank(request)
+    elif tank is not ANY and tank is not None:
+        # One tank's alerts, asked for by the tank menu and the Other tanks card alike: worked out once a page view
+        from . import request_cache
+        return request_cache.get(f'alert_state:{tank.pk}', lambda: _compute_alert_state(None, tank))
+    return _compute_alert_state(request, tank)
 
+
+def _compute_alert_state(request, tank):
     if tank is not ANY and tank is not None and tank.is_archived:
         # A retired system is a record of the past. It has nothing to alert about.
         state = {'out_of_range_params': [], 'stale_params': [], 'low_reservoirs': [], 'due_routines': [], 'due_equipment': [],
